@@ -27,3 +27,26 @@ def patch_scipy_interp2d():
         si.interp2d = _Interp2d
         return True
     return False
+
+
+def enable_grad_checkpointing(model):
+    """Recompute each BEiT block of the image encoder in the backward pass instead of storing its
+    activations (attention maps dominate: 24 layers x (channels x images) x 576^2 at 384 px).
+    Gradients are unchanged (RNG state is preserved for drop-path); costs one extra encoder forward."""
+    import torch
+    from torch.utils.checkpoint import checkpoint
+
+    blocks = model.model.image_encoder.backbone.blocks
+    for blk in blocks:
+        if getattr(blk, '_rr_ckpt', False):
+            continue
+        fwd = blk.forward
+
+        def wrapped(x, *args, _fwd=fwd, **kwargs):
+            if torch.is_grad_enabled():
+                return checkpoint(_fwd, x, *args, use_reentrant=False, **kwargs)
+            return _fwd(x, *args, **kwargs)
+
+        blk.forward = wrapped
+        blk._rr_ckpt = True
+    return len(blocks)
