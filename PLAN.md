@@ -572,7 +572,7 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
 
-## 15. Status / handoff (updated Mon 5 Oct, 22:15 KST)
+## 15. Status / handoff (updated Tue 6 Oct, 00:45 KST)
 
 **Done**
 - §13 starter API recorded, including 3 starter bugs and their workarounds.
@@ -587,11 +587,36 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Colab setup cell** (not in the repo): mount Drive; `git clone --depth 1` the starter to `/content/AIC200-Project-StructuredPrediction`; `pip install pytorch_lightning==2.4.0 timm==0.6.13 easydict einops scikit-image pycocotools fastremap numba flow_vis numpy==<current>`; extract `rr_code_<hash>.tar.gz` to `/content/rr`; `tar xf data/floodnet_r768.tar -C /content/rr_data`; `rsync --partial --inplace` the meta-checkpoint to `/content/generalist.ckpt`. About 1.5 min plus about 1 min for the checkpoint.
 
-**Running:** G1 = FloodNet 20-shot s0, 2000 steps, val30 every 250, launched 5 Oct ~22:05 KST:
-`cd /content/rr/src && RR_CODE_VERSION=8f1cb58 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True nohup python finetune.py --dataset floodnet --shot 20 --seed 0 --n_steps 2000 --amp fp16 --grad_ckpt --chunk 6 --channel_chunk 1 > /content/g1.out 2>&1 &`
-ETA ≈ 2.4 h. G1 pass = val30 road_clear IoU ≥ 0.5 and road_flooded ≥ 0.25.
+**G1 result (FloodNet 20-shot s0, 2000 steps, fp16 recipe; finished 6 Oct 00:28 KST, 2 h 20 min on the T4).** Outputs on Drive: `ckpt/floodnet_20shot_s0_stratified.ckpt` (5 MB), `metrics/…json`, `preds/…_floodnet_val_tune30.npz` (fp16 probs + confusion), `logs/…json|.out`, `logs/…_val30_fp32check.out`. val30, τ = 0.5:
 
-**Next:** report G1 and the queue time estimate to Marlen **before** launching more runs. Then the core queue R1–R4, trimmed as needed (R5/R6 dropped unless there is time). Release the GPU when idle.
+| step | road_clear | road_flooded | bldg_flooded | bldg_dry | water | mIoU | drivable P / R | wet IoU |
+|---|---|---|---|---|---|---|---|---|
+| 250 | 0.198 | 0.078 | 0.669 | 0.000 | 0.012 | 0.191 | 0.46 / 0.26 | 0.26 |
+| 500 | 0.171 | 0.117 | 0.656 | 0.000 | 0.397 | 0.268 | 0.51 / 0.21 | 0.47 |
+| 750 | 0.179 | 0.227 | 0.675 | 0.000 | 0.488 | 0.314 | 0.41 / 0.24 | 0.63 |
+| 1000 | 0.270 | 0.339 | 0.669 | 0.016 | 0.445 | 0.348 | 0.52 / 0.36 | 0.65 |
+| 1250 | 0.421 | 0.356 | 0.665 | 0.000 | 0.128 | 0.314 | 0.46 / 0.82 | 0.54 |
+| 1500 | 0.382 | 0.363 | 0.658 | 0.019 | 0.063 | 0.297 | 0.59 / 0.52 | 0.47 |
+| 1750 | **0.520** | **0.301** | 0.647 | 0.000 | 0.477 | **0.389** | 0.64 / 0.73 | 0.68 |
+| 2000 (final) | 0.480 | 0.362 | 0.666 | 0.051 | 0.120 | 0.336 | 0.53 / 0.84 | 0.49 |
+
+- **Gate:** formally a narrow **fail** at the final step (road_clear 0.480 < 0.5; road_flooded 0.362 ≥ 0.25 passes). Step 1750 passed both. Val30 swings a lot between evals (water 0.48 ↔ 0.06–0.13), consistent with a constant lr 1e-3 at gbs 2 and only the final checkpoint being kept.
+- **Final confusion (rows GT, cols pred):** water GT is mostly decoded "other" (1.11 M of 1.82 M px) or road_flooded (0.45 M). Dry buildings go to flooded (136 k of 256 k) or other (102 k); only 16 k are correct. The supports have 4× more flooded- than dry-building pixels (621 k vs 148 k; val30 872 k vs 256 k). 119 k road_flooded GT px are decoded road_clear (unsafe for routing).
+- **τ sweep on the cached probs (CPU):** τ 0.4 gives the best mIoU 0.379 (water 0.36) but road_clear 0.455. No τ lifts road_clear to 0.5.
+- **§0.1 fp16 check: passed.** The same checkpoint evaluated in fp32 (chunk 1/1) agrees within 0.3 IoU points on every channel (road_clear 0.477 vs 0.480, mIoU 0.335 vs 0.336). fp32 inference costs 12.3 s/image vs 5.6.
+- Colab tab disconnects did not stop the runtime: the background process kept running through two "reconnects".
+
+**Queue time estimate (T4, fp16 recipe; train 3.47 s/step; val30 pass ≈ 3 min at 20 shots, ≈ 9 min at 50 shots):**
+- R1 1/5/10-shot, 1000 steps each: ≈ 1.2 h each, 3.5 h total.
+- R2 50-shot, 2000 steps, val every 500: ≈ 2.5 h.
+- R3 20-shot diverse (feature pass + run): ≈ 2.4 h.
+- R4 RescueNet 20/50, 2000 steps (no val split): ≈ 2 h each, 4 h total.
+- eval100 caches for all checkpoints: ≈ 2 h.
+- Full 448-image test for the final 50-shot model: ≈ 2.1 h.
+
+Total ≈ 16.5 GPU-hours sequential on one T4 (≈ 30 compute units at ~1.8 CU/h). Trims: R3 (−2.4 h), full-448 test → eval100 only (−2.1 h), 1000 steps for the 2000-step runs (−~1 h each).
+
+**Next:** Marlen decides how to handle the G1 near-miss and the queue scope **before** any further GPU run.
 
 ## 14. Sources
 - FloodNet: https://github.com/BinaLab/FloodNet-Supervised_v1.0 · paper https://arxiv.org/abs/2012.02951
