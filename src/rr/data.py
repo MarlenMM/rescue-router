@@ -22,7 +22,7 @@ import torch.nn.functional as F
 from PIL import Image
 from torchvision.transforms import ColorJitter
 
-from downstream.custom import CustomDenseDataset
+from downstream.custom import CustomDenseDataset, CustomLearner
 
 N_CH = 5
 OTHER, IGNORE = 254, 255
@@ -87,6 +87,12 @@ class FloodDataset(CustomDenseDataset):
             y, x = best_crop_offset(Y, M, S)
             X, Y, M = (t[:, y:y + S, x:x + S] for t in (X, Y, M))
         return X.contiguous(), Y.contiguous(), M.contiguous()
+
+
+class FloodLearner(CustomLearner):
+    """The starter's loaders build `self.BaseDataset`; `register_custom(dataset_cls=...)` only fills a
+    registry nothing reads, so the dataset must be attached to the learner class itself."""
+    BaseDataset = FloodDataset
 
 
 # ----------------------------------------------------------------------------- run folders
