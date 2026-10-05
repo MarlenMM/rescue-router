@@ -32,7 +32,7 @@ CROP_WEIGHTS = torch.tensor([1.0, 3.0, 3.0, 1.0, 1.0])
 
 def label_to_onehot(lab, n_ch=N_CH):
     """uint8 (H, W) channel-id map -> Y, M float tensors (C, H, W)."""
-    lab = torch.as_tensor(np.asarray(lab, dtype=np.uint8)).long()
+    lab = torch.from_numpy(np.array(lab, dtype=np.uint8)).long()
     Y = torch.stack([(lab == c) for c in range(n_ch)]).float()
     M = (lab != IGNORE).float()[None].expand(n_ch, -1, -1).clone()
     return Y, M
