@@ -38,6 +38,7 @@ def parse():
     ap.add_argument('--lr', type=float, default=1e-3)
     ap.add_argument('--channel_sampling', type=int, default=-1)
     ap.add_argument('--grad_ckpt', action='store_true', help='checkpoint image-encoder blocks (saves memory)')
+    ap.add_argument('--tf32', action='store_true', help='TF32 matmuls (A100/L4 tensor cores; no effect on T4)')
     ap.add_argument('--res', default='r768')
     ap.add_argument('--log_every', type=int, default=50)
     ap.add_argument('--val_every', type=int, default=250)
@@ -120,6 +121,7 @@ def main():
     from dataset.utils import to_device
 
     random.seed(a.seed); np.random.seed(a.seed); torch.manual_seed(a.seed)
+    torch.backends.cuda.matmul.allow_tf32 = torch.backends.cudnn.allow_tf32 = a.tf32
     H, W = {'r768': (576, 768), 'r1024': (768, 1024)}[a.res]
     cfg = su.build_config(stage=1, dataset='custom', n_tasks=5, loss_type='bce', shot=a.shot, eval_shot=a.shot,
                           img_size=384, base_size=[H, W], global_batch_size=a.gbs, n_steps=a.n_steps, lr=a.lr,
