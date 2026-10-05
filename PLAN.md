@@ -616,7 +616,11 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 Total ≈ 16.5 GPU-hours sequential on one T4 (≈ 30 compute units at ~1.8 CU/h). Trims: R3 (−2.4 h), full-448 test → eval100 only (−2.1 h), 1000 steps for the 2000-step runs (−~1 h each).
 
-**Next:** Marlen decides how to handle the G1 near-miss and the queue scope **before** any further GPU run.
+**Compute constraint (6 Oct, 01:00):** Marlen has **no Colab subscription** (free tier, ~0 compute units); Colab estimated ~3 h of GPU use left. The ~14 GPU-h queue cannot run on free Colab. Options: (A) Kaggle Notebooks (free, ~30 GPU-h/week, 2×T4, background sessions; recommended, ~1 h porting); (B) Colab pay-as-you-go (~$10, no porting); (C) a minimal queue on free Colab (5/10/50-shot FloodNet + RescueNet 50-shot), high risk.
+
+**Before any queue launch (decided 6 Oct):** (1) best-val30 checkpoint + lr decay (recipe change → rerun 20-shot first); (2) a resumable queue runner with eval100 caching; (3) a RescueNet val-tune split (30 images outside the supports); (4) GPU smoke tests of 1-shot, 50-shot and RescueNet (`--stop_after`); (5) dry-building check on the G1 cache (per-channel thresholds vs a training change).
+
+**Next:** Marlen picks A, B or C. Meanwhile, the CPU code for (1)–(3).
 
 ## 14. Sources
 - FloodNet: https://github.com/BinaLab/FloodNet-Supervised_v1.0 · paper https://arxiv.org/abs/2012.02951
