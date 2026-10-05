@@ -120,6 +120,6 @@ def read_ids(path):
 
 def load_query(data_root, split, i):
     """(X (3,H,W) float in [0,1], label uint8 (H,W)) for one preprocessed image."""
-    X = torch.from_numpy(np.asarray(Image.open(os.path.join(data_root, split, 'images', f'{i}.jpg')).convert('RGB')))
+    X = torch.from_numpy(np.array(Image.open(os.path.join(data_root, split, 'images', f'{i}.jpg')).convert('RGB')))
     lab = np.asarray(Image.open(os.path.join(data_root, split, 'labels', f'{i}.png')))
     return X.permute(2, 0, 1).float() / 255, lab

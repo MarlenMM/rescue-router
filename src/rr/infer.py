@@ -43,6 +43,9 @@ def tiled_predict(model, X, tile=384, stride=192, batch=6):
     """X: (3, H, W) float [0,1] on CPU -> probabilities (C, H, W) float on CPU.
     Bypasses the learner's postprocess_final so the sigmoid probabilities come back."""
     learner, task = model.learner, model.config.task
+    # trainer.inference tests `X.shape[-2:] != config.img_size`; a list never equals torch.Size, which
+    # would upsample every tile to base_size. A tuple compares correctly, so tiles stay 384x384.
+    model.config.img_size = tuple(model.config.img_size)
     _, H, W = X.shape
     ys, xs = tile_offsets(H, tile, stride), tile_offsets(W, tile, stride)
     offs = [(y, x) for y in ys for x in xs]
