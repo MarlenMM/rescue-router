@@ -37,6 +37,7 @@ def parse():
     ap.add_argument('--gbs', type=int, default=2)
     ap.add_argument('--lr', type=float, default=1e-3)
     ap.add_argument('--channel_sampling', type=int, default=-1)
+    ap.add_argument('--grad_ckpt', action='store_true', help='checkpoint image-encoder blocks (saves memory)')
     ap.add_argument('--res', default='r768')
     ap.add_argument('--log_every', type=int, default=50)
     ap.add_argument('--val_every', type=int, default=250)
@@ -125,6 +126,9 @@ def main():
                           channel_sampling=a.channel_sampling, seed=a.seed, chunk_size=a.chunk,
                           channel_chunk_size=a.channel_chunk)
     model, cfg = su.load_chameleon(cfg, a.mt_ckpt, verbose=False)
+    if a.grad_ckpt:
+        from rr.compat import enable_grad_checkpointing
+        print(f'[{run_id}] gradient checkpointing on {enable_grad_checkpointing(model)} encoder blocks', flush=True)
     optimizer, sched = get_optimizer(cfg, model.model)
     names = set(su.finetuned_parameter_names(model))
 
