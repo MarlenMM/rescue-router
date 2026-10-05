@@ -572,20 +572,32 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
 
-## 15. Status / handoff (updated Tue 6 Oct, 00:45 KST)
+## 15. Status / handoff (updated Tue 6 Oct, 03:30 KST)
 
 **Done**
 - §13 starter API recorded, including 3 starter bugs and their workarounds.
-- §2.1–2.4 data on Drive: preprocessed tars, splits + SHA256SUMS, stratified supports s0–s2, meta/stats. EXIF-180° fix applied to 57 FloodNet images.
-- Meta-checkpoint copied to `MyDrive/AIC200-StructuredPrediction/checkpoints/metatrained/generalist.ckpt`.
-- fp16 mixed precision (`--amp fp16`, commit `54c01ee`) and the fp16 overflow fixes + label-encoder grad ckpt (commit `8f1cb58`). Latest Colab code tarball: `rescue_router/rr_code_8f1cb58.tar.gz` (= `src/` at 8f1cb58).
-- T4 fp16 probe done (§13 "Measured … with fp16").
+- §2.1–2.4 data on Drive: preprocessed tars, splits + SHA256SUMS, stratified supports s0–s2, meta/stats. EXIF-180° fix applied to 57 FloodNet images. The s0 lists, val/eval100 splits and the RescueNet pool are mirrored in the repo (`splits/`, `supports/`; SHA256 verified against Drive).
+- fp16 recipe working on T4 (commits `54c01ee`, `8f1cb58`; §13 "Measured … with fp16"). fp16 vs fp32 eval agrees within 0.3 IoU points (§0.1 check passed).
+- G1 run (old recipe, Colab) done: narrow fail, see below.
+- Queue code (commit `136c2fb`): best-val30 checkpoint + cosine lr in `finetune.py`; `predict.py` skips existing caches; `src/run_queue.py`; `rescuenet_val_tune30` (30 pool images outside the s0 supports, 15 target / 15 non-target, seed 0); Kaggle notebooks in `kaggle/`.
 
-**Compute decision (5 Oct):** Marlen's Colab offers only CPU, T4 and TPU v5e-1. We stay on the **T4**. The TPU port was judged too risky.
+**Compute (6 Oct):** Marlen has **no Colab subscription** (free tier; about 3 h of GPU use left on 6 Oct). All GPU work moved to **Kaggle** (account `marlenmelis`, phone-verified, 30 GPU-h/week, 0 used before this queue). Colab is still usable for short CPU work.
 
-**Chosen recipe (used for ALL runs, so curve points stay comparable):** 384 px, all 5 channels, gbs 2, lr 1e-3, **`--amp fp16 --grad_ckpt`**. This replaces the "fp32" rows of §0.1/§4.1. Inference: fp16. 20-shot uses `--chunk 6 --channel_chunk 1`; 50-shot and above use `--chunk 1 --channel_chunk 1`. Launch with `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`. §0.1 rule applied to fp16: evaluate one checkpoint once with `predict.py --amp none` vs `--amp fp16`; the metrics must agree within ±0.5 IoU.
+**Recipe v2 (used for ALL queue runs; supersedes the "fp32" rows of §0.1/§4.1):** 384 px, all 5 channels, gbs 2, lr 1e-3 with a **cosine schedule**, `--amp fp16 --grad_ckpt`, **the checkpoint with the best val30 mIoU is kept** (val every 250 steps; every 500 at 50 shots). Steps: 1000 for ≤10 shots, 2000 for 20/50. Inference fp16; `--chunk 6 --channel_chunk 1` at ≤20 shots, `--chunk 1 --channel_chunk 1` at 50. G1 (recipe v1: constant lr, final checkpoint) is superseded; its 20-shot point is rerun in the queue.
 
-**Colab setup cell** (not in the repo): mount Drive; `git clone --depth 1` the starter to `/content/AIC200-Project-StructuredPrediction`; `pip install pytorch_lightning==2.4.0 timm==0.6.13 easydict einops scikit-image pycocotools fastremap numba flow_vis numpy==<current>`; extract `rr_code_<hash>.tar.gz` to `/content/rr`; `tar xf data/floodnet_r768.tar -C /content/rr_data`; `rsync --partial --inplace` the meta-checkpoint to `/content/generalist.ckpt`. About 1.5 min plus about 1 min for the checkpoint.
+**Kaggle setup (all from the Mac, no browser needed):**
+- CLI: `~/.venvs/kaggle/bin/kaggle` (venv; auth via `~/.kaggle/access_token`, created by Marlen). Kernel pushes need short paths: `cd` into the folder and use `-p .` (long iCloud/scratchpad paths fail with "File name too long").
+- Notebook output `marlenmelis/rr-fetch-data` (`kaggle/fetch/fetch.py`, CPU, done): `floodnet_r768.tar`, `rescuenet_r768.tar`, `generalist.ckpt` (sizes verified) and `rescuenet_val_tune30.txt`. The Drive tars were link-shared only for this fetch and are **private again**.
+- Private dataset `marlenmelis/rr-code`: `rr_code.tar.gz` = `src/ splits/ supports/ VERSION` at `136c2fb`. After a code change: rebuild the tarball (`git archive HEAD src splits supports` + `VERSION`) and run `kaggle datasets version -p . -m "<msg>"` from its folder.
+- GPU notebook `marlenmelis/rr-gpu-queue` (`kaggle/queue/run_queue_kaggle.py`, machine `NvidiaTeslaT4` = 2× T4, internet on): setup (~8 min), then one `run_queue.py` per GPU (own starter copy each, because the starter writes `data_paths.yaml` into its folder). Prints progress every 10 min. Live log: Chrome → `https://www.kaggle.com/code/marlenmelis/rr-gpu-queue/log`; the rows can be read with JS (`[...document.querySelectorAll('table tr')].map(r => r.innerText)`). Status: `kaggle kernels status marlenmelis/rr-gpu-queue`.
+
+**Running now: the core queue on Kaggle, launched Tue 6 Oct 02:40 KST, ETA 11:30–12:00 KST** (Kaggle session limit 12 h; no new job starts after 9.5 h):
+- GPU 0: FloodNet 1-shot → eval100 cache → 50-shot → cache → 20-shot → cache → 10-shot → cache.
+- GPU 1: RescueNet 20-shot → cache → FloodNet 5-shot → cache → RescueNet 50-shot → cache.
+- Check at 03:30 (0.5 h in): both GPUs training at 3.7–4.1 s/step (10–20 % slower than Colab: the two jobs share 4 CPU cores), peak 10–14 GB. The best-checkpoint code works (FloodNet 1-shot val mIoU 0.151 at step 250). The RescueNet val split works (20-shot step 250: road_clear 0.32, road_blocked 0.00, bldg_intact 0.56, bldg_damaged 0.05, water 0.64, mIoU 0.315).
+- Dropped from the plan: R3 (diverse supports), R5, R6, the full-448 test (eval100 only, unless time is left).
+
+**Collecting results (when `kaggle kernels status` says COMPLETE):** `kaggle kernels output marlenmelis/rr-gpu-queue -p results/kaggle_v2` (into the project folder; `results/` is not tracked by git). Contents: `rr/ckpt/*.ckpt` (best-val checkpoints), `rr/metrics/*.json` (best + final val, and eval100), `rr/preds/*_val_tune30.npz` + `*_test_eval100_fp16.npz` (uint8 probs + confusion), `rr/logs/` (per-run JSON, queue logs). Check `queue_gpu*.log` for FAILED jobs, and any leftover `*_last.pt` (unfinished run → push the notebook again; finished runs are not inside the new session, so either rerun only the missing jobs or attach the previous output).
 
 **G1 result (FloodNet 20-shot s0, 2000 steps, fp16 recipe; finished 6 Oct 00:28 KST, 2 h 20 min on the T4).** Outputs on Drive: `ckpt/floodnet_20shot_s0_stratified.ckpt` (5 MB), `metrics/…json`, `preds/…_floodnet_val_tune30.npz` (fp16 probs + confusion), `logs/…json|.out`, `logs/…_val30_fp32check.out`. val30, τ = 0.5:
 
@@ -606,21 +618,12 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 - **§0.1 fp16 check: passed.** The same checkpoint evaluated in fp32 (chunk 1/1) agrees within 0.3 IoU points on every channel (road_clear 0.477 vs 0.480, mIoU 0.335 vs 0.336). fp32 inference costs 12.3 s/image vs 5.6.
 - Colab tab disconnects did not stop the runtime: the background process kept running through two "reconnects".
 
-**Queue time estimate (T4, fp16 recipe; train 3.47 s/step; val30 pass ≈ 3 min at 20 shots, ≈ 9 min at 50 shots):**
-- R1 1/5/10-shot, 1000 steps each: ≈ 1.2 h each, 3.5 h total.
-- R2 50-shot, 2000 steps, val every 500: ≈ 2.5 h.
-- R3 20-shot diverse (feature pass + run): ≈ 2.4 h.
-- R4 RescueNet 20/50, 2000 steps (no val split): ≈ 2 h each, 4 h total.
-- eval100 caches for all checkpoints: ≈ 2 h.
-- Full 448-image test for the final 50-shot model: ≈ 2.1 h.
-
-Total ≈ 16.5 GPU-hours sequential on one T4 (≈ 30 compute units at ~1.8 CU/h). Trims: R3 (−2.4 h), full-448 test → eval100 only (−2.1 h), 1000 steps for the 2000-step runs (−~1 h each).
-
-**Compute constraint (6 Oct, 01:00):** Marlen has **no Colab subscription** (free tier, ~0 compute units); Colab estimated ~3 h of GPU use left. The ~14 GPU-h queue cannot run on free Colab. Options: (A) Kaggle Notebooks (free, ~30 GPU-h/week, 2×T4, background sessions; recommended, ~1 h porting); (B) Colab pay-as-you-go (~$10, no porting); (C) a minimal queue on free Colab (5/10/50-shot FloodNet + RescueNet 50-shot), high risk.
-
-**Before any queue launch (decided 6 Oct):** (1) best-val30 checkpoint + lr decay (recipe change → rerun 20-shot first); (2) a resumable queue runner with eval100 caching; (3) a RescueNet val-tune split (30 images outside the supports); (4) GPU smoke tests of 1-shot, 50-shot and RescueNet (`--stop_after`); (5) dry-building check on the G1 cache (per-channel thresholds vs a training change).
-
-**Next:** Marlen picks A, B or C. Meanwhile, the CPU code for (1)–(3).
+**Next (in order):**
+1. While the queue runs (CPU/Mac): Track B, `src/router.py` (§6.1: truck/boat Dijkstra on a 4×4-px cell grid, statuses TRUCK/BOAT/ISOLATED) + unit tests on synthetic grids; routing metrics on ground-truth maps (§5.4).
+2. When the queue is done: download the outputs, check the logs, then fill the data-efficiency curve (val30 + eval100) and the per-class table vs PSPNet (§5.2).
+3. Decode tuning on val30 from the caches (CPU): τ per channel, and a dry-building fix (per-channel bias/threshold); apply it to eval100. If dry buildings stay weak, report it as a failure case: the stratified supports have ~4× more flooded than dry building pixels.
+4. Optional, if time and quota allow (latest start Wed afternoon): one ablation run of FloodNet 50-shot with dry buildings up-weighted in the loss, reported next to (not instead of) the main 50-shot model.
+5. Then §10 Tue/Wed: Gradio app, web viewer (`app/` → `docs/`), routing evaluation on predictions, failure analysis, figures, write-up, slides; G3 notebook check on a fresh T4 (Colab free tier is enough for inference, or Kaggle).
 
 ## 14. Sources
 - FloodNet: https://github.com/BinaLab/FloodNet-Supervised_v1.0 · paper https://arxiv.org/abs/2012.02951
