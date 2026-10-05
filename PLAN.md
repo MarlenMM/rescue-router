@@ -319,6 +319,24 @@ Rules:
   4. **Reachability agreement:** % of buildings with the same status.
 - **Ablation:** risk-aware vs plain argmax truck costs.
 
+**Implemented 6 Oct (`src/router.py: route_metrics, summarize_routing`; `src/route_eval.py`).** Definitions as built:
+- Infeasible: the predicted route drives a truck onto GT water, flooded or blocked road, or enters a GT building. A boat over GT dry ground is only charged boat cost.
+- RSV: the share of truck-leg cells that are GT hazard (road_flooded/blocked, water) or building, averaged over routes with a truck leg.
+- Cost ratio: C_G(route_P) / C_G(route_G) over feasible predicted routes to GT-reachable buildings, median. `infeasible_rate` = 1 − (feasible ratios / GT-reachable buildings).
+
+**GT maps, eval100, default router** (`results/routing/gt_*_eval100_off*.json`, not in git). GT-vs-GT agreement is 1.0 (sanity check):
+
+| dataset | router | images with base | TRUCK | BOAT | ISOLATED |
+|---|---|---|---|---|---|
+| FloodNet | off-road ×4 | 100 (all via road or land) | 471 | 144 | 125 |
+| FloodNet | roads only | 92 (39 road, 53 water) | 19 | 165 | 555 |
+| RescueNet | off-road ×4 | 100 | 267 | 5 | 20 |
+| RescueNet | roads only | 76 | 40 | 4 | 196 |
+
+- FloodNet, off-road, by GT building class: flooded buildings split 348 TRUCK / 134 BOAT / 102 ISOLATED, dry buildings 123 / 10 / 23.
+- So a "flooded" label often means water touched the house, while a dry path still reaches its yard.
+- All 125 isolated FloodNet buildings have land in their ring, but that land is cut off by water or buildings.
+
 ---
 
 ## 6. Track B system
@@ -336,6 +354,13 @@ Rules:
 - **Search:** Dijkstra (~55k states, milliseconds). Statuses for all buildings come from 2 multi-source runs.
 - **Visuals:** the road skeleton (skimage) is drawn as an extra layer only.
 - **Tests:** unit tests on synthetic grids with known answers.
+
+**Implemented 6 Oct (`src/router.py`, tests `src/tests/test_router.py`, 14 pass; GT evaluation `src/route_eval.py`).** Differences from the text above:
+- **Off-road truck (new default, `offroad=4`).** The truck may also cross dry "other" land (lawn, trees, background, pools, vehicles) at 4× the road cost. Water, flooded road (RescueNet: blocked road) and buildings still stop it. Why: with roads only (the rule above), the GT maps of FloodNet eval100 leave **555 of 739 buildings ISOLATED** (19 TRUCK, 165 BOAT), because at 768×576 a 4-px cell is ~0.3 m and almost every house sits behind its own yard. Then "stranded" would measure yards, not floods. A wider goal ring does not fix it (ring 12 cells still leaves 345 isolated). `offroad=None` restores the strict rule.
+- **Search:** one multi-source Dijkstra (`scipy.sparse.csgraph`, 2 layers × 27,648 cells) gives every building's status. TRUCK = a ring cell is reachable in the truck layer, BOAT = only in the boat layer.
+- **Base fallbacks:** if no GT clear-road component touches the border, use the largest dry-land component touching the border (truck enters over land), then water (boat).
+- **Grid majority-vote ties** go to the less drivable class (road_clear loses every tie).
+- **Speed:** ~40 ms per image (both maps), ~4 s for eval100.
 
 ### 6.2 Notebook pipeline
 `load_chameleon` → fine-tuned checkpoint → `tiled_predict` → `decode` → `router.status_all` / `router.route(click)` → overlays → metrics.
@@ -572,13 +597,16 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
 
-## 15. Status / handoff (updated Tue 6 Oct, 03:30 KST)
+## 15. Status / handoff (updated Tue 6 Oct, 04:10 KST)
 
 **Done**
 - §13 starter API recorded, including 3 starter bugs and their workarounds.
 - §2.1–2.4 data on Drive: preprocessed tars, splits + SHA256SUMS, stratified supports s0–s2, meta/stats. EXIF-180° fix applied to 57 FloodNet images. The s0 lists, val/eval100 splits and the RescueNet pool are mirrored in the repo (`splits/`, `supports/`; SHA256 verified against Drive).
 - fp16 recipe working on T4 (commits `54c01ee`, `8f1cb58`; §13 "Measured … with fp16"). fp16 vs fp32 eval agrees within 0.3 IoU points (§0.1 check passed).
 - G1 run (old recipe, Colab) done: narrow fail, see below.
+- **Track B router (6 Oct 04:10):** `src/router.py` + 14 unit tests + `src/route_eval.py`. GT routing statistics are in §5.4/§6.1. The default is now the off-road truck (×4); see §6.1 for why. **Marlen: please confirm or veto this change.**
+- **Mac CPU environment:** `~/.venvs/rr` (Python 3.12: numpy, scipy, scikit-image, matplotlib, pillow, pytest). Tests: `~/.venvs/rr/bin/python -m pytest src/tests -q`. The preprocessed data (both r768 tars, extracted) is in `~/rr_data/`, outside iCloud. `kaggle/fetch_output.py` downloads notebook outputs with resume, because the Kaggle CLI's single GET breaks on large files with IncompleteRead. Run it with `~/.venvs/kaggle/bin/python`.
+- CPU scripts ready for when the queue finishes: `src/collect_results.py` (tables + curve), `src/decode_tune.py` (per-channel τ + building vote on val30 → eval100). `rr.metrics.decode` now takes a per-channel τ (candidate if p_c ≥ τ_c, winner = max p_c/τ_c; a scalar τ gives the old rule) and `bldg_t` (one flooded/dry label per predicted building).
 - Queue code (commit `136c2fb`): best-val30 checkpoint + cosine lr in `finetune.py`; `predict.py` skips existing caches; `src/run_queue.py`; `rescuenet_val_tune30` (30 pool images outside the s0 supports, 15 target / 15 non-target, seed 0); Kaggle notebooks in `kaggle/`.
 
 **Compute (6 Oct):** Marlen has **no Colab subscription** (free tier; about 3 h of GPU use left on 6 Oct). All GPU work moved to **Kaggle** (account `marlenmelis`, phone-verified, 30 GPU-h/week, 0 used before this queue). Colab is still usable for short CPU work.
@@ -619,8 +647,8 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 - Colab tab disconnects did not stop the runtime: the background process kept running through two "reconnects".
 
 **Next (in order):**
-1. While the queue runs (CPU/Mac): Track B, `src/router.py` (§6.1: truck/boat Dijkstra on a 4×4-px cell grid, statuses TRUCK/BOAT/ISOLATED) + unit tests on synthetic grids; routing metrics on ground-truth maps (§5.4).
-2. When the queue is done: download the outputs, check the logs, then fill the data-efficiency curve (val30 + eval100) and the per-class table vs PSPNet (§5.2).
+1. ~~Track B router + unit tests + routing metrics on GT maps~~ (done 04:10).
+2. When the queue is done: `~/.venvs/kaggle/bin/python kaggle/fetch_output.py marlenmelis/rr-gpu-queue results/kaggle_v2`, check the logs, then `src/collect_results.py` to fill the data-efficiency curve (val30 + eval100) and the per-class table vs PSPNet (§5.2).
 3. Decode tuning on val30 from the caches (CPU): τ per channel, and a dry-building fix (per-channel bias/threshold); apply it to eval100. If dry buildings stay weak, report it as a failure case: the stratified supports have ~4× more flooded than dry building pixels.
 4. Optional, if time and quota allow (latest start Wed afternoon): one ablation run of FloodNet 50-shot with dry buildings up-weighted in the loss, reported next to (not instead of) the main 50-shot model.
 5. Then §10 Tue/Wed: Gradio app, web viewer (`app/` → `docs/`), routing evaluation on predictions, failure analysis, figures, write-up, slides; G3 notebook check on a fresh T4 (Colab free tier is enough for inference, or Kaggle).
