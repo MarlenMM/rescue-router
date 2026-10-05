@@ -556,6 +556,13 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 - Inference, 20-shot (384 support crops), `chunk_size=1, channel_chunk_size=1`: support encoding 25 s at 5.7 GB peak; tiled prediction **11.2 s/image** (6 tiles × 5 channels) at 6.2 GB peak. Batched (`chunk 6 / channel_chunk 5`): OOM. → The §0.5 T4 notebook path works for inference only: eval100 at 20 shots ≈ 19 min.
 - 50-shot inference and the bigger-GPU numbers: to be measured (`src/probe.py`).
 
+**Measured 5 Oct on a Colab T4 with fp16** (`logs/probe_t4_fp16.json`, code `8f1cb58`, one fresh process per config, 384 px, gbs 2):
+- Plain fp16 autocast gave **NaN loss**. Two overflows (found with forward hooks): (1) the ViT label encoder computes `(q @ kᵀ) * scale`, scaling after the fp16 matmul, so it is NaN from block 0; (2) label-encoder features reach ~1.5e4 and the matching module's `fc_v` overflows (6.5e4 → inf). Fix in `rr/compat.py`: attention logits in fp32 when q/k are fp16, whole matching module in fp32 under fp16 autocast. fp32 runs take the original code. Remaining fp16 max is ~1.5e4 (label encoder), so 4× headroom.
+- Grad ckpt on the image encoder only did not save memory under fp16 (3 ch: 11.7 GB, same as fp32). The label encoder's 24 blocks were also storing activations. `--grad_ckpt` now checkpoints **both encoders (48 blocks)**.
+- **Training, fp16 + gc, all 5 channels: fits, 10.15 GB peak, 3.15 s/step** (probe median; 3.57 s/step in the real run incl. data loading). GradScaler warms up from 65536 to ~1024 (6 skipped steps in the first 50).
+- **Inference fp16, 20-shot:** chunk 6 / channel_chunk 5 OOM. chunk 1/1: 8.1 s/image (fp32 was 11.2), 6.9 GB peak. **chunk 6 / channel_chunk 1: 5.7 s/image, 11.0 GB peak** (support encoding 10 s).
+- **Inference fp16, 50-shot, chunk 1/1: 17.2 s/image, 12.0 GB peak**, support encoding 29 s. → 50-shot runs and caches must use `--chunk 1 --channel_chunk 1`; eval100 at 50 shots ≈ 29 min.
+
 **Starter issues found on the GPU (worked around in `src/`, the vendored starter is untouched):**
 1. `model/transformers/helpers.py::resize_rel_pos_bias` calls `scipy.interpolate.interp2d`, which was removed in SciPy 1.14 (Colab has 1.16), so every img_size ≠ 224 crashed. → `rr/compat.py` shims it with `RectBivariateSpline` (same grid spline; max difference to interp2d's grid path 3.6e-14).
 2. `register_custom(dataset_cls=…)` is never read; the loaders use `CustomLearner.BaseDataset` (= `CustomDenseDataset`). → `rr.data.FloodLearner` sets `BaseDataset = FloodDataset`.
@@ -565,24 +572,26 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
 
-## 15. Status / handoff (updated Mon 5 Oct, 20:30 KST)
+## 15. Status / handoff (updated Mon 5 Oct, 22:15 KST)
 
 **Done**
 - §13 starter API recorded, including 3 starter bugs and their workarounds.
 - §2.1–2.4 data on Drive: preprocessed tars, splits + SHA256SUMS, stratified supports s0–s2, meta/stats. EXIF-180° fix applied to 57 FloodNet images.
 - Meta-checkpoint copied to `MyDrive/AIC200-StructuredPrediction/checkpoints/metatrained/generalist.ckpt`.
-- Code in `src/` (commit `5288189`, private repo github.com/MarlenMM/rescue-router). Latest Colab code tarball: `rescue_router/rr_code_2dfb7ea.tar.gz` on Drive (= `src/` at 2dfb7ea; 5288189 only changed PLAN.md).
-- CPU smoke test passed. T4 probe done (§13 "Measured").
+- fp16 mixed precision (`--amp fp16`, commit `54c01ee`) and the fp16 overflow fixes + label-encoder grad ckpt (commit `8f1cb58`). Latest Colab code tarball: `rescue_router/rr_code_8f1cb58.tar.gz` (= `src/` at 8f1cb58).
+- T4 fp16 probe done (§13 "Measured … with fp16").
 
-**Blocker and decision pending:** Marlen has only **CPU, T4 and TPU v5e-1** on Colab (no L4/A100). On the T4, the plan's recipe (384 px, fp32, 5 channels, gbs 2) OOMs even with gradient checkpointing. 3 channels/step + grad ckpt fits (11.8 GB, 4.3 s/step ≈ 2.4 h per 2000 steps). TPU port (torch_xla) is judged too risky.
+**Compute decision (5 Oct):** Marlen's Colab offers only CPU, T4 and TPU v5e-1. We stay on the **T4**. The TPU port was judged too risky.
 
-**Agreed direction (proposed to Marlen, awaiting "go"):** stay on the T4 and add **fp16 mixed precision** (autocast + GradScaler for training; fp16 autocast for inference, bypassing the `@torch.autocast(float32)` decorator on `trainer.inference` via `type(model).inference.__wrapped__`) together with `--grad_ckpt`. Then:
-1. Probe on T4 (`src/probe.py`, one config per fresh process): fp16 at 5 channels, then 3 channels; inference 20- and 50-shot.
-2. Choose the cheapest config that fits. Order: (a) fp16 + gc, 5 ch; (b) fp16 + gc, channel_sampling 3; (c) C=4 (wet = road_flooded ∪ water) or fewer steps. Apply the §0.1 rule to fp16: one checkpoint evaluated fp16 vs fp32 must agree within ±0.5 IoU.
-3. Launch the G1 run (FloodNet 20-shot s0, 2000 steps, val30 every 250) in the background. G1 pass = val30 road_clear IoU ≥ 0.5 and road_flooded ≥ 0.25. Then the core queue R1–R4, trimmed as needed (R5/R6 dropped unless there is time).
-The chosen recipe is used for **all** runs (curve points must be comparable).
+**Chosen recipe (used for ALL runs, so curve points stay comparable):** 384 px, all 5 channels, gbs 2, lr 1e-3, **`--amp fp16 --grad_ckpt`**. This replaces the "fp32" rows of §0.1/§4.1. Inference: fp16. 20-shot uses `--chunk 6 --channel_chunk 1`; 50-shot and above use `--chunk 1 --channel_chunk 1`. Launch with `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`. §0.1 rule applied to fp16: evaluate one checkpoint once with `predict.py --amp none` vs `--amp fp16`; the metrics must agree within ±0.5 IoU.
 
-**Next code to write (CPU, before any GPU):** `--amp fp16` in `src/finetune.py` (autocast, GradScaler, scaler state saved in `_last.pt`), an `amp` option in `rr/infer.py` (`encode_support`, `tiled_predict`) and `src/predict.py`, and an `fp16` flag in `src/probe.py`. Then commit, upload a new `rr_code_<hash>.tar.gz` to Drive, and update the setup cell's `CODE` name.
+**Colab setup cell** (not in the repo): mount Drive; `git clone --depth 1` the starter to `/content/AIC200-Project-StructuredPrediction`; `pip install pytorch_lightning==2.4.0 timm==0.6.13 easydict einops scikit-image pycocotools fastremap numba flow_vis numpy==<current>`; extract `rr_code_<hash>.tar.gz` to `/content/rr`; `tar xf data/floodnet_r768.tar -C /content/rr_data`; `rsync --partial --inplace` the meta-checkpoint to `/content/generalist.ckpt`. About 1.5 min plus about 1 min for the checkpoint.
+
+**Running:** G1 = FloodNet 20-shot s0, 2000 steps, val30 every 250, launched 5 Oct ~22:05 KST:
+`cd /content/rr/src && RR_CODE_VERSION=8f1cb58 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True nohup python finetune.py --dataset floodnet --shot 20 --seed 0 --n_steps 2000 --amp fp16 --grad_ckpt --chunk 6 --channel_chunk 1 > /content/g1.out 2>&1 &`
+ETA ≈ 2.4 h. G1 pass = val30 road_clear IoU ≥ 0.5 and road_flooded ≥ 0.25.
+
+**Next:** report G1 and the queue time estimate to Marlen **before** launching more runs. Then the core queue R1–R4, trimmed as needed (R5/R6 dropped unless there is time). Release the GPU when idle.
 
 ## 14. Sources
 - FloodNet: https://github.com/BinaLab/FloodNet-Supervised_v1.0 · paper https://arxiv.org/abs/2012.02951
