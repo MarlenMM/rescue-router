@@ -2,9 +2,10 @@
 
     python src/finetune.py --dataset floodnet --shot 20 --seed 0 --n_steps 2000
 
-Writes to <drive>/:  ckpt/<run_id>.ckpt (starter format, ~20 MB), ckpt/<run_id>_last.pt (resume
-state), metrics/<run_id>.json (final val metrics), logs/<run_id>.json (config, GPU, timings,
-loss every 50 steps, val history), preds/<run_id>_val.npz (uint8 val probabilities, final step).
+Writes to <drive>/:  ckpt/<run_id>.ckpt (starter format, ~5 MB; the checkpoint with the best val
+mIoU), ckpt/<run_id>_last.pt (resume state), metrics/<run_id>.json (val metrics of the best step),
+logs/<run_id>.json (config, GPU, timings, loss every 50 steps, val history), preds/<run_id>_<val>.npz
+(uint8 val probabilities + confusion of the best step).
 A run whose .ckpt and metrics .json both exist is skipped. Interrupted runs resume from _last.pt.
 
 --amp fp16: forward + loss under fp16 autocast with a GradScaler (trainable params stay fp32; the
@@ -40,6 +41,7 @@ def parse():
     ap.add_argument('--n_steps', type=int, default=2000)
     ap.add_argument('--gbs', type=int, default=2)
     ap.add_argument('--lr', type=float, default=1e-3)
+    ap.add_argument('--lr_schedule', default='cos', choices=['constant', 'cos', 'poly'])
     ap.add_argument('--channel_sampling', type=int, default=-1)
     ap.add_argument('--grad_ckpt', action='store_true', help='checkpoint image-encoder blocks (saves memory)')
     ap.add_argument('--tf32', action='store_true', help='TF32 matmuls (A100/L4 tensor cores; no effect on T4)')
@@ -48,7 +50,7 @@ def parse():
     ap.add_argument('--log_every', type=int, default=50)
     ap.add_argument('--val_every', type=int, default=250)
     ap.add_argument('--ckpt_every', type=int, default=500)
-    ap.add_argument('--val_split', default=None, help='split file for validation (default: floodnet_val_tune30)')
+    ap.add_argument('--val_split', default=None, help='split file for validation (default: <dataset>_val_tune30)')
     ap.add_argument('--chunk', type=int, default=6, help='query tiles per forward at eval')
     ap.add_argument('--channel_chunk', type=int, default=5)
     ap.add_argument('--stop_after', type=int, default=0, help='exit after this many steps (timing test)')
@@ -77,7 +79,7 @@ def setup_chameleon(chameleon_dir, run_root):
     return su
 
 
-def evaluate(model, data_root, split, ids, names, wet, tau=0.5, keep_probs=False, amp='none'):
+def evaluate(model, data_root, split, ids, names, wet, tau=0.5, keep_probs=True, amp='none'):
     from rr.data import load_query
     from rr.infer import encode_support, tiled_predict
     from rr.metrics import confusion, decode, gt_classes, summarize
@@ -118,7 +120,7 @@ def main():
 
     data_root = os.path.join(a.data, f'{a.dataset}_{a.res}')
     supports = read_ids(os.path.join(a.drive, 'supports', f'{a.dataset}_{a.sel}_s{a.seed}.txt'))[:a.shot]
-    val_file = a.val_split or ('floodnet_val_tune30' if a.dataset == 'floodnet' else None)
+    val_file = a.val_split or f'{a.dataset}_val_tune30'
     val_ids = read_ids(os.path.join(a.drive, 'splits', f'{val_file}.txt')) if val_file else []
     val_split = 'val'
     run_root = build_run_folder(os.path.join(a.runs, run_id), data_root, supports,
@@ -132,6 +134,7 @@ def main():
     H, W = {'r768': (576, 768), 'r1024': (768, 1024)}[a.res]
     cfg = su.build_config(stage=1, dataset='custom', n_tasks=5, loss_type='bce', shot=a.shot, eval_shot=a.shot,
                           img_size=384, base_size=[H, W], global_batch_size=a.gbs, n_steps=a.n_steps, lr=a.lr,
+                          lr_schedule=a.lr_schedule,
                           channel_sampling=a.channel_sampling, seed=a.seed, chunk_size=a.chunk,
                           channel_chunk_size=a.channel_chunk)
     model, cfg = su.load_chameleon(cfg, a.mt_ckpt, verbose=False)
@@ -213,24 +216,29 @@ def main():
         last = done == a.n_steps
         if val_ids and (done % a.val_every == 0 or last):
             res, cm, probs = evaluate(model, data_root, val_split, val_ids, NAMES[a.dataset], WET[a.dataset],
-                                      keep_probs=last, amp=a.amp)
+                                      amp=a.amp)
             res['step'] = done
             log['val'].append(res)
             log['timing']['eval_s_per_image'] = res['s_per_image']
             log['timing']['support_encode_s'] = res['support_encode_s']
             print(f'[{run_id}] VAL step {done}: ' + ' '.join(f'{k}={v:.3f}' for k, v in res.items()
                                                              if k.startswith('iou') or k == 'miou'), flush=True)
-            if last:
+            if res['miou'] > log.get('best', {}).get('miou', -1):     # keep the best-val checkpoint
+                log['best'] = dict(res)
+                su.save_finetuned(model, f_ckpt)
                 np.savez_compressed(os.path.join(a.drive, 'preds', f'{run_id}_{val_file}.npz'),
-                                    probs=np.stack(probs), ids=np.array(val_ids), cm=cm)
+                                    probs=np.stack(probs), ids=np.array(val_ids), cm=cm, step=done)
+                print(f'[{run_id}] new best val mIoU {res["miou"]:.3f} at step {done}', flush=True)
             write_log()
             t_win = time.time()
         if done % a.ckpt_every == 0 and not last:
             save_last(done)
 
-    su.save_finetuned(model, f_ckpt)
-    final = log['val'][-1] if log['val'] else {}
-    json.dump(dict(run_id=run_id, split=val_file, tau=0.5, **final), open(f_metrics, 'w'), indent=1)
+    if not val_ids:
+        su.save_finetuned(model, f_ckpt)
+    best = log.get('best', {})
+    json.dump(dict(run_id=run_id, split=val_file, tau=0.5, best_step=best.get('step'), **best,
+                   final=log['val'][-1] if log['val'] else {}), open(f_metrics, 'w'), indent=1)
     log['finished'] = time.strftime('%Y-%m-%d %H:%M:%S')
     write_log()
     if os.path.exists(f_last):

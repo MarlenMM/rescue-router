@@ -34,6 +34,7 @@ def main():
     ap.add_argument('--tau', type=float, default=0.5)
     ap.add_argument('--limit', type=int, default=0)
     ap.add_argument('--no_save', action='store_true')
+    ap.add_argument('--force', action='store_true', help='recompute even if the cache exists')
     ap.add_argument('--chunk', type=int, default=6)
     ap.add_argument('--channel_chunk', type=int, default=5)
     ap.add_argument('--amp', default='none', choices=['none', 'fp16'])
@@ -51,6 +52,11 @@ def main():
     ck = torch.load(a.ckpt, map_location='cpu', weights_only=False)['hyper_parameters']['config']
     shot = a.eval_shot or ck.shot
     run_id = os.path.splitext(os.path.basename(a.ckpt))[0]
+    tag = f'{run_id}_{a.split_file}' + ('' if shot == ck.shot else f'_es{shot}') + (f'_n{a.limit}' if a.limit else '') \
+        + ('' if a.amp == 'none' else f'_{a.amp}')
+    if not (a.no_save or a.force) and os.path.exists(os.path.join(a.drive, 'preds', f'{tag}.npz')):
+        print(f'[{tag}] cached already, skipping')
+        return
     seed, sel = ck.seed, run_id.split('_')[3] if len(run_id.split('_')) > 3 else 'stratified'
     sup_file = a.support_file or os.path.join(a.drive, 'supports', f'{a.dataset}_{sel}_s{seed}.txt')
     supports = read_ids(sup_file)[:shot]
@@ -86,8 +92,6 @@ def main():
                gpu=torch.cuda.get_device_name(0))
     print(json.dumps(res, indent=1), flush=True)
     if not a.no_save:
-        tag = f'{run_id}_{a.split_file}' + ('' if shot == ck.shot else f'_es{shot}') + (f'_n{a.limit}' if a.limit else '') \
-            + ('' if a.amp == 'none' else f'_{a.amp}')
         os.makedirs(os.path.join(a.drive, 'preds'), exist_ok=True)
         os.makedirs(os.path.join(a.drive, 'metrics'), exist_ok=True)
         np.savez_compressed(os.path.join(a.drive, 'preds', f'{tag}.npz'), probs=np.stack(probs), ids=np.array(ids), cm=cm)
