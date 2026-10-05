@@ -551,7 +551,15 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 - **Our copy:** Marlen's MyDrive had no shortcut, so the meta-checkpoint was copied server-side (Drive connector) to `MyDrive/AIC200-StructuredPrediction/checkpoints/metatrained/generalist.ckpt` (file id `1AwUEMbTfNX17ZUTv73GDKKY2RLv6UnQD`). `su.find_meta_trained(CHECKPOINT_ROOT)` works unchanged with the starter's paths. Fine-tuned task checkpoints and demo data were not copied (not needed). `MyDrive/AIC200-Project-StructuredPrediction` is just a code copy.
 - Demo data: `.../AIC200-StructuredPrediction/demo_data/<dataset>/{images,labels}`. Our writable dir: `MyDrive/AIC200-my_work/`.
 
-**Measured** (GPU step, not yet run): GPU, s per 50 steps, s per image (20-shot and 50-shot): _TBD at §4.4_.
+**Measured 5 Oct on a Colab T4** (`logs/probe_t4.json`; each config in a fresh process, 384 px, fp32, gbs 2):
+- Training, all 5 channels: **OOM**. With 3 or 2 channels per step: OOM. With gradient checkpointing of the 24 BEiT blocks (`--grad_ckpt`): 5 channels OOM; **3 channels fit, 11.8 GB peak, 4.3 s/step** (2000 steps ≈ 2.4 h). → The T4 cannot run the planned recipe. Training moves to an A100 (preferred) or L4, per §0.1/§0.2.
+- Inference, 20-shot (384 support crops), `chunk_size=1, channel_chunk_size=1`: support encoding 25 s at 5.7 GB peak; tiled prediction **11.2 s/image** (6 tiles × 5 channels) at 6.2 GB peak. Batched (`chunk 6 / channel_chunk 5`): OOM. → The §0.5 T4 notebook path works for inference only: eval100 at 20 shots ≈ 19 min.
+- 50-shot inference and the bigger-GPU numbers: to be measured (`src/probe.py`).
+
+**Starter issues found on the GPU (worked around in `src/`, the vendored starter is untouched):**
+1. `model/transformers/helpers.py::resize_rel_pos_bias` calls `scipy.interpolate.interp2d`, which was removed in SciPy 1.14 (Colab has 1.16), so every img_size ≠ 224 crashed. → `rr/compat.py` shims it with `RectBivariateSpline` (same grid spline; max difference to interp2d's grid path 3.6e-14).
+2. `register_custom(dataset_cls=…)` is never read; the loaders use `CustomLearner.BaseDataset` (= `CustomDenseDataset`). → `rr.data.FloodLearner` sets `BaseDataset = FloodDataset`.
+3. `trainer.inference` tests `X.shape[-2:] != config.img_size` (torch.Size vs list, always unequal), so even 384 inputs are upsampled to `base_size`. → `tiled_predict` stores `img_size` as a tuple.
 
 **Implemented 5 Oct (commit `df79806`, private repo github.com/MarlenMM/rescue-router; code reaches Colab as `rescue_router/rr_code_<hash>.tar.gz` on Drive because a private repo cannot be cloned without a token):** `src/rr/data.py` (`FloodDataset`: training crop side 320–480 px → 384, i.e. scale 0.8–1.2 around the inference scale, h/v flip, rot90, brightness/contrast 0.2, no hue; support = best 384 window by channel coverage), `src/rr/infer.py` (`encode_support`, `tiled_predict`: 6 tiles at 768×576, 15 at 1024×768, σ = 96), `src/rr/metrics.py`, `src/finetune.py` (resumable run, val30 every 250 steps, `_last.pt` every 500, logs/metrics/preds on Drive), `src/predict.py` (stage-2 caches). CPU smoke test on synthetic data passed against the real starter code (config, crops, support crops, loader, tiles, metrics).
 
