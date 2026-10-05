@@ -565,6 +565,25 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
 
+## 15. Status / handoff (updated Mon 5 Oct, 20:30 KST)
+
+**Done**
+- §13 starter API recorded, including 3 starter bugs and their workarounds.
+- §2.1–2.4 data on Drive: preprocessed tars, splits + SHA256SUMS, stratified supports s0–s2, meta/stats. EXIF-180° fix applied to 57 FloodNet images.
+- Meta-checkpoint copied to `MyDrive/AIC200-StructuredPrediction/checkpoints/metatrained/generalist.ckpt`.
+- Code in `src/` (commit `5288189`, private repo github.com/MarlenMM/rescue-router). Latest Colab code tarball: `rescue_router/rr_code_2dfb7ea.tar.gz` on Drive (= `src/` at 2dfb7ea; 5288189 only changed PLAN.md).
+- CPU smoke test passed. T4 probe done (§13 "Measured").
+
+**Blocker and decision pending:** Marlen has only **CPU, T4 and TPU v5e-1** on Colab (no L4/A100). On the T4, the plan's recipe (384 px, fp32, 5 channels, gbs 2) OOMs even with gradient checkpointing. 3 channels/step + grad ckpt fits (11.8 GB, 4.3 s/step ≈ 2.4 h per 2000 steps). TPU port (torch_xla) is judged too risky.
+
+**Agreed direction (proposed to Marlen, awaiting "go"):** stay on the T4 and add **fp16 mixed precision** (autocast + GradScaler for training; fp16 autocast for inference, bypassing the `@torch.autocast(float32)` decorator on `trainer.inference` via `type(model).inference.__wrapped__`) together with `--grad_ckpt`. Then:
+1. Probe on T4 (`src/probe.py`, one config per fresh process): fp16 at 5 channels, then 3 channels; inference 20- and 50-shot.
+2. Choose the cheapest config that fits. Order: (a) fp16 + gc, 5 ch; (b) fp16 + gc, channel_sampling 3; (c) C=4 (wet = road_flooded ∪ water) or fewer steps. Apply the §0.1 rule to fp16: one checkpoint evaluated fp16 vs fp32 must agree within ±0.5 IoU.
+3. Launch the G1 run (FloodNet 20-shot s0, 2000 steps, val30 every 250) in the background. G1 pass = val30 road_clear IoU ≥ 0.5 and road_flooded ≥ 0.25. Then the core queue R1–R4, trimmed as needed (R5/R6 dropped unless there is time).
+The chosen recipe is used for **all** runs (curve points must be comparable).
+
+**Next code to write (CPU, before any GPU):** `--amp fp16` in `src/finetune.py` (autocast, GradScaler, scaler state saved in `_last.pt`), an `amp` option in `rr/infer.py` (`encode_support`, `tiled_predict`) and `src/predict.py`, and an `fp16` flag in `src/probe.py`. Then commit, upload a new `rr_code_<hash>.tar.gz` to Drive, and update the setup cell's `CODE` name.
+
 ## 14. Sources
 - FloodNet: https://github.com/BinaLab/FloodNet-Supervised_v1.0 · paper https://arxiv.org/abs/2012.02951
 - RescueNet: https://github.com/BinaLab/RescueNet-A-High-Resolution-Post-Disaster-UAV-Dataset-for-Semantic-Segmentation · https://www.nature.com/articles/s41597-023-02799-4 · https://springernature.figshare.com/collections/RescueNet_A_High_Resolution_UAV_Semantic_Segmentation_Benchmark_Dataset_for_Natural_Disaster_Damage_Assessment/6647354/1 · https://huggingface.co/datasets/isp-uv-es/rescuenet-taco
