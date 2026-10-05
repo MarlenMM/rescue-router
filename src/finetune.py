@@ -59,7 +59,10 @@ def setup_chameleon(chameleon_dir, run_root):
     os.chdir(chameleon_dir)
     import starter_utils as su
     from downstream.custom import CustomLearner, register_custom
+    from rr.compat import patch_scipy_interp2d
     from rr.data import FloodDataset
+    if patch_scipy_interp2d():
+        print('patched scipy.interpolate.interp2d -> RectBivariateSpline (SciPy >= 1.14)', flush=True)
     register_custom(dataset_cls=FloodDataset, learner_cls=CustomLearner, n_tasks=5)
     su.write_data_paths('/content/unused_demo_data', extra={'custom': run_root}, chameleon_root=chameleon_dir)
     return su
