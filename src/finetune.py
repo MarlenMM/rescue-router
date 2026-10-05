@@ -6,9 +6,13 @@ Writes to <drive>/:  ckpt/<run_id>.ckpt (starter format, ~20 MB), ckpt/<run_id>_
 state), metrics/<run_id>.json (final val metrics), logs/<run_id>.json (config, GPU, timings,
 loss every 50 steps, val history), preds/<run_id>_val.npz (uint8 val probabilities, final step).
 A run whose .ckpt and metrics .json both exist is skipped. Interrupted runs resume from _last.pt.
+
+--amp fp16: forward + loss under fp16 autocast with a GradScaler (trainable params stay fp32; the
+scaler state is part of _last.pt), and the val inference runs in fp16 too (rr.infer).
 """
 
 import argparse
+import contextlib
 import json
 import os
 import random
@@ -39,6 +43,7 @@ def parse():
     ap.add_argument('--channel_sampling', type=int, default=-1)
     ap.add_argument('--grad_ckpt', action='store_true', help='checkpoint image-encoder blocks (saves memory)')
     ap.add_argument('--tf32', action='store_true', help='TF32 matmuls (A100/L4 tensor cores; no effect on T4)')
+    ap.add_argument('--amp', default='none', choices=['none', 'fp16'], help='mixed precision (fp16 + GradScaler)')
     ap.add_argument('--res', default='r768')
     ap.add_argument('--log_every', type=int, default=50)
     ap.add_argument('--val_every', type=int, default=250)
@@ -70,17 +75,17 @@ def setup_chameleon(chameleon_dir, run_root):
     return su
 
 
-def evaluate(model, data_root, split, ids, names, wet, tau=0.5, keep_probs=False):
+def evaluate(model, data_root, split, ids, names, wet, tau=0.5, keep_probs=False, amp='none'):
     from rr.data import load_query
     from rr.infer import encode_support, tiled_predict
     from rr.metrics import confusion, decode, gt_classes, summarize
     model.eval()
-    t_sup = encode_support(model)
+    t_sup = encode_support(model, amp=amp)
     cm = np.zeros((6, 6), np.int64)
     probs_all, t0 = [], time.time()
     for i in ids:
         X, lab = load_query(data_root, split, i)
-        P = tiled_predict(model, X).numpy()
+        P = tiled_predict(model, X, amp=amp).numpy()
         cm += confusion(decode(P, tau), gt_classes(lab))
         if keep_probs:
             probs_all.append(np.round(P * 255).astype(np.uint8))
@@ -133,6 +138,9 @@ def main():
         print(f'[{run_id}] gradient checkpointing on {enable_grad_checkpointing(model)} encoder blocks', flush=True)
     optimizer, sched = get_optimizer(cfg, model.model)
     names = set(su.finetuned_parameter_names(model))
+    from rr.infer import amp_context
+    scaler = torch.amp.GradScaler('cuda', enabled=a.amp == 'fp16')
+    autocast = (lambda: amp_context(a.amp)) if a.amp != 'none' else contextlib.nullcontext
 
     log = dict(run_id=run_id, code_version=a.code_version, gpu=torch.cuda.get_device_name(0),
                gpu_mem_gb=round(torch.cuda.get_device_properties(0).total_memory / 1024 ** 3, 1),
@@ -143,6 +151,8 @@ def main():
         st = torch.load(f_last, map_location='cpu', weights_only=False)
         missing = model.load_state_dict(st['state_dict'], strict=False)
         optimizer.load_state_dict(st['optimizer'])
+        if st.get('scaler'):
+            scaler.load_state_dict(st['scaler'])
         start, log = st['step'], st['log']
         torch.set_rng_state(st['rng_torch']); np.random.set_state(st['rng_np'])
         print(f'[{run_id}] resumed at step {start}', flush=True)
@@ -150,7 +160,7 @@ def main():
     def save_last(step):
         sd = {k: v.detach().cpu() for k, v in model.state_dict().items() if k in names}
         tmp = f_last + '.tmp'
-        torch.save(dict(state_dict=sd, optimizer=optimizer.state_dict(), step=step, log=log,
+        torch.save(dict(state_dict=sd, optimizer=optimizer.state_dict(), scaler=scaler.state_dict(), step=step, log=log,
                         rng_torch=torch.get_rng_state(), rng_np=np.random.get_state()), tmp)
         os.replace(tmp, f_last)
 
@@ -161,7 +171,7 @@ def main():
     it = iter(loader)
     model.train()
     torch.cuda.reset_peak_memory_stats()
-    t_win, run_loss = time.time(), []
+    t_win, run_loss, n_skip = time.time(), [], 0
     for step in range(start, a.n_steps):
         try:
             batch = next(it)
@@ -169,23 +179,29 @@ def main():
             it = iter(loader)
             batch = next(it)
         batch = to_device(batch, 'cuda')
-        Y_pred, Y_q, M_q, _ = model(batch)
-        loss, _ = model.learner.compute_loss(Y_pred, Y_q, M_q)
+        with autocast():
+            Y_pred, Y_q, M_q, _ = model(batch)
+            loss, _ = model.learner.compute_loss(Y_pred, Y_q, M_q)
         optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        optimizer.step()
+        scaler.scale(loss).backward()
+        scale = scaler.get_scale()
+        scaler.step(optimizer)                  # skipped if the fp16 grads overflowed
+        scaler.update()
+        n_skip += scaler.is_enabled() and scaler.get_scale() < scale
         sched.step(step)
         run_loss.append(loss.item())
         done = step + 1
         if done % a.log_every == 0:
             torch.cuda.synchronize()
             dt = time.time() - t_win
-            log['losses'].append(dict(step=done, loss=float(np.mean(run_loss)), s_per_50=round(dt * 50 / a.log_every, 2)))
+            log['losses'].append(dict(step=done, loss=float(np.mean(run_loss)), s_per_50=round(dt * 50 / a.log_every, 2),
+                                      **(dict(scale=scaler.get_scale(), skipped=int(n_skip)) if scaler.is_enabled() else {})))
             log['timing'].setdefault('train_s_per_50_steps', round(dt * 50 / a.log_every, 2))
             log['timing']['train_peak_gb'] = round(torch.cuda.max_memory_allocated() / 1024 ** 3, 2)
             print(f'[{run_id}] step {done} loss {np.mean(run_loss):.4f} ({dt:.1f}s / {a.log_every} steps, '
-                  f'peak {log["timing"]["train_peak_gb"]} GB)', flush=True)
-            run_loss = []
+                  f'peak {log["timing"]["train_peak_gb"]} GB' +
+                  (f', scale {scaler.get_scale():g}, skipped {n_skip})' if scaler.is_enabled() else ')'), flush=True)
+            run_loss, n_skip = [], 0
             write_log()
             t_win = time.time()
         if a.stop_after and done >= a.stop_after:
@@ -195,7 +211,7 @@ def main():
         last = done == a.n_steps
         if val_ids and (done % a.val_every == 0 or last):
             res, cm, probs = evaluate(model, data_root, val_split, val_ids, NAMES[a.dataset], WET[a.dataset],
-                                      keep_probs=last)
+                                      keep_probs=last, amp=a.amp)
             res['step'] = done
             log['val'].append(res)
             log['timing']['eval_s_per_image'] = res['s_per_image']

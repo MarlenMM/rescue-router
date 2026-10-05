@@ -3,8 +3,9 @@
     python src/predict.py --ckpt <drive>/ckpt/floodnet_20shot_s0_stratified.ckpt \
         --dataset floodnet --split_file floodnet_test_eval100 --split test --eval_shot 20
 
-Output: preds/<run_id>_<split_file>[_es<k>].npz (uint8 probabilities, ids, confusion) and
-metrics/<run_id>_<split_file>[_es<k>].json. --limit N predicts only the first N images (timing).
+Output: preds/<run_id>_<split_file>[_es<k>][_fp16].npz (uint8 probabilities, ids, confusion) and
+metrics/<same>.json. --limit N predicts only the first N images (timing). --amp fp16 runs inference
+under fp16 autocast (T4); the PLAN §0.1 check compares one checkpoint's fp16 and fp32 metrics.
 """
 
 import argparse
@@ -35,6 +36,7 @@ def main():
     ap.add_argument('--no_save', action='store_true')
     ap.add_argument('--chunk', type=int, default=6)
     ap.add_argument('--channel_chunk', type=int, default=5)
+    ap.add_argument('--amp', default='none', choices=['none', 'fp16'])
     ap.add_argument('--data', default='/content/rr_data')
     ap.add_argument('--runs', default='/content/runs_data')
     ap.add_argument('--drive', default='/content/drive/MyDrive/AIC200-my_work/rescue_router')
@@ -67,24 +69,25 @@ def main():
     if a.limit:
         ids = ids[:a.limit]
     torch.cuda.reset_peak_memory_stats()
-    t_sup = encode_support(model)
+    t_sup = encode_support(model, amp=a.amp)
     sup_peak = torch.cuda.max_memory_allocated() / 1024 ** 3
     cm, probs, t0 = np.zeros((6, 6), np.int64), [], time.time()
     for i in ids:
         X, lab = load_query(data_root, a.split, i)
-        P = tiled_predict(model, X).numpy()
+        P = tiled_predict(model, X, amp=a.amp).numpy()
         cm += confusion(decode(P, a.tau), gt_classes(lab))
         probs.append(np.round(P * 255).astype(np.uint8))
     torch.cuda.synchronize()
     res = summarize(cm, NAMES[a.dataset], WET[a.dataset])
-    res.update(run_id=run_id, split=a.split_file, eval_shot=shot, tau=a.tau, n_images=len(ids),
+    res.update(run_id=run_id, split=a.split_file, eval_shot=shot, tau=a.tau, n_images=len(ids), amp=a.amp,
                support_encode_s=round(t_sup, 2), s_per_image=round((time.time() - t0) / max(len(ids), 1), 2),
                support_peak_gb=round(sup_peak, 2),
                infer_peak_gb=round(torch.cuda.max_memory_allocated() / 1024 ** 3, 2),
                gpu=torch.cuda.get_device_name(0))
     print(json.dumps(res, indent=1), flush=True)
     if not a.no_save:
-        tag = f'{run_id}_{a.split_file}' + ('' if shot == ck.shot else f'_es{shot}') + (f'_n{a.limit}' if a.limit else '')
+        tag = f'{run_id}_{a.split_file}' + ('' if shot == ck.shot else f'_es{shot}') + (f'_n{a.limit}' if a.limit else '') \
+            + ('' if a.amp == 'none' else f'_{a.amp}')
         os.makedirs(os.path.join(a.drive, 'preds'), exist_ok=True)
         os.makedirs(os.path.join(a.drive, 'metrics'), exist_ok=True)
         np.savez_compressed(os.path.join(a.drive, 'preds', f'{tag}.npz'), probs=np.stack(probs), ids=np.array(ids), cm=cm)
