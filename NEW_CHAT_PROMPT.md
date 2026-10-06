@@ -9,7 +9,8 @@ Batch 12 = packaging + release: the data zip, the app zip, the project zip with 
 
 How I work with you:
 - One batch per prompt. Do the whole batch, test it, update PLAN §15 (mark it done, record results and decisions) and your memory, commit and push, give me a short summary in chat, then send me a PushNotification (one line, lead with the result).
-- If a choice is genuinely mine (anything public, GPU time, downloads, look and feel), ask with short options. Explicit OK is still needed for: creating/publishing the public demo repo, and the live Gradio GPU run on Thursday (~3.2 GPU-h).
+- If a choice is genuinely mine (anything public, GPU time, downloads, look and feel), ask with short options. Explicit OK is still needed for: creating/publishing the public demo repo, and any GPU run (e.g. the live Gradio link on Thursday, ~3 h).
+- GPU platform: **use Google Colab (via the colab-mcp tools) for GPU jobs under ~5 hours; use Kaggle only for day-long or > 5 h continuous runs.** Kaggle's weekly quota is precious. Don't start from Kaggle just because the scripts exist there. With Colab, I switch the runtime to T4 and approve the Drive popup when you ask me.
 - Do not regenerate the final notebook (`notebook/rescue_router_executed.ipynb`) without re-running G3 on a T4: it is the executed copy we submit.
 - Run `date` before writing any time into PLAN or memory.
 - The shell is zsh: `$VAR` holding several arguments is not split (use `${=VAR}` or a small Python driver); avoid backticks inside unquoted heredocs.
