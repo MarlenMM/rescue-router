@@ -25,7 +25,7 @@ function recost(grid, r) {
     assert.ok(r.modes[k] >= r.modes[k - 1], 'no switch back to truck');
     const L = y !== y0 && x !== x0 ? Math.SQRT2 : 1;
     if (r.modes[k] === TRUCK) { assert.ok(grid.truckOk[b]); c += grid.truckStep(L, b); }
-    else if (r.modes[k] === BOAT) { assert.ok(grid.boatOk[b]); c += L * grid.par.boat_cost + (r.modes[k - 1] === TRUCK ? grid.par.launch : 0); }
+    else if (r.modes[k] === BOAT) { assert.ok(grid.boatOk[b]); c += L * grid.par.boat_cost * grid.slowBoat[b] + (r.modes[k - 1] === TRUCK ? grid.par.launch : 0); }
     else { assert.ok(grid.footOk[b]); c += L * grid.par.foot_cost + (r.modes[k - 1] !== FOOT ? grid.par.alight : 0); }
   }
   return c;
@@ -43,13 +43,13 @@ for (const s of index.scenes) {
         for (const b of blds) {
           const ref = b.py[`lam${lam}`]?.[name];
           if (!ref) continue;                                   // no base: nothing to compare
-          assert.equal(STATUS[sol.status(b.ring)], ref.status, `${name} lam${lam} building ${b.id} status`);
-          const r = sol.route(b.ring);
+          assert.equal(STATUS[sol.status(b.goals)], ref.status, `${name} lam${lam} building ${b.id} status`);
+          const r = sol.route(b.goals);
           if (ref.cost === null) { assert.equal(r, null); continue; }
           assert.ok(Math.abs(r.cost - ref.cost) <= 1e-9 * Math.max(1, ref.cost),
                     `${name} lam${lam} building ${b.id}: JS ${r.cost} vs Python ${ref.cost}`);
           assert.ok(Math.abs(recost(grids[name], r) - r.cost) <= 1e-9 * Math.max(1, r.cost));
-          assert.equal(r.modes.at(-1), sol.status(b.ring), 'route ends in the mode of the status');
+          assert.equal(r.modes.at(-1), sol.status(b.goals), 'route ends in the mode of the status');
           checked++;
         }
       }

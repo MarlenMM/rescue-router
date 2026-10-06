@@ -22,9 +22,14 @@ def grid_map(s):
     return np.array([[CODE[c] for c in row] for row in s.split()], np.uint8)
 
 
+def Grid(*a, **kw):
+    """the router with point vehicles (no widths, car closing, canopy or corner rule) unless a test asks"""
+    return R.Grid(*a, **{**R.POINT_VEHICLES, **kw})
+
+
 def setup(s, dataset='floodnet', **kw):
     m = grid_map(s)
-    g = R.Grid(m, None, dataset, **kw)
+    g = Grid(m, None, dataset, **kw)
     base = R.base_cells(m, dataset, offroad=bool(kw.get('offroad', R.DEFAULTS['offroad'])))
     return m, g, base, R.buildings_from_gt(m, dataset, min_area=1, ring=1, cell=1)
 
@@ -139,7 +144,7 @@ def test_walls_stop_walkers_and_water_stops_walkers():
         ....DDD...
         ....DDD...""")
     assert g.solve(base).status(blds[0]) == R.FOOT                 # truck -> boat across row 1 -> walk
-    g2 = R.Grid(m, None, 'floodnet', foot_cost=8.0)
+    g2 = Grid(m, None, 'floodnet', foot_cost=8.0)
     g2.boat_ok[:] = False                                            # no boats: walkers cannot cross water
     g2.graph = g2._build()
     assert g2.solve(base).status(blds[0]) == R.ISOLATED
@@ -152,7 +157,7 @@ def test_buildings_are_walls():
         R.D.R
         R.D.R
         RRRRR""")
-    sol = R.Grid(m).solve((np.array([0]), R.TRUCK))
+    sol = Grid(m).solve((np.array([0]), R.TRUCK))
     r = sol.route(dict(ring=np.array([4])))                         # cell (0, 4)
     assert all(m[y, x] != 3 for y, x in r['cells'])
     assert r["cost"] == pytest.approx(6 + 2 * np.sqrt(2))
@@ -166,8 +171,8 @@ def test_risk_aware_avoids_wet_road():
     p = np.stack([(m == c) for c in range(5)]).astype(np.float32)
     p[1, 0, 2:5] = 0.3                                              # row 0 still decoded clear, but 30 % flooded
     target, base = dict(ring=np.array([6])), (np.array([0]), R.TRUCK)
-    short = R.Grid(m, p, lam=0).solve(base).route(target)
-    safe = R.Grid(m, p, lam=5).solve(base).route(target)
+    short = Grid(m, p, lam=0).solve(base).route(target)
+    safe = Grid(m, p, lam=5).solve(base).route(target)
     assert short['cost'] == pytest.approx(6.0) and all(y == 0 for y, _ in short['cells'])
     assert safe['cost'] == pytest.approx(6 + 2 * np.sqrt(2)) and any(y == 2 for y, _ in safe['cells'])
 
@@ -176,18 +181,18 @@ def test_soft_wet_prob_opens_boat_cell():
     m = grid_map("RR.W")
     p = np.stack([(m == c) for c in range(5)]).astype(np.float32)
     base, target = (np.array([0]), R.TRUCK), dict(ring=np.array([3]))
-    assert R.Grid(m, p, offroad=None).solve(base).route(target) is None   # the '.' cell blocks
+    assert Grid(m, p, offroad=None).solve(base).route(target) is None   # the '.' cell blocks
     p[4, 0, 2] = 0.6                                                # p_water 0.6 >= 0.5 -> boat may cross
-    r = R.Grid(m, p, offroad=None).solve(base).route(target)
+    r = Grid(m, p, offroad=None).solve(base).route(target)
     assert r['cost'] == pytest.approx(1 + 43 + 3) and r['modes'] == [0, 0, 1, 1]
 
 
 def test_rescuenet_blocked_road_is_a_wall():
     m = grid_map("RRRFRRR")
     base, target = (np.array([0]), R.TRUCK), dict(ring=np.array([3]))
-    assert R.Grid(m, None, 'floodnet').solve(base).status(target) == R.BOAT      # flooded road: boat
-    assert R.Grid(m, None, 'rescuenet', foot_cost=None).solve(base).status(target) == R.ISOLATED  # no vehicle
-    sol = R.Grid(m, None, 'rescuenet').solve(base)                                # debris: walkable
+    assert Grid(m, None, 'floodnet').solve(base).status(target) == R.BOAT      # flooded road: boat
+    assert Grid(m, None, 'rescuenet', foot_cost=None).solve(base).status(target) == R.ISOLATED  # no vehicle
+    sol = Grid(m, None, 'rescuenet').solve(base)                                # debris: walkable
     assert sol.status(target) == R.FOOT and sol.route(target)['modes'][-1] == R.FOOT
 
 
@@ -234,7 +239,7 @@ def test_metrics_false_clear_road_is_unsafe():
     m, g, base, blds = setup(gt, offroad=None)
     assert g.solve(base).status(blds[0]) == R.BOAT
     assert g.solve(base).route(blds[0])['cost'] == pytest.approx(2 + 43 + 6)
-    pred = R.Grid(grid_map(gt.replace('F', 'R')), offroad=None)                   # flooded stretch predicted clear
+    pred = Grid(grid_map(gt.replace('F', 'R')), offroad=None)                   # flooded stretch predicted clear
     cm, recs = R.route_metrics(pred, g, base, blds)
     assert cm[R.BOAT, R.TRUCK] == 1                                 # stranded house missed
     r = recs[0]
@@ -263,6 +268,74 @@ def test_offroad_gate_blocks_wet_looking_land():
     p = np.stack([(m == c) for c in range(5)]).astype(np.float32)
     p[4, 0, 3] = 0.3                                                # lawn cell (0,3) looks 30 % water
     base, target = (np.array([0]), R.TRUCK), dict(ring=np.array([3]))
-    assert R.Grid(m, p).solve(base).status(target) == R.TRUCK
-    assert R.Grid(m, p, offroad_maxwet=0.2).solve(base).status(target) == R.ISOLATED
-    assert R.Grid(m, p, offroad_maxwet=0.5).solve(base).status(target) == R.TRUCK
+    assert Grid(m, p).solve(base).status(target) == R.TRUCK
+    assert Grid(m, p, offroad_maxwet=0.2).solve(base).status(target) == R.ISOLATED
+    assert Grid(m, p, offroad_maxwet=0.5).solve(base).status(target) == R.TRUCK
+
+
+# ---------------------------------------------------------------- physical rules (Batch 1), cell_m = 1 m
+WIDE = dict(cell_m=1.0, truck_halfwidth=1.0, boat_halfwidth=None, car_gap=None, canopy_gap=None, corner=True)
+
+
+def test_truck_too_wide_for_the_gap_people_walk_through():
+    m, g, base, blds = setup("""
+        RRRRRRR
+        DDD.DDD
+        DDD.DDD
+        .......
+        ...BBB.
+        ...BBB.
+        ...BBB.""")
+    house = [b for b in blds if b['cls'] == 2][0]
+    assert g.solve(base).status(house) == R.TRUCK                  # a point truck slips through the 1 m gap
+    wide = R.Grid(m, None, 'floodnet', **WIDE)
+    assert wide.solve(base).status(house) == R.FOOT                # 2 m truck stops, people walk through
+
+
+def test_wide_truck_still_reaches_a_house_by_the_road():
+    m, g, base, blds = setup("""
+        RRRRRRR
+        .......
+        ..DDD..
+        ..DDD..
+        ..DDD..""")
+    wide = R.Grid(m, None, 'floodnet', **WIDE)
+    assert not wide.truck_ok[1, 3] and wide.truck_ok[0, 3]          # body would touch the wall in row 1
+    assert wide.solve(base).status(blds[0]) == R.TRUCK              # its edge is still within the ring
+
+
+def test_no_squeeze_between_touching_corners():
+    m = grid_map("""
+        RD.
+        D..""")
+    base, target = (np.array([0]), R.TRUCK), dict(ring=np.array([4]))   # cell (1, 1)
+    assert Grid(m).solve(base).status(target) == R.TRUCK                  # diagonal squeeze
+    assert Grid(m, corner=True).solve(base).status(target) == R.ISOLATED  # blocked for everyone
+
+
+def test_parked_car_gap_is_closed_on_dry_land_only():
+    m = grid_map("""
+        .....
+        RR.RR
+        .....""")
+    base, target = (np.array([5]), R.TRUCK), dict(ring=np.array([9]))    # row 1, left end -> right end
+    assert Grid(m).solve(base).route(target)['cost'] == pytest.approx(1 + 4 + 1 + 1)   # gap crossed off-road
+    g = Grid(m, cell_m=1.0, car_gap=3.0)
+    assert g.road[1, 2] and g.solve(base).route(target)['cost'] == pytest.approx(4.0)  # gap closed: all road
+    p = np.stack([(m == c) for c in range(5)]).astype(np.float32)
+    p[4, 1, 2] = 0.5                                                     # the gap looks wet
+    assert not Grid(m, p, cell_m=1.0, car_gap=3.0, offroad_maxwet=0.3).road[1, 2]   # the gate still holds
+
+
+def test_boat_crosses_a_narrow_canopy_strip():
+    m, g, base, blds = setup("""
+        RWW.WW.DDD
+        RWW.WW.DDD
+        RWW.WW.DDD
+        RWW.WW.DDD""")
+    assert g.solve(base).status(blds[0]) == R.ISOLATED             # people stranded on the strip
+    c = R.Grid(m, None, 'floodnet', **{**R.POINT_VEHICLES, 'cell_m': 1.0, 'canopy_gap': 2.0})
+    assert c.canopy[1, 3]
+    sol = c.solve(base)
+    r = sol.route(blds[0])
+    assert sol.status(blds[0]) == R.FOOT and (1, 3) in [cell for cell, md in zip(r['cells'], r['modes']) if md == R.BOAT]

@@ -113,6 +113,9 @@ def scene(dataset, i, results, data):
     c = load_cached(dataset, i, results, data)
     s = build_scene(dataset, c['img'], c['probs'], c['decode'], c['gt'])
     s.update(id=i, run=c['run'], grids={lam: make_grids(s, lam) for lam in LAMS})
+    g = s['grids'][LAMS[0]]['gt']
+    for r, b in zip(s['buildings'], s['bld']):                      # goal rings per mode (same on both maps)
+        r['goals'] = [g.goal(b, layer).tolist() for layer in (R.TRUCK, R.BOAT, R.FOOT)]
     if s['base'] is not None:
         for lam in LAMS:
             for name, g in s['grids'][lam].items():
@@ -142,13 +145,16 @@ def grid_json(s):
 
     def one(g):
         return dict(cls=b64(g.cls.astype(np.uint8)), risk=b64(g.risk.astype(np.float32)),
-                    pboat=b64(g.probs[list(g.prof['boat'])].sum(0).astype(np.float32)))
+                    pboat=b64(g.probs[list(g.prof['boat'])].sum(0).astype(np.float32)), flags=b64(g.flags()))
     p = g5['pred'].par
     return dict(h=g5['pred'].h, w=g5['pred'].w, cell=R.CELL, dataset=s['dataset'],
                 params=dict(lam=p['lam'], boat_cost=p['boat_cost'], launch=p['launch'], boat_p=p['boat_p'],
                             offroad=p['offroad'], foot_cost=p['foot_cost'], alight=p['alight'],
+                            canopy_cost=p['canopy_cost'], corner=bool(p['corner']), cell_m=g5['pred'].cell_m,
+                            truck_halfwidth=p['truck_halfwidth'], boat_halfwidth=p['boat_halfwidth'],
+                            car_gap=p['car_gap'], canopy_gap=p['canopy_gap'],
                             offroad_maxwet_pred=PRED_OFFROAD_MAXWET, offroad_maxwet_gt=None),
-                profile={k: list(v) for k, v in R.PROFILES[s['dataset']].items()},
+                profile={k: list(v) if isinstance(v, tuple) else v for k, v in R.PROFILES[s['dataset']].items()},
                 base=None if s['base'] is None else dict(cells=s['base'][0].tolist(), mode=R.STATUS[s['base'][1]]),
                 pred=one(g5['pred']), gt=one(g5['gt']))
 

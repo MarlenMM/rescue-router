@@ -10,12 +10,14 @@
 //   alight TRUCK or BOAT -> FOOT into a neighbouring foot cell: len * foot_cost + alight
 //          modes only go forward (truck -> boat -> foot), never back to a vehicle
 //   walls  buildings are never entered (RescueNet road_blocked: by truck and boat only)
+// Which cells each mode may enter (vehicle widths, the off-road gate, closed car gaps, canopy strips) is
+// decided in Python (router.Grid.flags) and exported per cell, so the rules cannot drift between the two;
+// this file does the search: costs, the corner rule, statuses and routes on per-mode goal rings.
 // The truck cost is computed in float32 like NumPy does ((1 + lam * risk) on a float32 array), then
 // multiplied by the float64 step length, so the costs match Python to the last bit (up to tie order).
 
 export const TRUCK = 0, BOAT = 1, FOOT = 2, ISOLATED = 3;
 export const STATUS = ['TRUCK', 'BOAT', 'FOOT', 'ISOLATED'];
-const OTHER = 5;
 const DIRS = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
 const f32 = Math.fround;
 
@@ -31,34 +33,32 @@ export function b64ToFloat32(s) {
   return new Float32Array(b.buffer, b.byteOffset, b.byteLength / 4);
 }
 
-/** One map's routing graph. layer = {cls, risk, pboat} (base64 strings from grid.json, or typed arrays). */
+const bytes = (a) => (typeof a === 'string' ? b64ToBytes(a) : a);
+const floats = (a) => (typeof a === 'string' ? b64ToFloat32(a) : a);
+
+/** One map's routing graph. layer = {cls, risk, pboat, flags} (base64 strings from grid.json, or typed arrays);
+ *  flags bits (router.Grid.flags): 1 truck, 2 boat, 4 foot, 8 off-road (truck slow), 16 canopy (boat slow),
+ *  32 wall, 64 building. */
 export class Grid {
   constructor(gridJson, layer, opts = {}) {
     const g = gridJson;
     this.h = g.h; this.w = g.w; this.n = g.h * g.w;
     this.prof = g.profile;
-    this.par = { lam: g.params.lam, boat_cost: g.params.boat_cost, launch: g.params.launch,
-                 boat_p: g.params.boat_p, offroad: g.params.offroad, offroad_maxwet: null,
-                 foot_cost: g.params.foot_cost, alight: g.params.alight, ...opts };
-    this.cls = typeof layer.cls === 'string' ? b64ToBytes(layer.cls) : layer.cls;
-    this.risk = typeof layer.risk === 'string' ? b64ToFloat32(layer.risk) : layer.risk;
-    this.pboat = typeof layer.pboat === 'string' ? b64ToFloat32(layer.pboat) : layer.pboat;
-    const n = this.n, p = this.par, pr = this.prof;
-    const gate = p.offroad_maxwet == null ? null : f32(p.offroad_maxwet);
+    this.par = { lam: g.params.lam, boat_cost: g.params.boat_cost, launch: g.params.launch, offroad: g.params.offroad,
+                 foot_cost: g.params.foot_cost, alight: g.params.alight, canopy_cost: g.params.canopy_cost,
+                 corner: g.params.corner, ...opts };
+    this.cls = bytes(layer.cls); this.risk = floats(layer.risk); this.pboat = floats(layer.pboat);
+    const f = bytes(layer.flags), n = this.n, p = this.par;
     this.foot = p.foot_cost != null;
     this.layers = this.foot ? 3 : 2;
-    this.wall = new Uint8Array(n); this.truckOk = new Uint8Array(n); this.boatOk = new Uint8Array(n);
-    this.footOk = new Uint8Array(n); this.slow = new Float64Array(n);
+    this.truckOk = new Uint8Array(n); this.boatOk = new Uint8Array(n); this.footOk = new Uint8Array(n);
+    this.wall = new Uint8Array(n); this.bldg = new Uint8Array(n);
+    this.slow = new Float64Array(n); this.slowBoat = new Float64Array(n);
     for (let i = 0; i < n; i++) {
-      const c = this.cls[i];
-      const wall = pr.wall.includes(c);
-      const land = c === OTHER && (gate === null || this.risk[i] < gate);
-      const off = p.offroad ? land : false;
-      this.wall[i] = wall;
-      this.truckOk[i] = (pr.truck.includes(c) || off) && !wall;
-      this.boatOk[i] = (pr.boat.includes(c) || this.pboat[i] >= p.boat_p) && !wall;
-      this.footOk[i] = this.foot && (pr.truck.includes(c) || pr.walk.includes(c) || land) && !pr.bldg.includes(c);
-      this.slow[i] = off ? (p.offroad || 1) : 1;
+      this.truckOk[i] = f[i] & 1; this.boatOk[i] = (f[i] >> 1) & 1; this.footOk[i] = this.foot && (f[i] >> 2) & 1;
+      this.slow[i] = f[i] & 8 ? (p.offroad || 1) : 1;
+      this.slowBoat[i] = f[i] & 16 ? p.canopy_cost : 1;
+      this.wall[i] = (f[i] >> 5) & 1; this.bldg[i] = (f[i] >> 6) & 1;
     }
   }
 
@@ -77,6 +77,7 @@ export class Grid {
       for (const c of base.cells) { dist[c + off] = 0; heap.push(0, c + off); }
     }
     const boatL = [p.boat_cost, Math.SQRT2 * p.boat_cost];
+    const wall = this.wall, bldg = this.bldg;
     const footL = this.foot ? [p.foot_cost, Math.SQRT2 * p.foot_cost] : null;
     while (heap.size) {
       const [d, u] = heap.pop();
@@ -86,9 +87,15 @@ export class Grid {
         const y = ay + dy, x = ax + dx;
         if (y < 0 || y >= h || x < 0 || x >= w) continue;
         const b = y * w + x, diag = dy !== 0 && dx !== 0, L = diag ? Math.SQRT2 : 1;
-        if (mode === TRUCK && this.truckOk[b]) relax(b, d + this.truckStep(L, b), u);
-        if (mode <= BOAT && this.boatOk[b]) relax(n + b, d + (mode === BOAT ? boatL[+diag] : boatL[+diag] + p.launch), u);
-        if (this.foot && this.footOk[b]) relax(2 * n + b, d + (mode === FOOT ? footL[+diag] : footL[+diag] + p.alight), u);
+        // corner rule: no diagonal squeeze between two obstacle cells touching at a corner
+        const o1 = y * w + ax, o2 = ay * w + x;
+        const okV = !(diag && p.corner && wall[o1] && wall[o2]), okF = !(diag && p.corner && bldg[o1] && bldg[o2]);
+        if (mode === TRUCK && okV && this.truckOk[b]) relax(b, d + this.truckStep(L, b), u);
+        if (mode <= BOAT && okV && this.boatOk[b]) {
+          const c = boatL[+diag] * this.slowBoat[b];
+          relax(n + b, d + (mode === BOAT ? c : c + p.launch), u);
+        }
+        if (this.foot && okF && this.footOk[b]) relax(2 * n + b, d + (mode === FOOT ? footL[+diag] : footL[+diag] + p.alight), u);
       }
     }
     function relax(v, nd, u) {
@@ -101,20 +108,24 @@ export class Grid {
 export class Solution {
   constructor(grid, dist, pred) { this.grid = grid; this.dist = dist; this.pred = pred; }
 
-  status(ring) {
+  /** goals = [truck ring, boat ring, foot ring] of a building (buildings.json `goals`): a wide vehicle
+   *  reaches a house when its edge is within the plain ring, so its goal ring is wider. */
+  status(goals) {
     const n = this.grid.n;
     for (let layer = 0; layer < this.grid.layers; layer++) {
-      if (ring.some(c => Number.isFinite(this.dist[layer * n + c]))) return layer;
+      if (goals[layer].some(c => Number.isFinite(this.dist[layer * n + c]))) return layer;
     }
     return ISOLATED;
   }
 
-  /** Cheapest route to the ring ending in `layer` (default: the layer of the house's status, as router.py):
+  /** Cheapest route to the house ending in `layer` (default: the layer of its status, as router.py):
    *  {cells: [[y, x]], modes: [0|1|2], cost} or null (first minimum, like np.argmin). */
-  route(ring, layer = null) {
+  route(goals, layer = null) {
     const n = this.grid.n, w = this.grid.w;
-    if (layer === null) layer = this.status(ring);
-    if (layer === ISOLATED || !ring.length) return null;
+    if (layer === null) layer = this.status(goals);
+    if (layer === ISOLATED) return null;
+    const ring = goals[layer];
+    if (!ring.length) return null;
     let best = -1;
     for (const c of ring) { const j = layer * n + c; if (best < 0 || this.dist[j] < this.dist[best]) best = j; }
     if (best < 0 || !Number.isFinite(this.dist[best])) return null;
@@ -157,11 +168,8 @@ class MinHeap {
   }
 }
 
-/** Both maps of a scene: pred (gated) and GT (no gate), as route_eval.py builds them. */
+/** Both maps of a scene (the prediction with the off-road gate, the labelled map without, as route_eval.py). */
 export function sceneGrids(gridJson, lam) {
   const o = lam == null ? {} : { lam };
-  return {
-    pred: new Grid(gridJson, gridJson.pred, { ...o, offroad_maxwet: gridJson.params.offroad_maxwet_pred }),
-    gt: new Grid(gridJson, gridJson.gt, { ...o, offroad_maxwet: gridJson.params.offroad_maxwet_gt }),
-  };
+  return { pred: new Grid(gridJson, gridJson.pred, o), gt: new Grid(gridJson, gridJson.gt, o) };
 }

@@ -46,6 +46,9 @@ def main():
                     help='prediction grid only: off-road where p_wet < this (<0 = no gate)')
     ap.add_argument('--foot_cost', type=float, default=R.DEFAULTS['foot_cost'],
                     help='walking cost per cell after a truck or boat (<0 = no walking: the truck/boat router)')
+    ap.add_argument('--point_vehicles', action='store_true',
+                    help='no vehicle widths, car closing, canopy or corner rule (the router before 6 Oct Batch 1)')
+    ap.add_argument('--router', default='{}', help='JSON overrides of router parameters (ablations), both maps')
     ap.add_argument('--ring', type=int, default=2)
     ap.add_argument('--min_area', type=int, default=150)
     ap.add_argument('--out', default=None)
@@ -78,8 +81,9 @@ def main():
             continue
         n_base += 1
         foot = None if a.foot_cost < 0 else a.foot_cost
-        ggrid = {lam: R.Grid(gcls, R.onehot_probs(gt), a.dataset, lam=lam, offroad=a.offroad or None, foot_cost=foot)
-                 for lam in lams}
+        phys = {**(R.POINT_VEHICLES if a.point_vehicles else {}), **json.loads(a.router)}
+        ggrid = {lam: R.Grid(gcls, R.onehot_probs(gt), a.dataset, lam=lam, offroad=a.offroad or None, foot_cost=foot,
+                             **phys) for lam in lams}
         g0 = ggrid[lams[0]]
         st = [g0.solve(base).status(b) for b in blds]
         gt_counts += np.bincount(st, minlength=NS)
@@ -91,7 +95,7 @@ def main():
             pred = decode(probs.astype(np.float32) / 255, **dec)
             pc, pp = R.cell_classes(pred), R.cell_probs(probs)
             for lam in lams:
-                cm, recs = R.route_metrics(R.Grid(pc, pp, a.dataset, lam=lam, offroad=a.offroad or None, foot_cost=foot,
+                cm, recs = R.route_metrics(R.Grid(pc, pp, a.dataset, lam=lam, offroad=a.offroad or None, foot_cost=foot, **phys,
                                            offroad_maxwet=None if a.offroad_maxwet < 0 else a.offroad_maxwet), ggrid[lam], base, blds)
                 acc[lam][0][...] += cm
                 acc[lam][1].extend(dict(r, image=i) for r in recs)
@@ -104,7 +108,8 @@ def main():
 
     out = dict(dataset=a.dataset, split_file=a.split_file, n_images=len(ids), n_with_base=n_base,
                ring=a.ring, min_area=a.min_area, params=dict(R.DEFAULTS, offroad=a.offroad or None, offroad_maxwet=None if a.offroad_maxwet < 0 else a.offroad_maxwet,
-                           foot_cost=None if a.foot_cost < 0 else a.foot_cost),
+                           foot_cost=None if a.foot_cost < 0 else a.foot_cost,
+                           **(R.POINT_VEHICLES if a.point_vehicles else {}), **json.loads(a.router)),
                gt_status_counts=dict(zip(R.STATUS, gt_counts.tolist())),
                base_mode_counts={m: sum(r['base'] == m for r in per_img) for m in ('TRUCK', 'BOAT', None)},
                gt_vs_gt_agreement=float(np.trace(cm_gt) / max(cm_gt.sum(), 1)),
