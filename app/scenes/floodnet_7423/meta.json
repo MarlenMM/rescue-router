@@ -1,0 +1,72 @@
+{
+ "id": "7423",
+ "dataset": "floodnet",
+ "run": "floodnet_50shot_s0_stratified",
+ "decode": {
+  "tau": [
+   0.4,
+   0.35,
+   0.45,
+   0.35,
+   0.45
+  ],
+  "variant": "tau"
+ },
+ "caption": "Boat rescues across flooded roads",
+ "size": [
+  768,
+  576
+ ],
+ "class_names": [
+  "road clear",
+  "road flooded",
+  "building flooded",
+  "building dry",
+  "water"
+ ],
+ "class_colors": [
+  [
+   46,
+   204,
+   64
+  ],
+  [
+   0,
+   116,
+   217
+  ],
+  [
+   230,
+   40,
+   40
+  ],
+  [
+   245,
+   180,
+   0
+  ],
+  [
+   0,
+   31,
+   120
+  ]
+ ],
+ "iou": {
+  "road clear": null,
+  "road flooded": 0.714,
+  "building flooded": 0.842,
+  "building dry": 0.0,
+  "water": 0.0
+ },
+ "n_buildings": 25,
+ "status_pred": {
+  "TRUCK": 12,
+  "BOAT": 7,
+  "ISOLATED": 6
+ },
+ "status_gt": {
+  "TRUCK": 16,
+  "BOAT": 5,
+  "ISOLATED": 4
+ }
+}
