@@ -3,9 +3,11 @@ Inputs: dataset marlenmelis/rr-code (src + splits + supports), notebook output m
 (data tars, meta-checkpoint, rescuenet_val_tune30.txt). Outputs: /kaggle/working/rr/{ckpt,metrics,logs,preds}.
 QUEUE picks the job lists: 'core' = the first queue (notebook rr-gpu-queue, 6 Oct 02:40 KST);
 'rerun50' = the two 50-shot runs again with deferred validation (notebook rr-gpu-queue50), because
-in-process 50-shot val30 hit CUDA OOM at step 500 in the core queue."""
+in-process 50-shot val30 hit CUDA OOM at step 500 in the core queue; 'select50' = only the snapshot
+selection + eval100 of those two runs (notebook rr-gpu-select50; the snapshots come from the
+rr-gpu-queue50 output, whose select step failed on an argparse abbreviation bug)."""
 import glob, json, os, shutil, subprocess, sys, tarfile, time
-QUEUE = 'rerun50'
+QUEUE = 'select50'
 
 T0 = time.time()
 def sh(cmd):
@@ -73,7 +75,15 @@ Q_CORE = {0: [ft('floodnet', 1, 1000, 250, 6), pr('floodnet', 1, 6),
          ft('rescuenet', 50, 2000, 500, 1), pr('rescuenet', 50, 1)]}
 Q_RERUN50 = {0: [ft('floodnet', 50, 2000, 500, 1, defer=True), sel('floodnet', 50), pr('floodnet', 50, 1)],
              1: [ft('rescuenet', 50, 2000, 500, 1, defer=True), sel('rescuenet', 50), pr('rescuenet', 50, 1)]}
-Q = {'core': Q_CORE, 'rerun50': Q_RERUN50}[QUEUE]
+Q_SELECT50 = {0: [sel('floodnet', 50), pr('floodnet', 50, 1)], 1: [sel('rescuenet', 50), pr('rescuenet', 50, 1)]}
+Q = {'core': Q_CORE, 'rerun50': Q_RERUN50, 'select50': Q_SELECT50}[QUEUE]
+if QUEUE == 'select50':                 # snapshots + training logs of the 50-shot runs from rr-gpu-queue50
+    for f in glob.glob('/kaggle/input/**/rr/ckpt/*50shot*_step*.ckpt', recursive=True):
+        shutil.copy(f, f'{OUT}/ckpt/')
+    for f in glob.glob('/kaggle/input/**/rr/logs/*_50shot_s0_stratified.json', recursive=True):
+        shutil.copy(f, f'{OUT}/logs/')
+    sh(f'ls -la {OUT}/ckpt {OUT}/logs')
+    assert len(glob.glob(f'{OUT}/ckpt/*_step*.ckpt')) == 8, 'expected 4 snapshots per 50-shot run'
 procs = {}
 for g, jobs in Q.items():
     json.dump(jobs, open(f'{OUT}/logs/queue_gpu{g}.json', 'w'), indent=1)
