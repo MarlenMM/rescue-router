@@ -1,0 +1,72 @@
+{
+ "id": "7611",
+ "dataset": "floodnet",
+ "run": "floodnet_50shot_s0_stratified",
+ "decode": {
+  "tau": [
+   0.4,
+   0.35,
+   0.45,
+   0.35,
+   0.45
+  ],
+  "variant": "tau"
+ },
+ "caption": "Mostly isolated: no dry way in",
+ "size": [
+  768,
+  576
+ ],
+ "class_names": [
+  "road clear",
+  "road flooded",
+  "building flooded",
+  "building dry",
+  "water"
+ ],
+ "class_colors": [
+  [
+   46,
+   204,
+   64
+  ],
+  [
+   0,
+   116,
+   217
+  ],
+  [
+   230,
+   40,
+   40
+  ],
+  [
+   245,
+   180,
+   0
+  ],
+  [
+   0,
+   31,
+   120
+  ]
+ ],
+ "iou": {
+  "road clear": null,
+  "road flooded": 0.609,
+  "building flooded": 0.839,
+  "building dry": null,
+  "water": null
+ },
+ "n_buildings": 15,
+ "status_pred": {
+  "TRUCK": 4,
+  "BOAT": 0,
+  "ISOLATED": 11
+ },
+ "status_gt": {
+  "TRUCK": 4,
+  "BOAT": 0,
+  "ISOLATED": 11
+ }
+}
