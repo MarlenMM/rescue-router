@@ -7,20 +7,41 @@ OTHER_IDX = N_CH                      # decoded "other" class
 IGNORE = 255
 
 
-def decode(probs, tau=0.5, bldg_t=None, **_):
+def decode(probs, tau=0.5, bldg_t=None, ctx=None, **_):
     """probs (C, H, W) in [0,1] -> class map (H, W).
 
     tau: scalar (PLAN §3.1: argmax channel if its prob >= tau, else OTHER) or per-channel (C,):
     channel c is a candidate if p_c >= tau_c, and the candidate with the largest p_c / tau_c wins
     (a lower tau_c both admits and favours channel c). A scalar tau gives the plain rule.
-    bldg_t: if set, building-level vote (the dry-building fix): every connected predicted building
-    (channels 2 or 3) gets one label, channel 2 if sum(p2) / (sum(p2) + sum(p3)) >= bldg_t, else 3.
+    bldg_t: if set, building-level vote: every connected predicted building (channels 2 or 3) gets
+    one label, channel 2 if sum(p2) / (sum(p2) + sum(p3)) >= bldg_t, else 3.
+    ctx: (d, f) wet-context rule (FloodNet dry-building fix): every connected predicted building is
+    flooded (2) iff >= f of the pixels within d px of it (and nearer to it than to any other
+    building) are decoded wet (road_flooded or water), else dry (3). Overrides bldg_t.
     """
     probs = np.asarray(probs, dtype=np.float32)
     s = probs / np.asarray(tau, np.float32).reshape(-1, 1, 1)
     out = np.where(s.max(0) >= 1, s.argmax(0), OTHER_IDX).astype(np.uint8)
-    if bldg_t is not None:
+    if ctx is not None:
+        out = wet_context_vote(out, *ctx)
+    elif bldg_t is not None:
         out = building_vote(out, probs, bldg_t)
+    return out
+
+
+def wet_context_vote(cls, d, f, wet=(1, 4)):
+    """One flooded/dry label per connected predicted building from the decoded wet pixels around it."""
+    from scipy import ndimage
+    b = (cls == 2) | (cls == 3)
+    lab, n = ndimage.label(b)
+    if not n:
+        return cls
+    dist, (iy, ix) = ndimage.distance_transform_edt(~b, return_indices=True)
+    ring = np.where(~b & (dist <= d), lab[iy, ix], 0)          # each pixel belongs to its nearest building
+    frac = ndimage.mean(np.isin(cls, wet).astype(np.float32), ring, np.arange(1, n + 1))
+    flooded = np.nan_to_num(frac) >= f
+    out = cls.copy()
+    out[b] = np.where(flooded[lab[b] - 1], 2, 3)
     return out
 
 
