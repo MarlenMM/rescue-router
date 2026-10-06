@@ -2,13 +2,13 @@
 
     python src/tiers.py [--out results/routing/tiers]
 
-The predicted map is routed twice: with the tuned off-road gate (0.3) and with a cautious gate g_c (off-road
+The predicted map is routed twice: with the tuned off-road gate (per dataset) and with a cautious gate g_c (off-road
 only where p_wet < g_c). A house truck-reachable even on the cautious map is a "confident truck" house; one
 reachable only with the tuned gate is "probably truck" (check first); the rest keep their status (boat, on
 foot, no route). Truck reach can only shrink with a smaller gate, so the tiers nest.
-g_c is chosen on FloodNet 50-shot val30: the largest candidate whose confident-truck tier is >= 99 %
-truck-reachable on the labelled map, i.e. at most 1 wrong dispatch in 100. eval100 and RescueNet use it
-unchanged. Calibration: per routing cell, predicted p_wet = mean(p1 + p4) against the labelled wet share of
+g_c is chosen per dataset on its own val30 (FloodNet 50-shot, RescueNet 20-shot): the largest candidate below the
+tuned gate whose confident-truck tier is >= 99 % truck-reachable on the labelled map (at most 1 wrong dispatch in
+100); if none reaches it, the candidate with the highest share. eval100 uses it unchanged. Calibration: per routing cell, predicted p_wet = mean(p1 + p4) against the labelled wet share of
 the cell, over all cells and over the cells decoded 'other' (where the gate acts).
 Writes tiers.json, tiers.md and figures/calibration_pwet.png (in the report folder).
 """
@@ -95,27 +95,31 @@ def main():
     ap.add_argument('--fig', default='results/kaggle_v2/report/figures/calibration_pwet.png')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
-    g_t = PRED_OFFROAD_MAXWET
-    gates = (g_t,) + CANDIDATES
-    data = {(ds, sp): collect(ds, sp, a, gates) for ds in RUNS for sp in SPLITS}
-
-    # choose the cautious gate on FloodNet val30
-    rows = data[('floodnet', 'val30')][0]
-    sweep = []
-    for g in CANDIDATES:
-        t = tier_table(rows, g_t, g)['CONFIDENT_TRUCK']
-        sweep.append(dict(gate=g, n=t['n'], share=t['gt_truck_share']))
-    ok = [s for s in sweep if s['share'] is not None and s['share'] >= TARGET]
-    g_c = max(s['gate'] for s in ok) if ok else min(CANDIDATES)
-
-    out = dict(tuned_gate=g_t, cautious_gate=g_c, target=TARGET, val30_sweep=sweep, tiers={}, calibration={})
-    md = [f'Cautious gate chosen on FloodNet 50-shot val30: **{g_c}** (largest candidate with confident-truck '
-          f'share >= {TARGET:.0%}; tuned gate {g_t}).', '',
-          '| gate (val30 sweep) | confident-truck houses | truly truck-reachable |', '|---|---|---|']
-    md += [f"| {s['gate']} | {s['n']} | {'–' if s['share'] is None else f'{s['share']:.1%}'} |" for s in sweep]
-    md += ['', '| run | split | tier | houses | truly truck-reachable (labelled map) | labelled map: truck / boat / foot / none |',
+    out = dict(target=TARGET, gates={}, tiers={}, calibration={})
+    md = []
+    data = {}
+    for ds in RUNS:
+        g_t = PRED_OFFROAD_MAXWET[ds]
+        cands = tuple(g for g in CANDIDATES if g < g_t)
+        for sp in SPLITS:
+            data[(ds, sp)] = collect(ds, sp, a, (g_t,) + cands)
+        rows, sweep = data[(ds, 'val30')][0], []
+        for g in cands:                                              # choose the cautious gate on this val30
+            t = tier_table(rows, g_t, g)['CONFIDENT_TRUCK']
+            sweep.append(dict(gate=g, n=t['n'], share=t['gt_truck_share']))
+        ok = [s for s in sweep if s['share'] is not None and s['share'] >= TARGET]
+        g_c = max(s['gate'] for s in ok) if ok else max(sweep, key=lambda s: (s['share'] or 0, s['gate']))['gate']
+        assert g_c == PRED_CAUTIOUS_MAXWET[ds], f'{ds}: chosen cautious gate {g_c}, route_eval says {PRED_CAUTIOUS_MAXWET[ds]}'
+        out['gates'][ds] = dict(tuned=g_t, cautious=g_c, reached_target=bool(ok), val30_sweep=sweep)
+        md += [f'**{ds}**: tuned gate {g_t}; cautious gate chosen on val30: **{g_c}** '
+               + ('(largest candidate with confident-truck share >= 99 %)' if ok else '(no candidate reaches 99 %: highest share)'),
+               '', '| gate (val30 sweep) | confident-truck houses | truly truck-reachable |', '|---|---|---|']
+        md += [f"| {s['gate']} | {s['n']} | {'–' if s['share'] is None else f'{s['share']:.1%}'} |" for s in sweep]
+        md.append('')
+    md += ['| run | split | tier | houses | truly truck-reachable (labelled map) | labelled map: truck / boat / foot / none |',
            '|---|---|---|---|---|---|']
     for (ds, sp), (rows, cal) in data.items():
+        g_t, g_c = out['gates'][ds]['tuned'], out['gates'][ds]['cautious']
         t = tier_table(rows, g_t, g_c)
         out['tiers'][f'{ds}_{sp}'] = t
         out['calibration'][f'{ds}_{sp}'] = {k: calibration(*v) for k, v in cal.items()}
@@ -143,11 +147,12 @@ def main():
                         label=f"{sp}, {'all cells' if k == 'all' else 'decoded other'} "
                               f"(ECE {out['calibration'][f'{ds}_{sp}'][k]['ece']:.3f})")
         ax.plot([0, 1], [0, 1], ':', color='grey')
-        ax.axvline(g_t, color='k', lw=0.8), ax.axvline(g_c, color='k', lw=0.8, ls='--')
+        ax.axvline(out['gates'][ds]['tuned'], color='k', lw=0.8)
+        ax.axvline(out['gates'][ds]['cautious'], color='k', lw=0.8, ls='--')
         ax.set(title=RUNS[ds].replace('_s0_stratified', ''), xlabel='predicted p_wet (cell mean)',
                ylabel='labelled wet share of the cell', xlim=(0, 1), ylim=(0, 1))
         ax.legend(fontsize=7)
-    fig.suptitle(f'Calibration of p_wet; gates: tuned {g_t} (solid), cautious {g_c} (dashed)', fontsize=10)
+    fig.suptitle('Calibration of p_wet; gates per dataset: tuned (solid), cautious (dashed)', fontsize=10)
     fig.tight_layout()
     os.makedirs(os.path.dirname(a.fig), exist_ok=True)
     fig.savefig(a.fig, dpi=130)

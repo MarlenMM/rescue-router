@@ -46,8 +46,9 @@ def load(ds, a):
     return out
 
 
-def route_all(ds, imgs, cell=R.CELL, ring=2, gate=PRED_OFFROAD_MAXWET, **kw):
+def route_all(ds, imgs, cell=R.CELL, ring=2, gate=None, **kw):
     """statuses on both maps for every labelled building, and the summed status confusion (rows GT, cols pred)"""
+    gate = PRED_OFFROAD_MAXWET[ds] if gate is None else gate
     if cell != R.CELL:
         kw = {'cell_m': R.PROFILES[ds]['cell_m'] * cell / R.CELL, **kw}
     cm, sts = np.zeros((4, 4), np.int64), []

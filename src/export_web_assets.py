@@ -12,7 +12,7 @@ Per scene (folder <out>/<dataset>_<id>/):
                   status + route cost on the predicted and the GT map (Python reference, lam 5 and 0)
   meta.json       ids, run, decode, per-image IoU, status counts, caption
 plus <out>/scenes.json (index). The predicted map uses the run's tuned decode and the off-road gate
-(route_eval.PRED_OFFROAD_MAXWET); the GT map has no gate, as in route_eval.py.
+(route_eval.PRED_OFFROAD_MAXWET, per dataset); the GT map has no gate, as in route_eval.py.
 """
 
 import argparse
@@ -46,7 +46,7 @@ SCENES = [
     ('floodnet', '7611', 'Cut off by water: most houses need a boat, then a walk'),
     ('floodnet', '7241', 'Honest failure: shallow water read as dry land'),
     ('rescuenet', '15833', 'Hurricane Michael: clear road, intact and damaged houses'),
-    ('rescuenet', '12195', 'Hurricane Michael, honest failure: canal houses look reachable by road'),
+    ('rescuenet', '12195', 'Hurricane Michael: canal row reachable only on foot (truck, boat, then a walk)'),
 ]
 
 
@@ -103,8 +103,9 @@ def make_grids(s, lam=R.DEFAULTS['lam'], boat_cost=R.DEFAULTS['boat_cost']):
     """Routing grids as route_eval.py builds them: the prediction with the off-road gate, GT without; plus the
     prediction with the cautious gate for the confidence tiers (Batch 2)."""
     kw = dict(lam=lam, boat_cost=boat_cost)
-    out = dict(pred=R.Grid(*s['cells']['pred'], s['dataset'], offroad_maxwet=PRED_OFFROAD_MAXWET, **kw),
-               pred_cautious=R.Grid(*s['cells']['pred'], s['dataset'], offroad_maxwet=PRED_CAUTIOUS_MAXWET, **kw))
+    ds = s['dataset']
+    out = dict(pred=R.Grid(*s['cells']['pred'], ds, offroad_maxwet=PRED_OFFROAD_MAXWET[ds], **kw),
+               pred_cautious=R.Grid(*s['cells']['pred'], ds, offroad_maxwet=PRED_CAUTIOUS_MAXWET[ds], **kw))
     if s['cells']['gt'] is not None:
         out['gt'] = R.Grid(*s['cells']['gt'], s['dataset'], **kw)
     return out
@@ -158,7 +159,8 @@ def grid_json(s):
                             canopy_cost=p['canopy_cost'], corner=bool(p['corner']), cell_m=g5['pred'].cell_m,
                             truck_halfwidth=p['truck_halfwidth'], boat_halfwidth=p['boat_halfwidth'],
                             car_gap=p['car_gap'], canopy_gap=p['canopy_gap'],
-                            offroad_maxwet_pred=PRED_OFFROAD_MAXWET, offroad_maxwet_gt=None),
+                            offroad_maxwet_pred=PRED_OFFROAD_MAXWET[s['dataset']],
+                            offroad_maxwet_cautious=PRED_CAUTIOUS_MAXWET[s['dataset']], offroad_maxwet_gt=None),
                 profile={k: list(v) if isinstance(v, tuple) else v for k, v in R.PROFILES[s['dataset']].items()},
                 base=None if s['base'] is None else dict(cells=s['base'][0].tolist(), mode=R.STATUS[s['base'][1]]),
                 pred=one(g5['pred']), gt=one(g5['gt']), pred_cautious=dict(flags=b64(g5['pred_cautious'].flags())),
@@ -170,9 +172,8 @@ def tier_stats(ds, path=os.path.join(os.path.dirname(HERE), 'results/routing/tie
     if not os.path.exists(path):
         return None
     t = json.load(open(path))
-    run = {'floodnet': 'floodnet', 'rescuenet': 'rescuenet'}[ds]
-    tt = t['tiers'][f'{run}_eval100']
-    return dict(cautious_gate=t['cautious_gate'], tuned_gate=t['tuned_gate'],
+    tt = t['tiers'][f'{ds}_eval100']
+    return dict(cautious_gate=t['gates'][ds]['cautious'], tuned_gate=t['gates'][ds]['tuned'],
                 confident=tt['CONFIDENT_TRUCK']['gt_truck_share'], probable=tt['PROBABLE_TRUCK']['gt_truck_share'])
 
 

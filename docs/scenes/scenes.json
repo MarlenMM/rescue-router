@@ -137,12 +137,12 @@
    "key": "rescuenet_12195",
    "dataset": "rescuenet",
    "id": "12195",
-   "caption": "Hurricane Michael, honest failure: canal houses look reachable by road",
+   "caption": "Hurricane Michael: canal row reachable only on foot (truck, boat, then a walk)",
    "n_buildings": 12,
    "status_pred": {
-    "TRUCK": 12,
+    "TRUCK": 8,
     "BOAT": 0,
-    "FOOT": 0,
+    "FOOT": 4,
     "ISOLATED": 0
    },
    "status_gt": {
@@ -157,5 +157,8 @@
   "floodnet": "floodnet_50shot_s0_stratified",
   "rescuenet": "rescuenet_20shot_s0_stratified"
  },
- "offroad_maxwet_pred": 0.3
+ "offroad_maxwet_pred": {
+  "floodnet": 0.3,
+  "rescuenet": 0.2
+ }
 }
