@@ -1,7 +1,8 @@
 // Parity test: the JS router (app/js/router.js) against the Python reference (src/router.py) on every
-// exported scene, both maps, risk-aware (lam 5) and plain (lam 0) truck costs.
+// exported scene, both maps, risk-aware (lam 5) and plain (lam 0) truck costs. The scene comes from scene.rrb
+// (read with the viewer's own parseScene), the Python reference from ref.json (test-only, not in docs/).
 //
-//   node --test app/test/
+//   node --test app/test/router.test.mjs
 //
 // Statuses must match exactly; route costs to 1e-9 relative (equal-cost ties may pick another path,
 // whose float sum can differ in the last bits). Every JS route must also be a valid path whose
@@ -12,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sceneGrids, eta, tier, STATUS, TRUCK, BOAT, FOOT } from '../js/router.js';
+import { sceneGrids, parseScene, eta, tier, STATUS, TRUCK, BOAT, FOOT } from '../js/router.js';
 
 const SCENES = join(dirname(fileURLToPath(import.meta.url)), '..', 'scenes');
 const index = JSON.parse(readFileSync(join(SCENES, 'scenes.json'), 'utf8'));
@@ -32,9 +33,11 @@ function recost(grid, r) {
 }
 
 for (const s of index.scenes) {
-  test(`${s.key}: statuses and costs match Python`, () => {
-    const gj = JSON.parse(readFileSync(join(SCENES, s.key, 'grid.json'), 'utf8'));
-    const blds = JSON.parse(readFileSync(join(SCENES, s.key, 'buildings.json'), 'utf8'));
+  test(`${s.key}: statuses and costs match Python`, async () => {
+    const { grid: gj, buildings: blds } = await parseScene(readFileSync(join(SCENES, s.key, 'scene.rrb')));
+    const ref = JSON.parse(readFileSync(join(SCENES, s.key, 'ref.json'), 'utf8'));
+    assert.equal(ref.length, blds.length);
+    blds.forEach((b, k) => { assert.equal(ref[k].id, b.id); b.py = ref[k].py; b.tier_pred = ref[k].tier_pred; });
     let checked = 0;
     for (const lam of [5, 0]) {
       const grids = sceneGrids(gj, lam);

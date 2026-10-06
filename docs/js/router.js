@@ -47,22 +47,31 @@ export function eta(route, grid, speeds, cellM = null) {
 const DIRS = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
 const f32 = Math.fround;
 
-export function b64ToBytes(s) {
-  const bin = atob(s);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
+/** Read a scene.rrb file (src/export_web_assets.py pack_scene): gzip of [uint32 header length][header JSON]
+ *  [arrays]. Returns {grid, buildings}: grid = the meta of the header with typed-array layers pred / gt
+ *  ({cls, risk, flags}) and pred_cautious ({flags}), ready for sceneGrids. Accepts the raw gzip bytes or, when a
+ *  server already decompressed them (Content-Encoding), the plain payload. */
+export async function parseScene(buf) {
+  let u8 = new Uint8Array(buf);
+  if (u8[0] === 0x1f && u8[1] === 0x8b) {
+    const stream = new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'));
+    u8 = new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  if (u8.byteOffset % 4) u8 = u8.slice();                          // Float32Array views need 4-byte alignment
+  const n = new DataView(u8.buffer, u8.byteOffset, 4).getUint32(0, true);
+  const head = JSON.parse(new TextDecoder().decode(u8.subarray(4, 4 + n)));
+  const base = u8.byteOffset + 4 + n;                                // 4-byte aligned by construction
+  const grid = head.grid;
+  for (const a of head.arrays) {
+    const [layer, key] = a.name.split('.');
+    const arr = a.dtype === 'f32' ? new Float32Array(u8.buffer, base + a.offset, a.length)
+      : new Uint8Array(u8.buffer, base + a.offset, a.length);
+    (grid[layer] ||= {})[key] = arr;
+  }
+  return { grid, buildings: head.buildings };
 }
 
-export function b64ToFloat32(s) {
-  const b = b64ToBytes(s);
-  return new Float32Array(b.buffer, b.byteOffset, b.byteLength / 4);
-}
-
-const bytes = (a) => (typeof a === 'string' ? b64ToBytes(a) : a);
-const floats = (a) => (typeof a === 'string' ? b64ToFloat32(a) : a);
-
-/** One map's routing graph. layer = {cls, risk, pboat, flags} (base64 strings from grid.json, or typed arrays);
+/** One map's routing graph. layer = {cls, risk, flags} (typed arrays from parseScene);
  *  flags bits (router.Grid.flags): 1 truck, 2 boat, 4 foot, 8 off-road (truck slow), 16 canopy (boat slow),
  *  32 wall, 64 building. */
 export class Grid {
@@ -73,9 +82,9 @@ export class Grid {
     this.par = { lam: g.params.lam, boat_cost: g.params.boat_cost, launch: g.params.launch, offroad: g.params.offroad,
                  foot_cost: g.params.foot_cost, alight: g.params.alight, canopy_cost: g.params.canopy_cost,
                  corner: g.params.corner, ...opts };
-    this.cls = bytes(layer.cls); this.risk = floats(layer.risk); this.pboat = floats(layer.pboat);
+    this.cls = layer.cls; this.risk = layer.risk;
     this.cellM = g.params.cell_m;
-    const f = bytes(layer.flags), n = this.n, p = this.par;
+    const f = layer.flags, n = this.n, p = this.par;
     this.foot = p.foot_cost != null;
     this.layers = this.foot ? 3 : 2;
     this.truckOk = new Uint8Array(n); this.boatOk = new Uint8Array(n); this.footOk = new Uint8Array(n);

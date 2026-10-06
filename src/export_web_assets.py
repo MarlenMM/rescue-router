@@ -1,25 +1,35 @@
 """Web-viewer assets for the showcase scenes (PLAN §6.4, §15 "Next" 5.1). CPU only, from the caches.
 
-    python src/export_web_assets.py --out app/scenes                       # the 8 showcase scenes
+    python src/export_web_assets.py --out app/scenes             # all 200 eval100 scenes, the 8 showcase first
+    python src/export_web_assets.py --out app/scenes --showcase  # only the 8 showcase scenes (quick)
     python src/export_web_assets.py --sheet out.png --scenes floodnet:7301,rescuenet:12143 ...
 
 Per scene (folder <out>/<dataset>_<id>/):
-  photo.jpg       the 768x576 photo
+  photo.jpg       the photo: 1024x768 for FloodNet (r1024 subset tar, framing checked against the 768 image),
+                  768x576 for RescueNet; overlays and routing stay on the 768x576 grid
+  thumb.jpg       192x144 picker thumbnail
   pred.png/gt.png RGBA class overlays (src/viz.py colours; 'other' transparent)
-  grid.json       cell grid of both maps for the JS router: classes (uint8), risk = p1 + p4 and
-                  p_boat (float32, exactly the values router.Grid uses), base cells, router params
-  buildings.json  GT buildings: polygon (px), centroid, goal ring (flat cell ids), GT sub-class,
-                  status + route cost on the predicted and the GT map (Python reference, lam 5 and 0)
-  meta.json       ids, run, decode, per-image IoU, status counts, caption
-plus <out>/scenes.json (index). The predicted map uses the run's tuned decode and the off-road gate
+  scene.rrb       gzip of [uint32 header length][header JSON][pad to 4][arrays]: the header holds the grid meta
+                  (router params, profile, base cells, ETA speeds), the buildings (id, sub-class, centroid, polygon,
+                  goal rings per mode) and the array layout; the arrays are the cell classes (uint8), risk = p1 + p4
+                  (float32, exactly the values router.Grid uses) and passability flags (uint8) of both maps, plus
+                  the cautious-gate flags of the prediction. Read by app/js/router.js (parseScene).
+  meta.json       ids, run, decode, per-image IoU, status and tier counts, caption, ground scale
+  ref.json        Python reference per building (status, cost, ETA on pred / gt / pred_cautious, lam 5 and 0;
+                  tier): only for the JS parity test (app/test/), not copied to docs/
+plus <out>/scenes.json (index: showcase scenes first, then every eval100 photo of both datasets). The predicted map uses the run's tuned decode and the off-road gate
 (route_eval.PRED_OFFROAD_MAXWET, per dataset); the GT map has no gate, as in route_eval.py.
 """
 
 import argparse
-import base64
+import glob
+import gzip
 import json
 import os
+import shutil
+import struct
 import sys
+from multiprocessing import Pool
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -48,10 +58,6 @@ SCENES = [
     ('rescuenet', '15833', 'Hurricane Michael: clear road, intact and damaged houses'),
     ('rescuenet', '12195', 'Hurricane Michael: canal row reachable only on foot (truck, boat, then a walk)'),
 ]
-
-
-def b64(a):
-    return base64.b64encode(np.ascontiguousarray(a).tobytes()).decode('ascii')
 
 
 def building_masks(gt, dataset, min_area=150):
@@ -146,12 +152,9 @@ def iou_per_class(pred, gt):
     return out
 
 
-def grid_json(s):
+def grid_header(s):
+    """grid meta for the JS router (everything but the arrays)"""
     g5 = s['grids'][5.0]
-
-    def one(g):
-        return dict(cls=b64(g.cls.astype(np.uint8)), risk=b64(g.risk.astype(np.float32)),
-                    pboat=b64(g.probs[list(g.prof['boat'])].sum(0).astype(np.float32)), flags=b64(g.flags()))
     p = g5['pred'].par
     return dict(h=g5['pred'].h, w=g5['pred'].w, cell=R.CELL, dataset=s['dataset'],
                 params=dict(lam=p['lam'], boat_cost=p['boat_cost'], launch=p['launch'], boat_p=p['boat_p'],
@@ -163,8 +166,34 @@ def grid_json(s):
                             offroad_maxwet_cautious=PRED_CAUTIOUS_MAXWET[s['dataset']], offroad_maxwet_gt=None),
                 profile={k: list(v) if isinstance(v, tuple) else v for k, v in R.PROFILES[s['dataset']].items()},
                 base=None if s['base'] is None else dict(cells=s['base'][0].tolist(), mode=R.STATUS[s['base'][1]]),
-                pred=one(g5['pred']), gt=one(g5['gt']), pred_cautious=dict(flags=b64(g5['pred_cautious'].flags())),
                 eta=R.ETA)
+
+
+def pack_scene(s):
+    """scene.rrb bytes (see the module docstring); arrays in C order, little-endian"""
+    g5 = s['grids'][5.0]
+    arrays = {}
+    for name in ('pred', 'gt'):
+        g = g5[name]
+        arrays[f'{name}.cls'] = g.cls.astype(np.uint8)
+        arrays[f'{name}.risk'] = g.risk.astype('<f4')
+        arrays[f'{name}.flags'] = g.flags()
+    arrays['pred_cautious.flags'] = g5['pred_cautious'].flags()
+    layout, off = [], 0
+    for k, a in arrays.items():
+        layout.append(dict(name=k, dtype='f32' if a.dtype.kind == 'f' else 'u8', offset=off, length=int(a.size)))
+        off += a.nbytes
+        off += -off % 4                                             # keep every array 4-byte aligned
+    blds = [dict(id=r['id'], cls=r['cls'], centroid=r['centroid'], polygon=r['polygon'], goals=r['goals'])
+            for r in s['buildings']]
+    head = json.dumps(dict(version=1, grid=grid_header(s), buildings=blds, arrays=layout),
+                      separators=(',', ':')).encode()
+    head += b' ' * (-(4 + len(head)) % 4)
+    data = bytearray(off)
+    for l, a in zip(layout, arrays.values()):
+        b = np.ascontiguousarray(a).tobytes()
+        data[l['offset']:l['offset'] + len(b)] = b
+    return gzip.compress(struct.pack('<I', len(head)) + head + bytes(data), 9, mtime=0)
 
 
 def tier_stats(ds, path=os.path.join(os.path.dirname(HERE), 'results/routing/tiers/tiers.json')):
@@ -193,25 +222,65 @@ def counts(recs, key):
     return {k: sum(r[key] == k for r in recs) for k in R.STATUS}
 
 
-def export(s, out, caption=''):
+def photo_hi(s, data, max_diff=6.0):
+    """the 1024x768 photo of a FloodNet scene when the r1024 subset has it and it shows exactly the 768 frame
+    (mean abs difference after downscaling <= max_diff grey levels, which also catches the EXIF-180 fix); else None"""
+    f = os.path.join(data, f"{s['dataset']}_r1024", 'test', 'images', f"{s['id']}.jpg")
+    if not os.path.exists(f):
+        return None
+    hi = Image.open(f).convert('RGB')
+    lo = np.asarray(hi.resize(s['img'].shape[1::-1], Image.BOX), np.float32)
+    d = float(np.abs(lo - s['img'].astype(np.float32)).mean())
+    if d > max_diff:
+        print(f"  {s['dataset']} {s['id']}: 1024 photo differs from the 768 one (mean |diff| {d:.1f}); using 768")
+        return None
+    return hi
+
+
+def export(s, out, caption='', data=os.path.expanduser('~/rr_data')):
     d = os.path.join(out, f"{s['dataset']}_{s['id']}")
     os.makedirs(d, exist_ok=True)
-    Image.fromarray(s['img']).save(os.path.join(d, 'photo.jpg'), quality=92)
-    Image.fromarray(s['img']).resize((192, 144), Image.LANCZOS).save(os.path.join(d, 'thumb.jpg'), quality=85)
+    for old in ('grid.json', 'buildings.json'):                     # pre-Batch-4 format
+        if os.path.exists(os.path.join(d, old)):
+            os.remove(os.path.join(d, old))
+    hi = photo_hi(s, data)
+    (hi or Image.fromarray(s['img'])).save(os.path.join(d, 'photo.jpg'), quality=86 if hi else 90)
+    Image.fromarray(s['img']).resize((192, 144), Image.LANCZOS).save(os.path.join(d, 'thumb.jpg'), quality=82)
     for k in ('pred', 'gt'):
         Image.fromarray(colorize(s[k], s['dataset'])).save(os.path.join(d, f'{k}.png'), optimize=True)
-    json.dump(grid_json(s), open(os.path.join(d, 'grid.json'), 'w'), separators=(',', ':'))
-    json.dump(s['buildings'], open(os.path.join(d, 'buildings.json'), 'w'), separators=(',', ':'))
+    open(os.path.join(d, 'scene.rrb'), 'wb').write(pack_scene(s))
+    json.dump([dict(id=r['id'], py=r['py'], tier_pred=r['tier_pred']) for r in s['buildings']],
+              open(os.path.join(d, 'ref.json'), 'w'), separators=(',', ':'))
+    ious = iou_per_class(s['pred'], s['gt'])
     meta = dict(id=s['id'], dataset=s['dataset'], run=s['run'], decode=s['decode'], caption=caption,
-                size=[int(s['img'].shape[1]), int(s['img'].shape[0])], class_names=NAMES[s['dataset']],
+                size=[int(s['img'].shape[1]), int(s['img'].shape[0])],
+                photo_px=list(hi.size) if hi else [int(s['img'].shape[1]), int(s['img'].shape[0])],
+                class_names=NAMES[s['dataset']],
                 class_colors=[COLORS[s['dataset']][c] for c in range(5)],
-                iou=dict(zip(NAMES[s['dataset']], iou_per_class(s['pred'], s['gt']))),
+                iou=dict(zip(NAMES[s['dataset']], ious)),
+                miou=round(float(np.mean([v for v in ious if v is not None])), 3) if any(v is not None for v in ious) else None,
                 n_buildings=len(s['buildings']), status_pred=counts(s['buildings'], 'status_pred'),
                 status_gt=counts(s['buildings'], 'status_gt'),
+                n_disagree=sum(r['status_pred'] != r['status_gt'] for r in s['buildings']),
                 tiers_pred={t: sum(r['tier_pred'] == t for r in s['buildings']) for t in R.TIERS},
                 tier_stats=tier_stats(s['dataset']), **scene_scale(s))
     json.dump(meta, open(os.path.join(d, 'meta.json'), 'w'), indent=1)
     return meta
+
+
+def eval100_ids(dataset, results):
+    z = np.load(os.path.join(results, 'preds', f'{RUNS[dataset]}_{dataset}_test_eval100_fp16.npz'))
+    return [str(x) for x in z['ids']]
+
+
+def _export_one(job):
+    ds, i, cap, results, data, out = job
+    s = scene(ds, i, results, data)
+    m = export(s, out, cap, data)
+    print(ds, i, m['status_gt'], m['status_pred'], flush=True)
+    return dict(key=f'{ds}_{i}', dataset=ds, id=i, caption=cap, showcase=bool(cap), n_buildings=m['n_buildings'],
+                status_pred=m['status_pred'], status_gt=m['status_gt'], n_disagree=m['n_disagree'],
+                n_check=m['tiers_pred']['PROBABLE_TRUCK'], miou=m['miou'])
 
 
 def sheet_row(s, caption):
@@ -245,29 +314,38 @@ def main():
     ap.add_argument('--results', default='results/kaggle_v2/rr')
     ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
     ap.add_argument('--out', default='app/scenes')
-    ap.add_argument('--scenes', default=None, help='dataset:id,... (default: SCENES)')
+    ap.add_argument('--scenes', default=None, help='dataset:id,... (default: the showcase, then all of eval100)')
+    ap.add_argument('--showcase', action='store_true', help='only the 8 showcase scenes')
     ap.add_argument('--sheet', default=None, help='write a contact sheet PNG instead of the assets')
+    ap.add_argument('--workers', type=int, default=8)
     a = ap.parse_args()
     caps = {(d, i): c for d, i, c in SCENES}
-    todo = [tuple(x.split(':')) for x in a.scenes.split(',')] if a.scenes else [(d, i) for d, i, _ in SCENES]
-    rows, index = [], []
-    for ds, i in todo:
-        s = scene(ds, i, a.results, a.data)
-        cap = caps.get((ds, i), '')
-        if a.sheet:
-            rows.append(sheet_row(s, cap))
-        else:
-            m = export(s, a.out, cap)
-            index.append(dict(key=f'{ds}_{i}', dataset=ds, id=i, caption=cap, n_buildings=m['n_buildings'],
-                              status_pred=m['status_pred'], status_gt=m['status_gt']))
-        print(ds, i, counts(s['buildings'], 'status_gt'), counts(s['buildings'], 'status_pred'), flush=True)
+    if a.scenes:
+        todo = [tuple(x.split(':')) for x in a.scenes.split(',')]
+    else:
+        todo = [(d, i) for d, i, _ in SCENES]
+        if not a.showcase:
+            todo += [(d, i) for d in RUNS for i in eval100_ids(d, a.results) if (d, i) not in caps]
     if a.sheet:
+        rows = []
+        for ds, i in todo:
+            rows.append(sheet_row(scene(ds, i, a.results, a.data), caps.get((ds, i), '')))
         w = max(r.shape[1] for r in rows)
         rows = [np.pad(r, ((0, 6), (0, w - r.shape[1]), (0, 0)), constant_values=255) for r in rows]
         Image.fromarray(np.concatenate(rows, 0)).save(a.sheet)
-    else:
-        json.dump(dict(scenes=index, runs=RUNS, offroad_maxwet_pred=PRED_OFFROAD_MAXWET),
-                  open(os.path.join(a.out, 'scenes.json'), 'w'), indent=1)
+        return
+    keep = {f'{d}_{i}' for d, i in todo}
+    if not a.scenes:                                                # drop scene folders no longer exported
+        for d in glob.glob(os.path.join(a.out, '*_*/')):
+            if os.path.basename(d.rstrip('/')) not in keep:
+                shutil.rmtree(d)
+    jobs = [(ds, i, caps.get((ds, i), ''), a.results, a.data, a.out) for ds, i in todo]
+    with Pool(a.workers) as pool:
+        index = pool.map(_export_one, jobs)
+    json.dump(dict(scenes=index, runs=RUNS, offroad_maxwet_pred=PRED_OFFROAD_MAXWET,
+                   offroad_maxwet_cautious=PRED_CAUTIOUS_MAXWET),
+              open(os.path.join(a.out, 'scenes.json'), 'w'), separators=(',', ':'))
+    print(f'{len(index)} scenes -> {a.out}')
 
 
 if __name__ == '__main__':

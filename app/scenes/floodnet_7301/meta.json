@@ -17,6 +17,10 @@
   768,
   576
  ],
+ "photo_px": [
+  1024,
+  768
+ ],
  "class_names": [
   "road clear",
   "road flooded",
@@ -58,6 +62,7 @@
   "building dry": 0.0,
   "water": null
  },
+ "miou": 0.394,
  "n_buildings": 25,
  "status_pred": {
   "TRUCK": 10,
@@ -71,6 +76,7 @@
   "FOOT": 8,
   "ISOLATED": 0
  },
+ "n_disagree": 3,
  "tiers_pred": {
   "CONFIDENT_TRUCK": 8,
   "PROBABLE_TRUCK": 2,

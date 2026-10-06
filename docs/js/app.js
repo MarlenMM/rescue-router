@@ -1,7 +1,7 @@
 // Rescue Router web viewer (PLAN §6.4). Plain ES module + Leaflet 1.9 (global L), no build step.
 // Scenes come from src/export_web_assets.py; routing runs in the browser with js/router.js.
 
-import { sceneGrids, b64ToBytes, b64ToFloat32, eta, tier, TRUCK, BOAT, FOOT, ISOLATED } from './router.js';
+import { sceneGrids, parseScene, eta, tier, TRUCK, BOAT, FOOT, ISOLATED } from './router.js';
 
 const CELL = 4;
 const KIND = ['truck', 'boat', 'foot', 'isolated'];
@@ -30,7 +30,8 @@ const DATASET = {
 const MODEL_ATTRIB = '<a href="https://github.com/GitGyun/chameleon">Chameleon</a> (Kim et al., ECCV 2024)';
 
 const $ = (id) => document.getElementById(id);
-const state = { index: null, key: null, s: null, src: 'pred', lam: 5, swipe: 0.5, sel: null, anim: null, entry: null, picking: false };
+const state = { index: null, key: null, s: null, src: 'pred', layer: 'classes', lam: 5, swipe: 0.5, sel: null, anim: null,
+  entry: null, picking: false, ds: 'floodnet', sort: 'id' };
 
 // ---------- map and panes ----------
 const map = L.map('map', { crs: L.CRS.Simple, zoomSnap: 0.25, zoomDelta: 0.5, minZoom: -4, maxZoom: 4,
@@ -67,7 +68,7 @@ function badgeIcon(kind, sel) {
 async function loadIndex() {
   state.index = await (await fetch('scenes/scenes.json')).json();
   const box = $('scenes');
-  for (const sc of state.index.scenes) {
+  for (const sc of state.index.scenes.filter(s => s.showcase)) {
     const b = document.createElement('button');
     b.dataset.key = sc.key;
     b.title = sc.caption;
@@ -75,20 +76,68 @@ async function loadIndex() {
     b.setAttribute('aria-label', `${sc.dataset} ${sc.id}: ${sc.caption}`);
     const fail = /failure/i.test(sc.caption) ? '<span class="warn">fail</span>' : '';
     b.innerHTML = `<img src="scenes/${sc.key}/thumb.jpg" alt="" loading="lazy"><span class="tag">${sc.dataset === 'floodnet' ? 'FN' : 'RN'} ${sc.id}</span>${fail}`;
-    b.addEventListener('click', () => { location.hash = sc.key; });
+    b.addEventListener('click', () => goScene(sc.key));
     box.appendChild(b);
+  }
+}
+
+// ---------- browsing all eval100 photos ----------
+const cutOff = (sc) => sc.n_buildings - sc.status_pred.TRUCK;    // houses not reachable by truck on the prediction
+const SORTS = {
+  id: (a, b) => +a.id - +b.id,
+  cut: (a, b) => cutOff(b) - cutOff(a) || +a.id - +b.id,
+  dis: (a, b) => b.n_disagree - a.n_disagree || +a.id - +b.id,
+  iou: (a, b) => (a.miou ?? 2) - (b.miou ?? 2) || +a.id - +b.id,
+};
+const browseList = () => state.index.scenes.filter(s => s.dataset === state.ds).sort(SORTS[state.sort]);
+
+function drawBrowse() {
+  const box = $('allScenes');
+  box.innerHTML = '';
+  document.querySelectorAll('.seg.ds button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.ds === state.ds)));
+  for (const sc of browseList()) {
+    const b = document.createElement('button');
+    const cut = cutOff(sc);
+    b.dataset.key = sc.key;
+    b.setAttribute('role', 'listitem');
+    b.setAttribute('aria-pressed', String(sc.key === state.key));
+    b.title = `${DATASET[sc.dataset].name} ${sc.id}: ${sc.n_buildings} houses, ${cut} not reachable by truck (prediction), ` +
+      `${sc.n_disagree} disagreement${sc.n_disagree === 1 ? '' : 's'} with the labelled map${sc.miou != null ? `, mean IoU ${fmt(sc.miou)}` : ''}`;
+    b.setAttribute('aria-label', b.title);
+    b.innerHTML = `<img src="scenes/${sc.key}/thumb.jpg" alt="" loading="lazy"><span class="tag">${sc.id}</span>` +
+      (sc.n_buildings ? `<span class="cnt${cut ? ' cut' : ''}">${cut}/${sc.n_buildings}</span>` : '') +
+      (sc.n_disagree ? '<span class="dis" aria-hidden="true"></span>' : '');
+    b.addEventListener('click', () => goScene(sc.key));
+    box.appendChild(b);
+  }
+}
+
+function step(d) {
+  const list = browseList(), k = list.findIndex(s => s.key === state.key);
+  const next = k < 0 ? list[0] : list[(k + d + list.length) % list.length];
+  goScene(next.key);
+}
+
+async function goScene(key) {
+  await loadScene(key);
+  writeHash(true);
+}
+
+function markPressed() {
+  document.querySelectorAll('#scenes button, #allScenes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.key === state.key)));
+  const cur = document.querySelector('#allScenes button[aria-pressed="true"]');
+  if (cur) {                                                       // keep it visible without scrolling the page
+    const box = $('allScenes'), top = cur.offsetTop - box.offsetTop;
+    if (top < box.scrollTop || top + cur.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTop = top - box.clientHeight / 2;
   }
 }
 
 async function loadScene(key) {
   const sc = state.index.scenes.find(s => s.key === key) || state.index.scenes[0];
   const dir = `scenes/${sc.key}/`;
-  const [meta, grid, blds] = await Promise.all(['meta', 'grid', 'buildings'].map(f => fetch(dir + f + '.json').then(r => r.json())));
-  grid.pred_cautious = { flags: b64ToBytes(grid.pred_cautious.flags) };
-  for (const k of ['pred', 'gt']) {                                   // decode once; Grid accepts typed arrays
-    grid[k] = { cls: b64ToBytes(grid[k].cls), risk: b64ToFloat32(grid[k].risk), pboat: b64ToFloat32(grid[k].pboat),
-                flags: b64ToBytes(grid[k].flags) };
-  }
+  const [meta, { grid, buildings: blds }] = await Promise.all([
+    fetch(dir + 'meta.json').then(r => r.json()),
+    fetch(dir + 'scene.rrb').then(r => r.arrayBuffer()).then(parseScene)]);
   stopAnim();
   state.key = sc.key;
   state.sel = null;
@@ -96,8 +145,11 @@ async function loadScene(key) {
   setPicking(false);
   const [W, H] = meta.size;
   state.s = { sc, dir, meta, grid, blds, W, H, ds: meta.dataset };
-  document.querySelectorAll('#scenes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.key === sc.key)));
-  $('caption').textContent = `${DATASET[meta.dataset].event} · ${sc.caption}`;
+  if (sc.dataset !== state.ds) { state.ds = sc.dataset; drawBrowse(); }
+  markPressed();
+  $('caption').textContent = `${DATASET[meta.dataset].event} · ${sc.caption || `Test photo ${sc.id}: ` +
+    (!sc.n_buildings ? 'no houses in the labelled map' : sc.n_disagree
+      ? `${sc.n_disagree} of ${sc.n_buildings} houses differ from the labelled map` : `all ${sc.n_buildings} houses agree with the labelled map`)}`;
   const shots = meta.run.match(/_(\d+)shot/)[1];
   const ious = Object.values(meta.iou).filter(v => v != null);
   $('model').innerHTML = `${DATASET[meta.dataset].name} · Chameleon adapted from <b>${shots}</b> labelled photos · ` +
@@ -108,7 +160,10 @@ async function loadScene(key) {
   state.overlays = {
     pred: L.imageOverlay(dir + 'pred.png', bounds, { pane: 'pred', opacity: opacity() }).addTo(groups.pred),
     gt: L.imageOverlay(dir + 'gt.png', bounds, { pane: 'gt', opacity: opacity() }).addTo(groups.gt),
+    pwet: L.imageOverlay(pwetImage(grid), bounds, { pane: 'pred', opacity: 0, className: 'pwet' }).addTo(groups.pred),
   };
+  setOpacities();
+  drawPwetLegend();
   map.attributionControl._attributions = {};
   map.attributionControl.addAttribution(`${DATASET[meta.dataset].attrib} · ${MODEL_ATTRIB}`);
   drawLegend();
@@ -170,6 +225,7 @@ function setEntry(x, y) {
   state.entryMsg = null;
   setPicking(false);
   solve();
+  writeHash();
 }
 
 function drawHouses() {
@@ -231,7 +287,8 @@ function drawCounter() {
   const hint = state.picking ? '<p class="hint pick">Tap where the rescue team enters (road, yard or water).</p>'
     : state.entryMsg ? `<p class="hint pick">${state.entryMsg}</p>`
       : state.sel ? '' : '<p class="hint">Tap a house to send a rescue team.</p>';
-  $('counter').innerHTML = !base() ? '<div class="lbl">No entry point in this photo: choose one</div>' + hint
+  $('counter').innerHTML = !M ? '<div class="lbl">No houses in this photo</div><p class="hint">Try the next photo: › (or the N key).</p>'
+    : !base() ? '<div class="lbl">No entry point in this photo: choose one</div>' + hint
     : '<div class="lbl">Unreachable by road</div>' + (state.src === 'swipe'
       ? `<div class="duo">${block('pred', 'Prediction')}${block('gt', 'Labelled map')}</div>`
       : block(state.src, state.src === 'gt' ? 'Labelled map' : '')) + hint;
@@ -277,6 +334,16 @@ function select(i, side, animate = true) {
   } else if (tr === 'PROBABLE_TRUCK') {
     kind = 'check'; title = 'Probably reachable by truck: check first';
     if (ts) body = `<p class="tierline warn">The only truck route crosses land that may be wet. On the test photos only ${pct(ts.probable)} of such houses were truly truck-reachable (confident tier: ${pct(ts.confident)}). Confirm by drone or radio before sending a truck.</p>` + body;
+  }
+  // on disagreement, the other map's route as a dashed ghost (under this map's route)
+  const rO = agree ? null : s.sol[other].route(b.goals);
+  if (rO && rO.cells.length > 1) {
+    L.polyline(rO.cells.map(cellLL), { renderer: rend.route, color: '#000', weight: 6, opacity: 0.35, interactive: false,
+      lineCap: 'round', lineJoin: 'round' }).addTo(groups.route);
+    L.polyline(rO.cells.map(cellLL), { renderer: rend.route, color: getVar('--disagree'), weight: 3, opacity: 0.95,
+      dashArray: '7 6', interactive: false, lineCap: 'butt', lineJoin: 'round' }).addTo(groups.route);
+    const mO = [...new Set(rO.modes.slice(1))].map(m => LEG[m].name).join(' → ');
+    body += `<p class="gtline"><span class="line ghostline"></span> ${SIDE[other]} route: ${mO || 'at the entry point'}</p>`;
   }
   card.innerHTML = `<h3><span class="st ${kind}" style="width:20px;height:20px">${SVG[KIND[st]]}</span>${title}</h3>${body}`;
   card.hidden = false;
@@ -355,6 +422,7 @@ map.on('click', (e) => {
   if (hit < 0) return;
   const side = state.src === 'swipe' ? (e.containerPoint.x < map.getSize().x * state.swipe ? 'pred' : 'gt') : state.src;
   select(hit, side);
+  writeHash();
 });
 
 // ---------- map source, swipe ----------
@@ -364,7 +432,7 @@ function setSource(src) {
     state.swipe = Math.min(0.9, Math.max(0.1, c.x / map.getSize().x));
   }
   state.src = src;
-  document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.src === src)));
+  document.querySelectorAll('.seg button[data-src]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.src === src)));
   $('swipe').hidden = src !== 'swipe';
   panes.pred.style.display = src === 'gt' ? 'none' : '';
   panes.gt.style.display = src === 'pred' ? 'none' : '';
@@ -411,29 +479,139 @@ function drawLegend() {
 
 function getVar(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 function opacity() { return $('tClasses').checked ? $('opacity').value / 100 : 0; }
+function setOpacities() {
+  const o = state.overlays;
+  if (!o) return;
+  o.pred.setOpacity(state.layer === 'classes' ? opacity() : 0);
+  o.pwet.setOpacity(state.layer === 'pwet' ? Math.min(1, opacity() * 1.4) : 0);   // its colours carry their own alpha
+  o.gt.setOpacity(opacity());
+}
 
-document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => setSource(b.dataset.src)));
-$('opacity').addEventListener('input', () => { $('tClasses').checked = true; Object.values(state.overlays || {}).forEach(o => o.setOpacity(opacity())); });
-$('tClasses').addEventListener('change', () => Object.values(state.overlays || {}).forEach(o => o.setOpacity(opacity())));
+// ---------- water probability layer (prediction): p_wet = p1 + p4 per routing cell, coloured by the gates ----------
+// solid yellow: a truck may cross the cell on the normal map but not on the cautious one (what makes "check first");
+// faint yellow: other cells between the two gates; blue: at or above the normal gate. Buildings are left clear.
+function pwetColor(p, cautious, tuned, gateCell = false) {
+  if (gateCell) return [250, 204, 21, 190];
+  if (p < cautious) return [0, 0, 0, 0];
+  if (p < tuned) return [250, 204, 21, 80];
+  const t = Math.min(1, (p - tuned) / (1 - tuned));             // light -> deep blue
+  return [56 + (30 - 56) * t, 189 + (64 - 189) * t, 248 + (175 - 248) * t, 150 + 90 * t];
+}
+
+function pwetImage(grid) {
+  const c = document.createElement('canvas');
+  c.width = grid.w; c.height = grid.h;
+  const ctx = c.getContext('2d'), img = ctx.createImageData(grid.w, grid.h), r = grid.pred.risk;
+  const f = grid.pred.flags, fc = grid.pred_cautious.flags;
+  const { offroad_maxwet_cautious: cg, offroad_maxwet_pred: tg } = grid.params;
+  for (let i = 0; i < r.length; i++) {
+    if (f[i] & 64) continue;                                       // building cell
+    img.data.set(pwetColor(r[i], cg, tg, (f[i] & 1) && !(fc[i] & 1)).map(Math.round), 4 * i);
+  }
+  ctx.putImageData(img, 0, 0);
+  return c.toDataURL();
+}
+
+function drawPwetLegend() {
+  const s = state.s, { offroad_maxwet_cautious: cg, offroad_maxwet_pred: tg } = s.grid.params;
+  const stops = [];
+  for (let k = 0; k <= 100; k += 2) {
+    const [r, g, b, a] = pwetColor(k / 100, cg, tg);
+    stops.push(`rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${(a / 255).toFixed(2)}) ${k}%`);
+  }
+  $('pwetRamp').style.background = `linear-gradient(90deg, ${stops.join(',')}), #1e293b`;
+  $('pwetRamp').innerHTML = [0, cg, tg, 1].map(v => `<span style="left:${v * 100}%">${v === 0 || v === 1 ? v : fmt(v)}</span>`).join('');
+  const what = s.ds === 'rescuenet' ? 'water or blocked road' : 'water';
+  $('pwetText').innerHTML = `Model's probability of ${what} per cell. <b class="b">Blue</b> (≥ ${fmt(tg)}): treated as wet; ` +
+    `trucks keep off it off-road. <b class="y">Yellow</b> (${fmt(cg)}–${fmt(tg)}), solid where a truck may cross only on the ` +
+    'normal map, not the cautious one: houses reached through it are "check first". Prediction only: the labelled map has no probabilities.';
+  $('pwetLegend').hidden = state.layer !== 'pwet';
+}
+
+function setLayer(layer) {
+  state.layer = layer === 'pwet' ? 'pwet' : 'classes';
+  document.querySelectorAll('.seg button[data-layer]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.layer === state.layer)));
+  $('pwetLegend').hidden = state.layer !== 'pwet';
+  setOpacities();
+}
+
+document.querySelectorAll('.seg button[data-src]').forEach(b => b.addEventListener('click', () => { setSource(b.dataset.src); writeHash(); }));
+document.querySelectorAll('.seg button[data-layer]').forEach(b => b.addEventListener('click', () => { setLayer(b.dataset.layer); writeHash(); }));
+document.querySelectorAll('.seg.ds button').forEach(b => b.addEventListener('click', () => { state.ds = b.dataset.ds; drawBrowse(); markPressed(); }));
+$('sortScenes').addEventListener('change', (e) => { state.sort = e.target.value; drawBrowse(); markPressed(); });
+$('prevScene').addEventListener('click', () => step(-1));
+$('nextScene').addEventListener('click', () => step(1));
+addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+  if (e.key === 'n' || e.key === 'N') step(1);
+  else if (e.key === 'p' || e.key === 'P') step(-1);
+});
+$('copyLink').addEventListener('click', async () => {
+  writeHash();
+  let ok = true;
+  try { await navigator.clipboard.writeText(location.href); } catch { ok = false; }
+  $('copyLink').textContent = ok ? 'Link copied' : 'Copy the address bar';
+  setTimeout(() => { $('copyLink').textContent = 'Copy link to this view'; }, 1800);
+});
+$('opacity').addEventListener('input', () => { $('tClasses').checked = true; setOpacities(); });
+$('tClasses').addEventListener('change', setOpacities);
 $('tStatus').addEventListener('change', drawHouses);
 $('tDisagree').addEventListener('change', drawHouses);
 $('tBase').addEventListener('change', drawBase);
-$('tRisk').addEventListener('change', () => { state.lam = $('tRisk').checked ? 5 : 0; solve(); });
+$('tRisk').addEventListener('change', () => { state.lam = $('tRisk').checked ? 5 : 0; solve(); writeHash(); });
 $('entryPick').addEventListener('click', () => setPicking(!state.picking));
-$('entryAuto').addEventListener('click', () => { state.entry = null; state.entryMsg = null; setPicking(false); solve(); });
+$('entryAuto').addEventListener('click', () => { state.entry = null; state.entryMsg = null; setPicking(false); solve(); writeHash(); });
 $('sheetToggle').addEventListener('click', () => {
   const p = $('panel'), c = p.classList.toggle('collapsed');
   $('sheetToggle').setAttribute('aria-expanded', String(!c));
+  if (!c) markPressed();                                           // the photo list can only scroll once visible
   setTimeout(fit, 50);
 });
 addEventListener('resize', () => { clearTimeout(state.rt); state.rt = setTimeout(fit, 150); });
-addEventListener('hashchange', () => loadScene(location.hash.slice(1)));
+addEventListener('hashchange', applyHash);                          // back/forward, or a pasted link
+
+// ---------- the view in the URL: #s=<scene>&h=<house id>[gt]&e=<x>,<y>&m=gt|swipe&l=pwet&r=0 ----------
+function readHash() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  const q = new URLSearchParams(h.includes('=') ? h : `s=${h}`);   // old links: #floodnet_7241
+  return Object.fromEntries(['s', 'h', 'e', 'm', 'l', 'r'].map(k => [k, q.get(k)]));
+}
+
+function writeHash(push = false) {
+  if (!state.s) return;
+  const q = [`s=${state.key}`];
+  if (state.sel) q.push(`h=${state.s.blds[state.sel.i].id}${state.src === 'swipe' && state.sel.side === 'gt' ? 'gt' : ''}`);
+  if (state.entry) q.push(`e=${state.entry.at.map(Math.round).join(',')}`);
+  if (state.src !== 'pred') q.push(`m=${state.src}`);
+  if (state.layer !== 'classes') q.push(`l=${state.layer}`);
+  if (!state.lam) q.push('r=0');
+  const url = `#${q.join('&')}`;
+  if (url !== location.hash) history[push ? 'pushState' : 'replaceState'](null, '', url);
+}
+
+async function applyHash() {
+  const p = readHash();
+  if (!state.s || (p.s && p.s !== state.key)) await loadScene(p.s);
+  if (p.r != null && (p.r !== '0') !== Boolean(state.lam)) { $('tRisk').checked = p.r !== '0'; state.lam = p.r === '0' ? 0 : 5; solve(); }
+  if (p.l) setLayer(p.l);
+  if (p.m && ['pred', 'gt', 'swipe'].includes(p.m)) setSource(p.m);
+  if (p.e) {
+    const [x, y] = p.e.split(',').map(Number);
+    if (Number.isFinite(x) && Number.isFinite(y)) setEntry(Math.min(state.s.W - 1, Math.max(0, x)), Math.min(state.s.H - 1, Math.max(0, y)));
+  }
+  if (p.h) {
+    const i = state.s.blds.findIndex(b => b.id === parseInt(p.h, 10));
+    if (i >= 0 && base()) select(i, state.src === 'swipe' ? (p.h.endsWith('gt') ? 'gt' : 'pred') : state.src);
+  }
+  writeHash();
+}
 
 (async () => {
   if (innerWidth <= 760) { $('panel').classList.add('collapsed'); $('sheetToggle').setAttribute('aria-expanded', 'false'); }
   await loadIndex();
-  await loadScene(location.hash.slice(1));
+  drawBrowse();
   setSource('pred');
+  await applyHash();
 })();
 
 window.rr = { state, map };                                         // for debugging in the console

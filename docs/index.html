@@ -35,9 +35,26 @@
   </button>
   <div class="panel-body" id="panelBody">
     <section>
-      <h2>Scene</h2>
+      <h2>Showcase</h2>
       <div class="scenes" id="scenes"></div>
+      <h2 class="sub">All test photos</h2>
+      <div class="browse-bar">
+        <button id="prevScene" class="nav" aria-label="Previous photo" title="Previous photo (P)">‹</button>
+        <div class="seg ds" role="radiogroup" aria-label="Dataset">
+          <button role="radio" data-ds="floodnet" aria-checked="true">FloodNet</button>
+          <button role="radio" data-ds="rescuenet" aria-checked="false">RescueNet</button>
+        </div>
+        <button id="nextScene" class="nav" aria-label="Next photo" title="Next photo (N)">›</button>
+      </div>
+      <label class="row sort">Sort <select id="sortScenes" aria-label="Sort the test photos">
+        <option value="id">by photo id</option>
+        <option value="cut">most houses cut off</option>
+        <option value="dis">most disagreements</option>
+        <option value="iou">lowest mean IoU</option>
+      </select></label>
+      <div class="all" id="allScenes" role="list" aria-label="Test photos"></div>
       <p class="model" id="model"></p>
+      <button id="copyLink" class="link-btn">Copy link to this view</button>
     </section>
 
     <section>
@@ -47,7 +64,15 @@
         <button role="radio" data-src="gt" aria-checked="false" title="The same router on the human labels">Labelled map</button>
         <button role="radio" data-src="swipe" aria-checked="false">Swipe</button>
       </div>
-      <label class="row"><input type="checkbox" id="tClasses" checked> Flood map <input type="range" id="opacity" min="0" max="100" value="60" aria-label="Flood map opacity"></label>
+      <div class="seg" role="radiogroup" aria-label="Overlay">
+        <button role="radio" data-layer="classes" aria-checked="true">Classes</button>
+        <button role="radio" data-layer="pwet" aria-checked="false" title="The model's water probability per cell (prediction only)">Water probability</button>
+      </div>
+      <div class="pwet-legend" id="pwetLegend" hidden>
+        <div class="ramp" id="pwetRamp"></div>
+        <p id="pwetText"></p>
+      </div>
+      <label class="row"><input type="checkbox" id="tClasses" checked> Overlay <input type="range" id="opacity" min="0" max="100" value="60" aria-label="Overlay opacity"></label>
       <label class="row"><input type="checkbox" id="tStatus" checked> House status</label>
       <label class="row"><input type="checkbox" id="tDisagree"> Disagreements with the labelled map <span class="pill" id="nDisagree">0</span></label>
       <label class="row"><input type="checkbox" id="tBase" checked> Entry points</label>
@@ -73,6 +98,7 @@
         <li><span class="badge foot"></span>Last stretch on foot</li>
         <li><span class="badge isolated"></span>No route: air team</li>
         <li><span class="line truckline"></span>Truck <span class="line boatline"></span>Boat <span class="line footline"></span>Foot</li>
+        <li><span class="line ghostline"></span>Route on the other map, when they disagree</li>
         <li><span class="sq base"></span>Entry point (truck or boat)</li>
       </ul>
     </section>
@@ -91,7 +117,11 @@
         photos); the others are marked "check first" (74 %). Minutes and metres are
         rough estimates (truck 20 km/h on roads, 5 off-road, boat 6, on foot 3; scale from the cars in the photo).</p>
       <p>FloodNet 50-shot: mIoU .47 on the full 448-image test (PSPNet with 1,445 labels: .85 on these classes).
-        Two scenes are honest failures: shallow water read as dry land.</p>
+        One showcase scene is an honest failure: shallow water read as dry land.</p>
+      <p>Besides the 8 showcase scenes you can browse all 200 test photos of the evaluation split (100 FloodNet,
+        100 RescueNet), not picked by us: an orange count is the houses a truck cannot reach on the prediction, a pink dot
+        marks a photo where prediction and labelled map disagree. "Water probability" shows what the model believes
+        cell by cell. The address bar keeps the scene, house, entry point and view, so a link opens exactly this view.</p>
     </section>
   </div>
 </aside>
