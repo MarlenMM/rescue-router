@@ -7,9 +7,12 @@ in-process 50-shot val30 hit CUDA OOM at step 500 in the core queue; 'select50' 
 selection + eval100 of those two runs (notebook rr-gpu-select50; the snapshots come from the
 rr-gpu-queue50 output, whose select step failed on an argparse abbreviation bug); 'extra' = zero-label
 transfer of FloodNet 50-shot to RescueNet eval100 + the full 448-image FloodNet test of FloodNet 50-shot,
-split in two halves over the GPUs (notebook rr-gpu-extra; checkpoint from the rr-gpu-select50 output)."""
+split in two halves over the GPUs (notebook rr-gpu-extra; checkpoint from the rr-gpu-select50 output);
+'flips' = Batch 7: test-time flips (h, v, hv) of FloodNet 50-shot on val30 (decode re-tuning) and the full test
+(eval100 first, then the other 348 in two halves), plus the Gradio live check on GPU 1 before its flips
+(notebook rr-gpu-flips; checkpoint from rr-gpu-select50)."""
 import glob, json, os, shutil, subprocess, sys, tarfile, time
-QUEUE = 'extra'
+QUEUE = 'flips'
 
 T0 = time.time()
 def sh(cmd):
@@ -82,10 +85,17 @@ FN50 = f'{OUT}/ckpt/floodnet_50shot_s0_stratified.ckpt'
 def pr_fn50(split_file, query_dataset='floodnet'):
     return ['predict', ['--ckpt', FN50, '--dataset', 'floodnet', '--query_dataset', query_dataset,
                         '--split_file', split_file, '--split', 'test', '--amp', 'fp16', '--chunk', 1, '--channel_chunk', 1]]
+def fl(split_file, flip, split='test'):
+    return ['predict', ['--ckpt', FN50, '--dataset', 'floodnet', '--split_file', split_file, '--split', split,
+                        '--amp', 'fp16', '--chunk', 1, '--channel_chunk', 1, '--flip', flip]]
+Q_FLIPS = {0: [fl('floodnet_val_tune30', 'h', 'val'), fl('floodnet_test_eval100', 'h'), fl('floodnet_test_eval100', 'v'),
+               fl('floodnet_test_rest348_a', 'h'), fl('floodnet_test_rest348_a', 'v'), fl('floodnet_test_rest348_b', 'h')],
+           1: [fl('floodnet_val_tune30', 'v', 'val'), fl('floodnet_val_tune30', 'hv', 'val'), fl('floodnet_test_eval100', 'hv'),
+               fl('floodnet_test_rest348_a', 'hv'), fl('floodnet_test_rest348_b', 'v'), fl('floodnet_test_rest348_b', 'hv')]}
 Q_EXTRA = {0: [pr_fn50('floodnet_test_full_part1')],
            1: [pr_fn50('rescuenet_test_eval100', 'rescuenet'), pr_fn50('floodnet_test_full_part2')]}
-Q = {'core': Q_CORE, 'rerun50': Q_RERUN50, 'select50': Q_SELECT50, 'extra': Q_EXTRA}[QUEUE]
-if QUEUE == 'extra':                    # the headline checkpoint from rr-gpu-select50
+Q = {'core': Q_CORE, 'rerun50': Q_RERUN50, 'select50': Q_SELECT50, 'extra': Q_EXTRA, 'flips': Q_FLIPS}[QUEUE]
+if QUEUE in ('extra', 'flips'):         # the headline checkpoint from rr-gpu-select50
     hits = glob.glob('/kaggle/input/**/rr/ckpt/floodnet_50shot_s0_stratified.ckpt', recursive=True)
     assert hits, 'floodnet_50shot_s0_stratified.ckpt not found in the inputs'
     shutil.copy(hits[0], FN50)
@@ -105,6 +115,9 @@ for g, jobs in Q.items():
     cmd = [sys.executable, '/content/rr/src/run_queue.py', '--queue', f'{OUT}/logs/queue_gpu{g}.json', '--log', f'{OUT}/logs/queue_gpu{g}.log',
            '--budget_h', '9.5', '--', '--drive', OUT, '--chameleon', f'/content/starter{g}/chameleon',
            '--data', '/content/rr_data', '--runs', f'/content/runs_gpu{g}', '--mt_ckpt', '/content/generalist.ckpt']
+    if QUEUE == 'flips' and g == 1:     # Gradio live check first (~10 min), then this GPU's flips
+        cmd = ['bash', '-c', f'{sys.executable} {root}/kaggle/live/live_check.py > {OUT}/logs/live_check.out 2>&1; '
+               + ' '.join(map(str, cmd))]
     procs[g] = subprocess.Popen(cmd, env=env, stdout=open(f'{OUT}/logs/queue_gpu{g}.out', 'w'), stderr=subprocess.STDOUT)
 
 while any(p.poll() is None for p in procs.values()):

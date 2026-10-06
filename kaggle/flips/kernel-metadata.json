@@ -1,0 +1,15 @@
+{
+ "id": "marlenmelis/rr-gpu-flips",
+ "title": "rr-gpu-flips",
+ "code_file": "run_queue_kaggle.py",
+ "language": "python",
+ "kernel_type": "script",
+ "is_private": true,
+ "enable_gpu": true,
+ "enable_internet": true,
+ "machine_shape": "NvidiaTeslaT4",
+ "dataset_sources": ["marlenmelis/rr-code"],
+ "competition_sources": [],
+ "kernel_sources": ["marlenmelis/rr-fetch-data", "marlenmelis/rr-gpu-select50"],
+ "model_sources": []
+}
