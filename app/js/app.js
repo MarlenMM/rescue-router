@@ -1,7 +1,7 @@
 // Rescue Router web viewer (PLAN §6.4). Plain ES module + Leaflet 1.9 (global L), no build step.
 // Scenes come from src/export_web_assets.py; routing runs in the browser with js/router.js.
 
-import { sceneGrids, b64ToBytes, b64ToFloat32, TRUCK, BOAT, FOOT, ISOLATED } from './router.js';
+import { sceneGrids, b64ToBytes, b64ToFloat32, eta, tier, TRUCK, BOAT, FOOT, ISOLATED } from './router.js';
 
 const CELL = 4;
 const KIND = ['truck', 'boat', 'foot', 'isolated'];
@@ -16,6 +16,7 @@ const SVG = {
   foot: '<svg viewBox="0 0 24 24" fill="#fff"><circle cx="13" cy="4" r="2.4"/><path d="M11 7.5l-3 4 1.8 1.2 2-2.4 1 4-3.3 6.4 2 1 3-5.8 2.2 5.8 2-.8-2.6-7.4-.9-3.6 2 1.4 2.4-.4-.3-2-2-.3z"/></svg>',
   isolated: '<svg viewBox="0 0 24 24" stroke="#fff" stroke-width="3.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
 };
+SVG.check = SVG.truck;                                              // 'probably truck: check first' badge
 const CLASS_LABEL = {
   floodnet: { 2: 'flooded building', 3: 'dry building' },
   rescuenet: { 2: 'intact building', 3: 'damaged building' },
@@ -83,6 +84,7 @@ async function loadScene(key) {
   const sc = state.index.scenes.find(s => s.key === key) || state.index.scenes[0];
   const dir = `scenes/${sc.key}/`;
   const [meta, grid, blds] = await Promise.all(['meta', 'grid', 'buildings'].map(f => fetch(dir + f + '.json').then(r => r.json())));
+  grid.pred_cautious = { flags: b64ToBytes(grid.pred_cautious.flags) };
   for (const k of ['pred', 'gt']) {                                   // decode once; Grid accepts typed arrays
     grid[k] = { cls: b64ToBytes(grid[k].cls), risk: b64ToFloat32(grid[k].risk), pboat: b64ToFloat32(grid[k].pboat),
                 flags: b64ToBytes(grid[k].flags) };
@@ -133,8 +135,9 @@ function fit() {
 function solve() {
   const s = state.s;
   s.grids = sceneGrids(s.grid, state.lam);
-  s.sol = { pred: s.grids.pred.solve(base()), gt: s.grids.gt.solve(base()) };
+  s.sol = { pred: s.grids.pred.solve(base()), gt: s.grids.gt.solve(base()), cautious: s.grids.pred_cautious.solve(base()) };
   s.status = { pred: s.blds.map(b => s.sol.pred.status(b.goals)), gt: s.blds.map(b => s.sol.gt.status(b.goals)) };
+  s.tier = s.blds.map((b, i) => tier(s.status.pred[i], s.sol.cautious.status(b.goals)));
   drawHouses();
   drawBase();
   drawCounter();
@@ -177,7 +180,7 @@ function drawHouses() {
   s.blds.forEach((b, i) => {
     const poly = b.polygon.map(([x, y]) => ll(x, y));
     for (const side of ['pred', 'gt']) {
-      const kind = KIND[s.status[side][i]];
+      const kind = side === 'pred' && s.tier[i] === 'PROBABLE_TRUCK' ? 'check' : KIND[s.status[side][i]];
       const g = side === 'pred' ? groups.predHouses : groups.gtHouses;
       if (show) {
         L.polygon(poly, { renderer: rend[side], interactive: false, color: getVar(`--${kind}`), weight: 2,
@@ -219,9 +222,11 @@ function drawCounter() {
   const block = (side, label) => {
     const st = s.status[side], n = (k) => st.filter(v => v === k).length;
     const none = n(ISOLATED);
+    const check = side === 'pred' ? s.tier.filter(t => t === 'PROBABLE_TRUCK').length : 0;
     return `<div>${label ? `<div class="side">${label}</div>` : ''}<div class="big">${M - n(TRUCK)} <small>/ ${M} houses</small></div>` +
       `<div class="split"><span><b>${n(BOAT)}</b> by boat</span><span><b>${n(FOOT)}</b> on foot</span>` +
-      `${none ? `<span><b>${none}</b> no route</span>` : ''}</div></div>`;
+      `${none ? `<span><b>${none}</b> no route</span>` : ''}</div>` +
+      (check ? `<div class="split check"><span><b>${check}</b> more look truck-reachable: check first</span></div>` : '') + '</div>';
   };
   const hint = state.picking ? '<p class="hint pick">Tap where the rescue team enters (road, yard or water).</p>'
     : state.entryMsg ? `<p class="hint pick">${state.entryMsg}</p>`
@@ -239,7 +244,10 @@ function select(i, side, animate = true) {
   groups.route.clearLayers();
   drawHouses();
   const st = s.status[side][i];
-  const r = s.sol[side].route(b.goals);                              // ends in the mode of the status, as router.py
+  const tr = side === 'pred' ? s.tier[i] : null;
+  // a confident-truck house gets its route on the cautious map (it avoids land that may be wet)
+  const solR = tr === 'CONFIDENT_TRUCK' ? s.sol.cautious : s.sol[side];
+  const r = solR.route(b.goals);                                     // ends in the mode of the status, as router.py
   const other = side === 'pred' ? 'gt' : 'pred', stO = s.status[other][i];
   L.polygon(b.polygon.map(([x, y]) => ll(x, y)), { renderer: rend.route, interactive: false, color: getVar('--accent'),
     weight: 3, fill: false }).addTo(groups.route);
@@ -249,15 +257,28 @@ function select(i, side, animate = true) {
     const steps = [0, 0, 0];
     for (let k = 1; k < r.modes.length; k++) steps[r.modes[k]]++;
     const parts = steps.map((n, m) => (n ? `${LEG[m].name} <b>${n}</b>` : null)).filter(Boolean);
-    body += `<p>${parts.length ? parts.join(' → ') + ' cells' : 'The house is at the entry point'} · cost <b>${r.cost.toFixed(0)}</b></p>`;
+    const e = eta(r, solR.grid, s.grid.eta, s.meta.m_per_cell);
+    const km = (v) => (v >= 1000 ? `${(v / 1000).toFixed(1)} km` : `${Math.round(v / 10) * 10} m`);
+    const legs = e.metres.map((v, m) => (v > 0 ? `${LEG[m].name} ${km(v)}` : null)).filter(Boolean);
+    body += `<p class="eta">≈ <b>${Math.max(1, Math.round(e.minutes))} min</b> · ${legs.length ? legs.join(' → ') : 'at the entry point'}</p>`;
     body += `<div class="legs">${steps.map((n, m) => `<span style="flex:${n};background:${LEG[m].color}"></span>`).join('')}</div>`;
+    body += `<p class="gtline">Route cost ${r.cost.toFixed(0)} (${parts.length ? parts.join(' → ') + ' cells' : 'no steps'})</p>`;
   } else {
     body += '<p>No truck, boat or walking route from the entry point on this map.</p>';
   }
   const agree = st === stO;
   body += `<p class="${agree ? 'gtline' : 'mismatch'}">${SIDE[other]}: ${WORD[stO]}${agree ? ' ✓' : ` (${SIDE[side].toLowerCase()} says ${WORD[st]})`}</p>`;
   body += `<p class="gtline">Label: ${CLASS_LABEL[s.ds][b.cls]} · ${SIDE[side]}${state.lam ? ', risk-aware truck' : ', shortest truck'}</p>`;
-  card.innerHTML = `<h3><span class="st ${KIND[st]}" style="width:20px;height:20px">${SVG[KIND[st]]}</span>${TITLE[st]}</h3>${body}`;
+  const ts = s.meta.tier_stats, pct = (v) => `${Math.round(100 * v)} %`;
+  let kind = KIND[st], title = TITLE[st];
+  if (tr === 'CONFIDENT_TRUCK') {
+    title = 'Truck can reach it: confident';
+    if (ts) body = `<p class="tierline">Safe route: avoids land that may be wet. On the test photos ${pct(ts.confident)} of such houses were truly truck-reachable.</p>` + body;
+  } else if (tr === 'PROBABLE_TRUCK') {
+    kind = 'check'; title = 'Probably reachable by truck: check first';
+    if (ts) body = `<p class="tierline warn">The only truck route crosses land that may be wet. On the test photos only ${pct(ts.probable)} of such houses were truly truck-reachable (confident tier: ${pct(ts.confident)}). Confirm by drone or radio before sending a truck.</p>` + body;
+  }
+  card.innerHTML = `<h3><span class="st ${kind}" style="width:20px;height:20px">${SVG[KIND[st]]}</span>${title}</h3>${body}`;
   card.hidden = false;
   drawCounter();
   if (r && r.cells.length > 1) drawRoute(r, animate);

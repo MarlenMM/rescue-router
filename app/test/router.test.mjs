@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sceneGrids, STATUS, TRUCK, BOAT, FOOT } from '../js/router.js';
+import { sceneGrids, eta, tier, STATUS, TRUCK, BOAT, FOOT } from '../js/router.js';
 
 const SCENES = join(dirname(fileURLToPath(import.meta.url)), '..', 'scenes');
 const index = JSON.parse(readFileSync(join(SCENES, 'scenes.json'), 'utf8'));
@@ -38,7 +38,7 @@ for (const s of index.scenes) {
     let checked = 0;
     for (const lam of [5, 0]) {
       const grids = sceneGrids(gj, lam);
-      for (const name of ['pred', 'gt']) {
+      for (const name of ['pred', 'gt', 'pred_cautious']) {
         const sol = grids[name].solve(gj.base);
         for (const b of blds) {
           const ref = b.py[`lam${lam}`]?.[name];
@@ -50,10 +50,17 @@ for (const s of index.scenes) {
                     `${name} lam${lam} building ${b.id}: JS ${r.cost} vs Python ${ref.cost}`);
           assert.ok(Math.abs(recost(grids[name], r) - r.cost) <= 1e-9 * Math.max(1, r.cost));
           assert.equal(r.modes.at(-1), sol.status(b.goals), 'route ends in the mode of the status');
+          assert.ok(Math.abs(eta(r, grids[name], gj.eta).minutes - ref.eta_min) <= 1e-9 * Math.max(1, ref.eta_min),
+                    `${name} lam${lam} building ${b.id}: ETA`);
           checked++;
         }
       }
     }
     assert.ok(checked > 0 || blds.length === 0);
+    const g5 = sceneGrids(gj, 5), base = gj.base;
+    if (base) {
+      const sp = g5.pred.solve(base), sc = g5.pred_cautious.solve(base);
+      for (const b of blds) assert.equal(tier(sp.status(b.goals), sc.status(b.goals)), b.tier_pred, `tier of ${b.id}`);
+    }
   });
 }

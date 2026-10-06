@@ -67,7 +67,8 @@
       <h2>Legend</h2>
       <ul class="legend" id="legend"></ul>
       <ul class="legend">
-        <li><span class="badge truck"></span>Reachable by truck</li>
+        <li><span class="badge truck"></span>Reachable by truck (confident)</li>
+        <li><span class="badge check"></span>Probably by truck: check first</li>
         <li><span class="badge boat"></span>Boat needed</li>
         <li><span class="badge foot"></span>Last stretch on foot</li>
         <li><span class="badge isolated"></span>No route: air team</li>
@@ -84,6 +85,10 @@
         (never back into a vehicle). Vehicles have a width: a truck needs about 2.5 m between buildings and a boat
         about 1.6 m, so neither squeezes through the gap between two houses; people on foot can. The labelled map is the same router run on the human labels: the datasets label pixels,
         not reachability.</p>
+      <p>Confidence: the prediction is routed twice, with the normal off-road rule (land where p_wet &lt; 0.3) and a
+        cautious one (p_wet &lt; 0.1). Houses a truck reaches even on the cautious map are confident (99 % truly
+        truck-reachable on FloodNet test photos); the others are marked "check first" (74 %). Minutes and metres are
+        rough estimates (truck 20 km/h on roads, 5 off-road, boat 6, on foot 3; scale from the cars in the photo).</p>
       <p>FloodNet 50-shot: mIoU .47 on the full 448-image test (PSPNet with 1,445 labels: .85 on these classes).
         Two scenes are honest failures: shallow water read as dry land.</p>
     </section>

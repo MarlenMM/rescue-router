@@ -28,6 +28,9 @@ SPLIT = {'test': 'test', 'val': 'val'}
 # off-road gate for predicted maps (the GT grid has none): tuned on FloodNet 50-shot val30 (stranded F1
 # .548 -> .971 at 0.3), see PLAN §15 "Off-road gate"; the web viewer's JS router uses the same value
 PRED_OFFROAD_MAXWET = 0.3
+# cautious gate for the confidence tiers (Batch 2): largest gate whose confident-truck houses are >= 99 % truck-
+# reachable on FloodNet 50-shot val30 (src/tiers.py, results/routing/tiers/tiers.md)
+PRED_CAUTIOUS_MAXWET = 0.1
 
 
 def main():

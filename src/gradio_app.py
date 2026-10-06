@@ -23,11 +23,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import router as R  # noqa: E402
-from export_web_assets import RUNS, SCENES, build_scene, load_cached, make_grids  # noqa: E402
+from export_web_assets import RUNS, SCENES, build_scene, load_cached, make_grids, scene_scale, tier_stats  # noqa: E402
 from viz import COLORS, NAMES, blend  # noqa: E402
 
 K = 2                                                   # display scale (768x576 -> 1536x1152)
 STATUS_RGB = {R.TRUCK: (34, 197, 94), R.BOAT: (249, 115, 22), R.FOOT: (167, 139, 250), R.ISOLATED: (239, 68, 68)}
+CHECK_RGB = (250, 204, 21)                              # 'probably by truck: check first' (confidence tiers)
 CYAN, WHITE, VIOLET = (34, 211, 238), (255, 255, 255), (167, 139, 250)
 LEG = {R.TRUCK: ('truck', WHITE), R.BOAT: ('boat', CYAN), R.FOOT: ('on foot', VIOLET)}
 TITLE = {R.TRUCK: 'Truck can reach it', R.BOAT: 'Boat needed', R.FOOT: 'Last stretch on foot',
@@ -45,7 +46,16 @@ def solve(st):
     base = st.get('entry') or s['base']
     st['sol'] = {k: g.solve(base) for k, g in st['grids'].items()} if base is not None else {}
     st['status'] = {k: [sol.status(b) for b in s['bld']] for k, sol in st['sol'].items()}
+    st['tier'] = [R.tier(a, b) for a, b in zip(st['status']['pred'], st['status']['pred_cautious'])] \
+        if st['sol'] else ['ISOLATED'] * len(s['bld'])
     return st
+
+
+def route_for(st, j):
+    """route shown for house j: a confident-truck house gets its route on the cautious map (it avoids land that
+    may be wet), every other house its route on the current map"""
+    sol = st['sol']['pred_cautious'] if st['src'] == 'pred' and st['tier'][j] == 'CONFIDENT_TRUCK' else st['sol'][st['src']]
+    return sol.route(st['scene']['bld'][j]), sol.grid
 
 
 def new_state(s, title, risk=True, boat=3.0, src='pred'):
@@ -74,7 +84,9 @@ def cached_state(key, args, **kw):
     ds, i = key.split(':')
     c = load_cached(ds, i, args.results, args.data)
     cap = {(d, j): t for d, j, t in SCENES}.get((ds, i), 'eval100 photo')
-    return new_state(build_scene(ds, c['img'], c['probs'], c['decode'], c['gt']), f'{ds} {i}: {cap}', **kw)
+    s = build_scene(ds, c['img'], c['probs'], c['decode'], c['gt'])
+    s.update(id=i, **scene_scale(dict(dataset=ds, id=i), args.data), tier_stats=tier_stats(ds))
+    return new_state(s, f'{ds} {i}: {cap}', **kw)
 
 
 # ---------- drawing ----------
@@ -95,7 +107,7 @@ def render(st):
     for j, (r, stt) in enumerate(zip(s['buildings'], status)):
         poly = [(x * K, y * K) for x, y in r['polygon']]
         sel = st['sel'] is not None and st['sel'][0] == j
-        dr.polygon(poly, outline=CYAN if sel else STATUS_RGB[stt], width=8 if sel else 4)
+        dr.polygon(poly, outline=CYAN if sel else colour(st, j, stt), width=8 if sel else 4)
     route = st['sel'][1] if st['sel'] is not None else None
     if route is not None and len(route['cells']) > 1:
         pts = [(x * R.CELL * K + R.CELL * K / 2, y * R.CELL * K + R.CELL * K / 2) for y, x in route['cells']]
@@ -116,10 +128,14 @@ def render(st):
                     dr.ellipse([px - 4, py - 4, px + 4, py + 4], fill=VIOLET)
         x0, y0 = pts[0]
         dr.ellipse([x0 - 9, y0 - 9, x0 + 9, y0 + 9], fill=WHITE, outline=(0, 0, 0), width=3)
-    for r, stt in zip(s['buildings'], status):                     # badges on top of the route
+    for j, (r, stt) in enumerate(zip(s['buildings'], status)):     # badges on top of the route
         x, y = r['centroid'][0] * K, r['centroid'][1] * K
-        dr.ellipse([x - 18, y - 18, x + 18, y + 18], fill=STATUS_RGB[stt], outline=WHITE, width=5)
+        dr.ellipse([x - 18, y - 18, x + 18, y + 18], fill=colour(st, j, stt), outline=WHITE, width=5)
     return np.asarray(im)
+
+
+def colour(st, j, stt):
+    return CHECK_RGB if st['src'] == 'pred' and st['tier'][j] == 'PROBABLE_TRUCK' else STATUS_RGB[stt]
 
 
 def counter_md(st):
@@ -134,7 +150,9 @@ def counter_md(st):
         v = st['status'][side]
         n = {k: sum(x == k for x in v) for k in range(len(R.STATUS))}
         none = f" · {n[R.ISOLATED]} no route" if n[R.ISOLATED] else ''
-        return f"**{SIDE[side]}: unreachable by road {M - n[R.TRUCK]} / {M}** · {n[R.BOAT]} by boat · {n[R.FOOT]} on foot{none}"
+        check = sum(t == 'PROBABLE_TRUCK' for t in st['tier']) if side == 'pred' else 0
+        return (f"**{SIDE[side]}: unreachable by road {M - n[R.TRUCK]} / {M}** · {n[R.BOAT]} by boat · {n[R.FOOT]} on foot{none}"
+                + (f" · **{check} more look truck-reachable: check first**" if check else ''))
     out = [line(st['src'])]
     other = 'gt' if st['src'] == 'pred' else 'pred'
     if other in st['status']:
@@ -164,9 +182,23 @@ def route_md(st, j):
     s, side = st['scene'], st['src']
     other = 'gt' if side == 'pred' else 'pred'
     stt = st['status'][side][j]
-    route = st['sel'][1]
-    out = [f'### House {j}: {TITLE[stt]}']
+    route, grid = st['sel'][1], st['sel'][2]
+    tr = st['tier'][j] if side == 'pred' else None
+    ts, pct = s.get('tier_stats'), (lambda v: f'{100 * v:.0f} %')
+    title = {'CONFIDENT_TRUCK': 'Truck can reach it: confident',
+             'PROBABLE_TRUCK': 'Probably reachable by truck: check first'}.get(tr, TITLE[stt])
+    out = [f'### House {j}: {title}']
+    if tr == 'CONFIDENT_TRUCK' and ts:
+        out.append(f'Safe route: avoids land that may be wet. On the test photos {pct(ts["confident"])} of such houses '
+                   f'were truly truck-reachable.')
+    elif tr == 'PROBABLE_TRUCK' and ts:
+        out.append(f'**The only truck route crosses land that may be wet.** On the test photos only {pct(ts["probable"])} '
+                   f'of such houses were truly truck-reachable (confident tier: {pct(ts["confident"])}). Confirm first.')
     if route is not None:
+        e = R.eta(route, grid, s.get('m_per_cell'))
+        km = (lambda v: f'{v / 1000:.1f} km' if v >= 1000 else f'{round(v / 10) * 10:.0f} m')
+        out.append('≈ **%d min** · %s' % (max(1, round(e['minutes'])),
+                   ' → '.join(f'{LEG[m][0]} {km(v)}' for m, v in enumerate(e['metres']) if v > 0) or 'at the entry point'))
         steps = np.bincount(route['modes'][1:], minlength=3)
         legs = ' → '.join(f'{LEG[m][0]} {n}' for m, n in enumerate(steps) if n) or 'the house is at the entry point'
         out.append(f'{legs} cells · route cost **{route["cost"]:.0f}** (truck on road 1 per cell, yards ×{R.DEFAULTS["offroad"]:g}; '
@@ -243,7 +275,7 @@ def build_ui(args, live=None):
         st = solve(st)
         if st['sel'] is not None and st['sol']:
             j = st['sel'][0]
-            st['sel'] = (j, st['sol'][st['src']].route(st['scene']['bld'][j]))
+            st['sel'] = (j, *route_for(st, j))
             return st, render(st), counter_md(st), route_md(st, j)
         return st, render(st), counter_md(st), ''
 
@@ -255,7 +287,7 @@ def build_ui(args, live=None):
         j = pick(st, x, y)
         if j is None or not st['sol']:
             return st, render(st), counter_md(st), ''
-        st['sel'] = (j, st['sol'][st['src']].route(st['scene']['bld'][j]))
+        st['sel'] = (j, *route_for(st, j))
         return st, render(st), counter_md(st), route_md(st, j)
 
     def on_auto(st):
@@ -271,6 +303,7 @@ def build_ui(args, live=None):
                            'Locally, pick a scene from the cache.')
         photo = prep_upload(img)
         s = build_scene('floodnet', photo, live(photo), dec50, gt=None)
+        s.update(tier_stats=tier_stats('floodnet'))
         return show_state(new_state(s, 'your photo (FloodNet 50-shot, no ground truth)', risk=risk, boat=boat))
 
     with gr.Blocks(title='Rescue Router') as demo:

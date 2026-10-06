@@ -8,6 +8,7 @@
   --truck: #22c55e;
   --boat: #f97316;
   --foot: #a78bfa;
+  --check: #facc15;
   --isolated: #ef4444;
   --disagree: #e879f9;
   --radius: 14px;
@@ -81,7 +82,7 @@ h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: v
 .legend li { display: flex; align-items: center; gap: 8px; }
 .sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; flex: none; }
 .badge { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 2px solid #fff; flex: none; }
-.badge.truck { background: var(--truck); } .badge.boat { background: var(--boat); } .badge.foot { background: var(--foot); } .badge.isolated { background: var(--isolated); }
+.badge.truck { background: var(--truck); } .badge.boat { background: var(--boat); } .badge.foot { background: var(--foot); } .badge.check { background: var(--check); } .badge.isolated { background: var(--isolated); }
 .line { width: 22px; height: 4px; border-radius: 2px; display: inline-block; flex: none; }
 .truckline { background: #fff; box-shadow: 0 0 0 1px #111; } .boatline { background: var(--accent); margin-left: 6px; }
 .footline { background: repeating-linear-gradient(90deg, var(--foot) 0 4px, transparent 4px 8px); margin-left: 6px; }
@@ -92,7 +93,7 @@ h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: v
 .st { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; display: grid; place-items: center;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); color: #fff; }
 .st svg { width: 13px; height: 13px; }
-.st.truck { background: var(--truck); } .st.boat { background: var(--boat); } .st.foot { background: var(--foot); } .st.isolated { background: var(--isolated); }
+.st.truck { background: var(--truck); } .st.boat { background: var(--boat); } .st.foot { background: var(--foot); } .st.check { background: var(--check); } .st.check svg { fill: #1f2937; } .st.isolated { background: var(--isolated); }
 .st.sel { outline: 3px solid var(--accent); outline-offset: 2px; }
 .vehicle { font-size: 22px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)); }
 .house-poly { cursor: pointer; }
@@ -134,3 +135,8 @@ h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: v
   .scenes button .tag { display: none; }
   .leaflet-control-zoom { display: none; }
 }
+
+.route-card .tierline { font-size: 12.5px; color: #cbd5e1; margin: 2px 0 6px; }
+.route-card .tierline.warn { color: var(--check); }
+.route-card .eta { font-size: 14px; }
+.counter .split.check { color: var(--check); }
