@@ -1,0 +1,15 @@
+{
+ "id": "marlenmelis/rr-gpu-queue50",
+ "title": "rr-gpu-queue50",
+ "code_file": "run_queue_kaggle.py",
+ "language": "python",
+ "kernel_type": "script",
+ "is_private": true,
+ "enable_gpu": true,
+ "enable_internet": true,
+ "machine_shape": "NvidiaTeslaT4",
+ "dataset_sources": ["marlenmelis/rr-code"],
+ "competition_sources": [],
+ "kernel_sources": ["marlenmelis/rr-fetch-data"],
+ "model_sources": []
+}
