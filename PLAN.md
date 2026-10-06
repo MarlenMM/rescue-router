@@ -597,7 +597,7 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
 
-## 15. Status / handoff (updated Tue 6 Oct, 04:10 KST)
+## 15. Status / handoff (updated Tue 6 Oct, 09:40 KST)
 
 **Done**
 - §13 starter API recorded, including 3 starter bugs and their workarounds.
@@ -619,7 +619,59 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 - Private dataset `marlenmelis/rr-code`: `rr_code.tar.gz` = `src/ splits/ supports/ VERSION` at `136c2fb`. After a code change: rebuild the tarball (`git archive HEAD src splits supports` + `VERSION`) and run `kaggle datasets version -p . -m "<msg>"` from its folder.
 - GPU notebook `marlenmelis/rr-gpu-queue` (`kaggle/queue/run_queue_kaggle.py`, machine `NvidiaTeslaT4` = 2× T4, internet on): setup (~8 min), then one `run_queue.py` per GPU (own starter copy each, because the starter writes `data_paths.yaml` into its folder). Prints progress every 10 min. Live log: Chrome → `https://www.kaggle.com/code/marlenmelis/rr-gpu-queue/log`; the rows can be read with JS (`[...document.querySelectorAll('table tr')].map(r => r.innerText)`). Status: `kaggle kernels status marlenmelis/rr-gpu-queue`.
 
-**Running now: the core queue on Kaggle, launched Tue 6 Oct 02:40 KST, ETA 11:30–12:00 KST** (Kaggle session limit 12 h; no new job starts after 9.5 h):
+**Core queue result (notebook `rr-gpu-queue`; finished about 08:33 KST, 5.7 h; outputs in `results/kaggle_v2/rr/`):** 5 of 7 runs OK (FloodNet 1/5/10/20, RescueNet 20), each with its eval100 cache.
+- **Both 50-shot runs FAILED:** CUDA OOM in the first in-process val30 evaluation (step 500). 50-shot inference needs ~12 GB on its own and does not fit next to the training state on a 14.6 GB T4. No `_last.pt` was written (val runs before the step-500 resume save), so their eval100 jobs failed too (no checkpoint).
+- **Fix and relaunch** (pre-authorized by Marlen for clear, fixable failures; commit `b8e2daf`): `finetune.py --defer_val` saves a snapshot `ckpt/<run>_step<N>.ckpt` at every val step instead of validating. `src/select_ckpt.py` then validates each snapshot on val30 at 50 shots in a fresh process (fp16, chunk 1/1, 12 GB) and keeps the best: the same rule as in-process.
+- **Notebook `marlenmelis/rr-gpu-queue50`** (`kaggle/queue/run_queue_kaggle.py` with `QUEUE = 'rerun50'`, metadata in `kaggle/queue50/`), **launched 09:21 KST, ETA ~12:45 KST.** GPU 0: FloodNet 50 → select → eval100. GPU 1: RescueNet 50 → select → eval100. It is a separate slug, so the first queue's outputs stay downloadable.
+- `rr-code` dataset rebuilt with `COPYFILE_DISABLE=1 tar --no-xattrs --no-mac-metadata`, because Kaggle unpacks the tarball and macOS had added `._*` files (`tar t` hides them).
+- The progress watcher in the first session died on a DNS error while the Mac slept. The new one retries.
+- Speed (T4, fp16): training 3.6–4.1 s/step. eval100 inference: 2.7 / 3.7 / 4.1 / 5.9 s per image at 1 / 5 / 10 / 20 shots (FloodNet), 6.5 at RescueNet 20.
+
+**Results so far (best-val30 checkpoint, τ = 0.5; tables from `src/collect_results.py`, curve `results/kaggle_v2/report/curve_floodnet.png`):**
+
+#### floodnet val30 (τ = 0.5)
+
+| shot | best step | road_clear | road_flooded | bldg_flooded | bldg_dry | water | mIoU | drv P | drv R | wet IoU |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 500 | 0.056 | 0.298 | 0.227 | 0.212 | 0.004 | 0.160 | 0.057 | 0.867 | 0.459 |
+| 5 | 500 | 0.476 | 0.280 | 0.638 | 0.000 | 0.177 | 0.314 | 0.556 | 0.769 | 0.546 |
+| 10 | 1000 | 0.346 | 0.342 | 0.487 | 0.027 | 0.283 | 0.297 | 0.509 | 0.519 | 0.590 |
+| 20 | 1000 | 0.317 | 0.369 | 0.673 | 0.017 | 0.398 | 0.355 | 0.424 | 0.556 | 0.643 |
+
+#### floodnet eval100 (τ = 0.5)
+
+| shot | n img | road_clear | road_flooded | bldg_flooded | bldg_dry | water | mIoU | drv P | drv R | wet IoU |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 100 | 0.101 | 0.292 | 0.242 | 0.241 | 0.005 | 0.176 | 0.102 | 0.863 | 0.467 |
+| 5 | 100 | 0.454 | 0.324 | 0.673 | 0.015 | 0.136 | 0.320 | 0.539 | 0.741 | 0.599 |
+| 10 | 100 | 0.497 | 0.317 | 0.509 | 0.098 | 0.221 | 0.328 | 0.671 | 0.658 | 0.612 |
+| 20 | 100 | 0.412 | 0.362 | 0.674 | 0.002 | 0.335 | 0.357 | 0.540 | 0.635 | 0.634 |
+
+#### rescuenet val30 (τ = 0.5)
+
+| shot | best step | road_clear | road_blocked | bldg_intact | bldg_damaged | water | mIoU | drv P | drv R | wet IoU |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 20 | 1500 | 0.635 | 0.091 | 0.472 | 0.410 | 0.855 | 0.493 | 0.735 | 0.824 | 0.775 |
+
+#### rescuenet eval100 (τ = 0.5)
+
+| shot | n img | road_clear | road_blocked | bldg_intact | bldg_damaged | water | mIoU | drv P | drv R | wet IoU |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 20 | 100 | 0.613 | 0.049 | 0.354 | 0.271 | 0.645 | 0.386 | 0.731 | 0.791 | 0.472 |
+
+- **Val30 history (mIoU per eval):**
+  - 1-shot: .151 / **.160** / .135 / .142
+  - 5-shot: .166 / **.314** / .285 / .281
+  - 10-shot: .212 / .283 / .294 / **.297**
+  - 20-shot: .196 / .290 / .288 / **.355** / .322 / .347 / .345 / .347
+  - RescueNet 20-shot: best .493 at step 1500.
+- With cosine lr, the late evaluations are stable (20-shot: .32–.35 after step 1000). The v1 swings (water .48 ↔ .06) are gone.
+- Recipe v2 at 20 shots (val30 .355) is not better than G1's best eval (.389 at step 1750, recipe v1). It is about the same as G1's final checkpoint (.336).
+- **The curve is flat from 5 to 20 shots** (eval100 mIoU .320 → .328 → .357). road_flooded sits at .29–.36 and is far from PSPNet's .82 with 1,445 labels.
+- **Dry buildings collapse** (IoU ≤ .10 from 5 shots on). At 1 shot, both building classes sit at ~.24: the 1-shot image has dry and flooded buildings in similar amounts.
+- Water rises steadily with shots (.005 → .34).
+
+**Earlier plan (kept for reference): the core queue on Kaggle, launched Tue 6 Oct 02:40 KST, ETA 11:30–12:00 KST** (Kaggle session limit 12 h; no new job starts after 9.5 h):
 - GPU 0: FloodNet 1-shot → eval100 cache → 50-shot → cache → 20-shot → cache → 10-shot → cache.
 - GPU 1: RescueNet 20-shot → cache → FloodNet 5-shot → cache → RescueNet 50-shot → cache.
 - Check at 03:30 (0.5 h in): both GPUs training at 3.7–4.1 s/step (10–20 % slower than Colab: the two jobs share 4 CPU cores), peak 10–14 GB. The best-checkpoint code works (FloodNet 1-shot val mIoU 0.151 at step 250). The RescueNet val split works (20-shot step 250: road_clear 0.32, road_blocked 0.00, bldg_intact 0.56, bldg_damaged 0.05, water 0.64, mIoU 0.315).
@@ -648,7 +700,7 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Next (in order):**
 1. ~~Track B router + unit tests + routing metrics on GT maps~~ (done 04:10).
-2. When the queue is done: `~/.venvs/kaggle/bin/python kaggle/fetch_output.py marlenmelis/rr-gpu-queue results/kaggle_v2`, check the logs, then `src/collect_results.py` to fill the data-efficiency curve (val30 + eval100) and the per-class table vs PSPNet (§5.2).
+2. ~~Download, check logs, tables + curve~~ (done 09:40 for 5 runs). When `rr-gpu-queue50` completes: `~/.venvs/kaggle/bin/python kaggle/fetch_output.py marlenmelis/rr-gpu-queue50 results/kaggle_v2`, which merges into the same `rr/` folders. Then rerun `src/collect_results.py`, `src/decode_tune.py --runs <the two 50-shot runs>`. Originally this step said: fill the data-efficiency curve (val30 + eval100) and the per-class table vs PSPNet (§5.2).
 3. Decode tuning on val30 from the caches (CPU): τ per channel, and a dry-building fix (per-channel bias/threshold); apply it to eval100. If dry buildings stay weak, report it as a failure case: the stratified supports have ~4× more flooded than dry building pixels.
 4. Optional, if time and quota allow (latest start Wed afternoon): one ablation run of FloodNet 50-shot with dry buildings up-weighted in the loss, reported next to (not instead of) the main 50-shot model.
 5. Then §10 Tue/Wed: Gradio app, web viewer (`app/` → `docs/`), routing evaluation on predictions, failure analysis, figures, write-up, slides; G3 notebook check on a fresh T4 (Colab free tier is enough for inference, or Kaggle).

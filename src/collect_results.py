@@ -67,6 +67,15 @@ def table(runs, ds, split):
     return '\n'.join(lines)
 
 
+def spread(ys, gap=0.04):
+    """Nudge end-label heights apart (keeps order) so direct labels never overlap."""
+    order = sorted(range(len(ys)), key=lambda i: ys[i])
+    out = list(ys)
+    for a, b in zip(order, order[1:]):
+        out[b] = max(out[b], out[a] + gap)
+    return out
+
+
 def plot(runs, path):
     import matplotlib
     matplotlib.use('Agg')
@@ -82,13 +91,16 @@ def plot(runs, path):
         if not pts:
             continue
         xs = [p[0] for p in pts]
+        ends = []
         for k, n in enumerate(NAMES['floodnet']):
             ys = [p[1][f'iou_{n}'] for p in pts]
             ax.plot(xs, ys, color=SERIES[k], lw=2, marker='o', ms=6, label=n)
-            ax.annotate(n, (xs[-1], ys[-1]), xytext=(6, 0), textcoords='offset points', va='center', fontsize=8, color=MUTED)
+            ends.append((n, ys[-1], MUTED, 'normal'))
         ax.plot(xs, [p[1]['miou'] for p in pts], color=TEXT, lw=2.5, marker='s', ms=7, label='mIoU (5 ch)')
-        ax.annotate('mIoU', (xs[-1], pts[-1][1]['miou']), xytext=(6, 0), textcoords='offset points', va='center',
-                    fontsize=9, color=TEXT, weight='bold')
+        ends.append(('mIoU', pts[-1][1]['miou'], TEXT, 'bold'))
+        for (n, _, c, w), y in zip(ends, spread([e[1] for e in ends])):
+            ax.annotate(n, (xs[-1], y), xytext=(8, 0), textcoords='offset points', va='center', fontsize=8, color=c,
+                        weight=w)
         if split == 'eval100':
             ax.axhline(PSPNET['road_flooded'], color=SERIES[1], lw=1.2, ls='--')
             ax.text(xs[0], PSPNET['road_flooded'] + 0.015, 'PSPNet road_flooded, 1,445 labels (paper, full test)',
