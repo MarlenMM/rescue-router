@@ -661,7 +661,7 @@ commands, and Marlen's recording; the data zip per §2.6. Every reported number 
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
 
-## 15. Status / handoff (updated Wed 7 Oct, 05:25 KST)
+## 15. Status / handoff (updated Wed 7 Oct, 05:28 KST)
 
 ### Quick summary (read this first; details below)
 **Deadline:** submit Thu 8 Oct 12:30 KST, present 16:00. **Done:** all GPU training/inference (7 runs), all Track A analysis, the Track B product (scenes, web viewer, Gradio on CPU), improvement Batches 1–9 + the RescueNet gate, **final notebook + G3 passed on a fresh T4** (`notebook/rescue_router_executed.ipynb`, 25.8 min, live recompute = cache exactly). **Write-up done** (`writeup/20260876_MarlenMelis_writeup.pdf`, 3 pages incl. references). **Slides done** (HTML slide deck, title + 6, talk in the speaker notes; Marlen downloads the PDF for KLMS). **Not started:** zips, recording (Marlen, storyboard `slides/recording_script.md`), deploy (Batch 12). **File names: `20260876_MarlenMelis_*`** (Marlen, 7 Oct; the course example is `20261234_JohnDoe`). **Rebuild everything on CPU:** `python src/rebuild_all.py` (15 min, ends with a headline check).
@@ -692,6 +692,24 @@ commands, and Marlen's recording; the data zip per §2.6. Every reported number 
 12. **Packaging + release (publishing needs OK):** data zip (with caches) + app zip, one .ipynb; `src/publish_demo.sh --create`; Pages incognito + phone hotspot test.
 13. **After the deadline (GPU):** multi-crop supports (now one 384 crop ≈ 33 % of a support image), 100-shot point, seeds, class-balanced supports, 1024-px model, uncertainty-driven choice of photos to label, georeferenced mosaics.
 Ruled out by CPU probes (6 Oct): averaging the 20- and 50-shot models (eval100 mIoU .492 → .408); smoothing the probabilities before decoding (.492 → .491): the errors are semantic (shallow water as land), not noisy edges.
+
+### Batch 12 hand-off (written 7 Oct 05:28 KST)
+**Goal:** the KLMS submission `20260876_MarlenMelis_project.zip` by **Thu 8 Oct 12:30 KST** (hard deadline 23:59) and the public demo. Course rules (README_starter.md, local only): ONE `.ipynb` in the whole zip, saved with all outputs; every result from our own code; every pretrained weight listed; data disclosed; Track B app source + README as `_app.zip`.
+
+**Ask Marlen first (one AskUserQuestion):**
+1. Data zip size: the bundle is **363 MB** (> our 300 MB target; KLMS limit unknown). Options from §2.6: (a) ship 363 MB if KLMS allows; (b) under 300 MB: drop the zero-label-transfer cache (31 MB), the 1/5/10-shot val30 caches (21 MB) and the RescueNet 50-shot caches (19 MB), stating they are reproducible from the checkpoints (then the notebook's curve cell must skip missing caches, and the headline check stays); (c) caches as a public Kaggle dataset + link (publishing: needs OK).
+2. **OK to create and publish** the public repo `MarlenMM/rescue-router-demo` (GitHub Pages from the built viewer): `bash src/publish_demo.sh --create`.
+3. The slides PDF: Marlen downloads it from the deck (a private draft) → `slides/20260876_MarlenMelis_slides.pdf`. The recording `recording.mp4` (storyboard `slides/recording_script.md`) is Marlen's; it goes into the app zip if ready, else the GIF `slides/demo_route.gif`.
+
+**Then build (all CPU; commit first, the bundle packs git HEAD):**
+- `python src/make_bundle.py --out ~/rr_bundle --zip <out>/20260876_MarlenMelis_data.zip` (3 min; the notebook finds `20260876_*_data.zip`). Check: no `.ipynb` inside, size.
+- `20260876_MarlenMelis_code.ipynb` = `notebook/rescue_router_executed.ipynb` (executed on a fresh T4, 0 errors; generator `notebook/build_notebook.py`; do NOT regenerate without re-running G3).
+- `20260876_MarlenMelis_writeup.pdf` = `writeup/20260876_MarlenMelis_writeup.pdf` (rebuild: `writeup/build.sh`).
+- `20260876_MarlenMelis_app.zip`: `docs/` (the built viewer, runs from any static server), `src/gradio_app.py` + the `src/` modules it imports (router, export_web_assets, viz, rr/) or simply `src/`, `kaggle/gradio_live/`, `demo/uploads/`, a short `README_app.md` (Pages URL, `python3 -m http.server 8766 --directory docs`, the Gradio commands, the share-link notebook), `recording.mp4` or `demo_route.gif`. No `.ipynb`.
+- `20260876_MarlenMelis_project.zip` = code.ipynb + writeup.pdf + slides.pdf + data.zip + app.zip. Verify: one `.ipynb` (`unzip -l` recursively into the inner zips), names exactly as the course example, sizes.
+- Publish (after OK): `bash src/publish_demo.sh --create` → https://marlenmm.github.io/rescue-router-demo/ ; test in the browser pane at desktop + phone width and in a fresh profile (incognito); put the URL into `README_app.md`, `README.md`, the slides' notes if wanted. §12 checklist.
+- Untested: the Colab path of the notebook (Drive popup needs Marlen); optional.
+- **Thursday ~15:15 KST:** live Gradio share link for the talk: `cd kaggle/gradio_live && ~/.venvs/kaggle/bin/kaggle kernels push -p .` (needs OK: ~3.2 GPU-h; week used ≈ 15.5 of 30 h), read the link with `~/.venvs/kaggle/bin/kaggle kernels logs -f marlenmelis/rr-gradio-live` (`SHARE LINK:` line), send it to Marlen.
 
 ### Log (chronological; later entries supersede earlier ones)
 
