@@ -1,0 +1,73 @@
+{
+ "id": "12195",
+ "dataset": "rescuenet",
+ "run": "rescuenet_20shot_s0_stratified",
+ "decode": {
+  "tau": [
+   0.8,
+   0.6,
+   0.3,
+   0.3,
+   0.25
+  ],
+  "bldg_t": 0.4,
+  "variant": "tau_bldg"
+ },
+ "caption": "Hurricane Michael, honest failure: canal houses look reachable by road",
+ "size": [
+  768,
+  576
+ ],
+ "class_names": [
+  "road clear",
+  "road blocked",
+  "building intact",
+  "building damaged",
+  "water"
+ ],
+ "class_colors": [
+  [
+   46,
+   204,
+   64
+  ],
+  [
+   200,
+   0,
+   160
+  ],
+  [
+   245,
+   180,
+   0
+  ],
+  [
+   230,
+   40,
+   40
+  ],
+  [
+   0,
+   31,
+   120
+  ]
+ ],
+ "iou": {
+  "road clear": 0.0,
+  "road blocked": null,
+  "building intact": 0.32,
+  "building damaged": null,
+  "water": 0.685
+ },
+ "n_buildings": 12,
+ "status_pred": {
+  "TRUCK": 12,
+  "BOAT": 0,
+  "ISOLATED": 0
+ },
+ "status_gt": {
+  "TRUCK": 6,
+  "BOAT": 2,
+  "ISOLATED": 4
+ }
+}

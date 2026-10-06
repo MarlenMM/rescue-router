@@ -99,11 +99,13 @@ export class Solution {
     return ISOLATED;
   }
 
-  /** Cheapest route to the ring: {cells: [[y, x]], modes: [0|1], cost} or null (first minimum, like np.argmin). */
-  route(ring) {
+  /** Cheapest route to the ring: {cells: [[y, x]], modes: [0|1], cost} or null (first minimum, like np.argmin).
+   *  truckOnly: only routes that end in the truck layer (the viewer shows the road route for TRUCK houses;
+   *  the default, like router.py, may prefer a cheaper truck + boat route to a truck-reachable house). */
+  route(ring, truckOnly = false) {
     const n = this.grid.n, w = this.grid.w;
     let best = -1;
-    for (const j of [...ring, ...ring.map(c => n + c)]) if (best < 0 || this.dist[j] < this.dist[best]) best = j;
+    for (const j of truckOnly ? ring : [...ring, ...ring.map(c => n + c)]) if (best < 0 || this.dist[j] < this.dist[best]) best = j;
     if (best < 0 || !Number.isFinite(this.dist[best])) return null;
     const nodes = [best];
     while (this.pred[nodes[nodes.length - 1]] >= 0) nodes.push(this.pred[nodes[nodes.length - 1]]);

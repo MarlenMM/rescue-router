@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rescue Router</title>
+<meta name="description" content="Few-shot flood mapping from drone photos (Chameleon, 50 labels) and truck/boat rescue routing on the predicted map.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b1220'/%3E%3Cpath d='M10 44h44' stroke='%2322d3ee' stroke-width='6' stroke-linecap='round'/%3E%3Cpath d='M14 34l12-14 10 10 14-12' fill='none' stroke='%23f8fafc' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="map" aria-label="Drone photo with flood map"></div>
+
+<header class="title card">
+  <h1>Rescue Router</h1>
+  <p id="caption">Loading…</p>
+</header>
+
+<div class="dock" id="dock">
+  <section id="routeCard" class="route-card card" hidden aria-live="polite"></section>
+  <div class="counter card" id="counter" aria-live="polite"></div>
+</div>
+
+<div class="swipe" id="swipe" hidden>
+  <div class="swipe-line"></div>
+  <button class="swipe-handle" id="swipeHandle" aria-label="Drag to compare prediction and ground truth">⟷</button>
+  <span class="swipe-tag left">Prediction</span><span class="swipe-tag right">Ground truth</span>
+</div>
+
+<aside class="panel card" id="panel">
+  <button class="sheet-toggle" id="sheetToggle" aria-expanded="true" aria-controls="panelBody">
+    <span class="grip"></span><span class="sheet-label">Controls</span>
+  </button>
+  <div class="panel-body" id="panelBody">
+    <section>
+      <h2>Scene</h2>
+      <div class="scenes" id="scenes"></div>
+      <p class="model" id="model"></p>
+    </section>
+
+    <section>
+      <h2>Map</h2>
+      <div class="seg" role="radiogroup" aria-label="Map source">
+        <button role="radio" data-src="pred" aria-checked="true">Prediction</button>
+        <button role="radio" data-src="gt" aria-checked="false">Ground truth</button>
+        <button role="radio" data-src="swipe" aria-checked="false">Swipe</button>
+      </div>
+      <label class="row"><input type="checkbox" id="tClasses" checked> Flood map <input type="range" id="opacity" min="0" max="100" value="60" aria-label="Flood map opacity"></label>
+      <label class="row"><input type="checkbox" id="tStatus" checked> House status</label>
+      <label class="row"><input type="checkbox" id="tDisagree"> Disagreements with ground truth <span class="pill" id="nDisagree">0</span></label>
+      <label class="row"><input type="checkbox" id="tBase" checked> Entry points</label>
+      <label class="row"><input type="checkbox" id="tRisk" checked> Risk-aware truck (avoid likely water)</label>
+    </section>
+
+    <section>
+      <h2>Legend</h2>
+      <ul class="legend" id="legend"></ul>
+      <ul class="legend">
+        <li><span class="badge truck"></span>Reachable by truck</li>
+        <li><span class="badge boat"></span>Truck, then boat</li>
+        <li><span class="badge isolated"></span>Isolated: foot or air team</li>
+        <li><span class="line truckline"></span>Truck leg <span class="line boatline"></span>Boat leg</li>
+        <li><span class="sq base"></span>Entry point (truck or boat)</li>
+      </ul>
+    </section>
+
+    <section class="about">
+      <h2>About</h2>
+      <p>A drone photo is mapped into five classes by <b>Chameleon</b>, adapted from only <b>50 labelled photos</b> (FloodNet) or 20 (RescueNet).
+        A router on 4×4-pixel cells then finds the cheapest way from the image edge to each house: truck on dry ground
+        (roads, or yards at 4× cost; never where water is likely), then a boat across water. Same router on the true map for comparison.</p>
+      <p>FloodNet 50-shot: mIoU .47 on the full 448-image test (PSPNet with 1,445 labels: .85 on these classes).
+        Two scenes are honest failures: shallow water read as dry land.</p>
+    </section>
+  </div>
+</aside>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

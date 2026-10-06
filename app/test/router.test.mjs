@@ -49,6 +49,11 @@ for (const s of index.scenes) {
                     `${name} lam${lam} building ${b.id}: JS ${r.cost} vs Python ${ref.cost}`);
           assert.ok(Math.abs(recost(grids[name], r) - r.cost) <= 1e-9 * Math.max(1, r.cost));
           if (STATUS[sol.status(b.ring)] === 'BOAT') assert.equal(r.modes.at(-1), BOAT);
+          if (STATUS[sol.status(b.ring)] === 'TRUCK') {                // the viewer's road route
+            const t = sol.route(b.ring, true);
+            assert.ok(t.modes.every(m => m === TRUCK) && t.cost >= r.cost);
+            assert.ok(Math.abs(recost(grids[name], t) - t.cost) <= 1e-9 * Math.max(1, t.cost));
+          }
           checked++;
         }
       }
