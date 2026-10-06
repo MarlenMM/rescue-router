@@ -6,6 +6,9 @@
 Output: preds/<run_id>_<split_file>[_es<k>][_fp16].npz (uint8 probabilities, ids, confusion) and
 metrics/<same>.json. --limit N predicts only the first N images (timing). --amp fp16 runs inference
 under fp16 autocast (T4); the PLAN §0.1 check compares one checkpoint's fp16 and fp32 metrics.
+--query_dataset rescuenet (with a FloodNet checkpoint and --split_file rescuenet_test_eval100): zero-label
+transfer (PLAN §3.4): the supports stay the checkpoint's own FloodNet ones, the queries come from the
+other dataset; its metrics JSON is over FloodNet channel names, so score super-classes from the cache.
 """
 
 import argparse
@@ -28,6 +31,7 @@ def main():
     ap.add_argument('--dataset', default='floodnet')
     ap.add_argument('--split_file', required=True)
     ap.add_argument('--split', default='test')
+    ap.add_argument('--query_dataset', default=None, help='dataset of the query images (default: --dataset)')
     ap.add_argument('--eval_shot', type=int, default=0, help='0 = the shot the checkpoint was trained with')
     ap.add_argument('--support_file', default=None, help='default: supports/<dataset>_<sel>_s<seed> of the run')
     ap.add_argument('--res', default='r768')
@@ -61,6 +65,7 @@ def main():
     sup_file = a.support_file or os.path.join(a.drive, 'supports', f'{a.dataset}_{sel}_s{seed}.txt')
     supports = read_ids(sup_file)[:shot]
     data_root = os.path.join(a.data, f'{a.dataset}_{a.res}')
+    query_root = os.path.join(a.data, f'{a.query_dataset or a.dataset}_{a.res}')
     run_root = build_run_folder(os.path.join(a.runs, f'{run_id}_infer'), data_root, supports,
                                 split_support=SUPPORT_SPLIT[a.dataset])
     su = setup_chameleon(a.chameleon, run_root)
@@ -79,13 +84,13 @@ def main():
     sup_peak = torch.cuda.max_memory_allocated() / 1024 ** 3
     cm, probs, t0 = np.zeros((6, 6), np.int64), [], time.time()
     for i in ids:
-        X, lab = load_query(data_root, a.split, i)
+        X, lab = load_query(query_root, a.split, i)
         P = tiled_predict(model, X, amp=a.amp).numpy()
         cm += confusion(decode(P, a.tau), gt_classes(lab))
         probs.append(np.round(P * 255).astype(np.uint8))
     torch.cuda.synchronize()
     res = summarize(cm, NAMES[a.dataset], WET[a.dataset])
-    res.update(run_id=run_id, split=a.split_file, eval_shot=shot, tau=a.tau, n_images=len(ids), amp=a.amp,
+    res.update(run_id=run_id, split=a.split_file, query_dataset=a.query_dataset or a.dataset, eval_shot=shot, tau=a.tau, n_images=len(ids), amp=a.amp,
                support_encode_s=round(t_sup, 2), s_per_image=round((time.time() - t0) / max(len(ids), 1), 2),
                support_peak_gb=round(sup_peak, 2),
                infer_peak_gb=round(torch.cuda.max_memory_allocated() / 1024 ** 3, 2),

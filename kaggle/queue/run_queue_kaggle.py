@@ -5,9 +5,11 @@ QUEUE picks the job lists: 'core' = the first queue (notebook rr-gpu-queue, 6 Oc
 'rerun50' = the two 50-shot runs again with deferred validation (notebook rr-gpu-queue50), because
 in-process 50-shot val30 hit CUDA OOM at step 500 in the core queue; 'select50' = only the snapshot
 selection + eval100 of those two runs (notebook rr-gpu-select50; the snapshots come from the
-rr-gpu-queue50 output, whose select step failed on an argparse abbreviation bug)."""
+rr-gpu-queue50 output, whose select step failed on an argparse abbreviation bug); 'extra' = zero-label
+transfer of FloodNet 50-shot to RescueNet eval100 + the full 448-image FloodNet test of FloodNet 50-shot,
+split in two halves over the GPUs (notebook rr-gpu-extra; checkpoint from the rr-gpu-select50 output)."""
 import glob, json, os, shutil, subprocess, sys, tarfile, time
-QUEUE = 'select50'
+QUEUE = 'extra'
 
 T0 = time.time()
 def sh(cmd):
@@ -76,7 +78,18 @@ Q_CORE = {0: [ft('floodnet', 1, 1000, 250, 6), pr('floodnet', 1, 6),
 Q_RERUN50 = {0: [ft('floodnet', 50, 2000, 500, 1, defer=True), sel('floodnet', 50), pr('floodnet', 50, 1)],
              1: [ft('rescuenet', 50, 2000, 500, 1, defer=True), sel('rescuenet', 50), pr('rescuenet', 50, 1)]}
 Q_SELECT50 = {0: [sel('floodnet', 50), pr('floodnet', 50, 1)], 1: [sel('rescuenet', 50), pr('rescuenet', 50, 1)]}
-Q = {'core': Q_CORE, 'rerun50': Q_RERUN50, 'select50': Q_SELECT50}[QUEUE]
+FN50 = f'{OUT}/ckpt/floodnet_50shot_s0_stratified.ckpt'
+def pr_fn50(split_file, query_dataset='floodnet'):
+    return ['predict', ['--ckpt', FN50, '--dataset', 'floodnet', '--query_dataset', query_dataset,
+                        '--split_file', split_file, '--split', 'test', '--amp', 'fp16', '--chunk', 1, '--channel_chunk', 1]]
+Q_EXTRA = {0: [pr_fn50('floodnet_test_full_part1')],
+           1: [pr_fn50('rescuenet_test_eval100', 'rescuenet'), pr_fn50('floodnet_test_full_part2')]}
+Q = {'core': Q_CORE, 'rerun50': Q_RERUN50, 'select50': Q_SELECT50, 'extra': Q_EXTRA}[QUEUE]
+if QUEUE == 'extra':                    # the headline checkpoint from rr-gpu-select50
+    hits = glob.glob('/kaggle/input/**/rr/ckpt/floodnet_50shot_s0_stratified.ckpt', recursive=True)
+    assert hits, 'floodnet_50shot_s0_stratified.ckpt not found in the inputs'
+    shutil.copy(hits[0], FN50)
+    sh(f'ls -la {OUT}/ckpt; wc -l {OUT}/splits/floodnet_test_full_part*.txt')
 if QUEUE == 'select50':                 # snapshots + training logs of the 50-shot runs from rr-gpu-queue50
     for f in glob.glob('/kaggle/input/**/rr/ckpt/*50shot*_step*.ckpt', recursive=True):
         shutil.copy(f, f'{OUT}/ckpt/')
