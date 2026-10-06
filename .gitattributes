@@ -1,0 +1,4 @@
+# GitHub language statistics: leave out generated files (the notebooks are written by notebook/build_notebook.py,
+# the executed one holds base64 figures; docs/ is the built copy of app/).
+notebook/*.ipynb linguist-generated=true
+docs/** linguist-generated=true

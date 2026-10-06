@@ -3,6 +3,7 @@
 # on Colab; datasets, checkpoints and caches live on Google Drive (PLAN.md §0.3).
 /*
 !/.gitignore
+!/.gitattributes
 !/PLAN.md
 !/README.md
 !/requirements.txt
