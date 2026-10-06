@@ -9,7 +9,7 @@ Inputs: dataset marlenmelis/rr-code (kaggle/build_rr_code.sh: src + decodes + ti
 outputs marlenmelis/rr-fetch-data (data tars, generalist.ckpt), marlenmelis/rr-gpu-select50 (FloodNet 50-shot
 checkpoint + eval100 cache), marlenmelis/rr-gpu-queue (RescueNet 20-shot eval100 cache)."""
 import glob, os, shutil, subprocess, sys, tarfile, threading, time
-HOURS = 3.0
+HOURS = 0.75                                                           # Batch 7 test run; 3.0 on presentation day
 GRADIO = 'gradio==6.29.1'                                          # the version the app was written and tested with
 T0 = time.time()
 def sh(cmd):

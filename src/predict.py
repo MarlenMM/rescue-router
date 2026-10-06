@@ -9,6 +9,9 @@ under fp16 autocast (T4); the PLAN §0.1 check compares one checkpoint's fp16 an
 --query_dataset rescuenet (with a FloodNet checkpoint and --split_file rescuenet_test_eval100): zero-label
 transfer (PLAN §3.4): the supports stay the checkpoint's own FloodNet ones, the queries come from the
 other dataset; its metrics JSON is over FloodNet channel names, so score super-classes from the cache.
+--flip h|v|hv: test-time flip (Batch 7): the query is flipped horizontally / vertically / both before tiling and
+the probabilities are flipped back, so the cache (suffix _flip<f>) is aligned with the photo; src/tta.py averages
+these with the unflipped cache. The 384/192 tile grid is symmetric at 768x576, so the tiling itself is mirrored.
 """
 
 import argparse
@@ -42,6 +45,7 @@ def main():
     ap.add_argument('--chunk', type=int, default=6)
     ap.add_argument('--channel_chunk', type=int, default=5)
     ap.add_argument('--amp', default='none', choices=['none', 'fp16'])
+    ap.add_argument('--flip', default='none', choices=['none', 'h', 'v', 'hv'])
     ap.add_argument('--data', default='/content/rr_data')
     ap.add_argument('--runs', default='/content/runs_data')
     ap.add_argument('--drive', default='/content/drive/MyDrive/AIC200-my_work/rescue_router')
@@ -57,7 +61,7 @@ def main():
     shot = a.eval_shot or ck.shot
     run_id = os.path.splitext(os.path.basename(a.ckpt))[0]
     tag = f'{run_id}_{a.split_file}' + ('' if shot == ck.shot else f'_es{shot}') + (f'_n{a.limit}' if a.limit else '') \
-        + ('' if a.amp == 'none' else f'_{a.amp}')
+        + ('' if a.amp == 'none' else f'_{a.amp}') + ('' if a.flip == 'none' else f'_flip{a.flip}')
     if not (a.no_save or a.force) and os.path.exists(os.path.join(a.drive, 'preds', f'{tag}.npz')):
         print(f'[{tag}] cached already, skipping')
         return
@@ -83,14 +87,19 @@ def main():
     t_sup = encode_support(model, amp=a.amp)
     sup_peak = torch.cuda.max_memory_allocated() / 1024 ** 3
     cm, probs, t0 = np.zeros((6, 6), np.int64), [], time.time()
+    dims = {'none': [], 'h': [-1], 'v': [-2], 'hv': [-2, -1]}[a.flip]
     for i in ids:
         X, lab = load_query(query_root, a.split, i)
-        P = tiled_predict(model, X, amp=a.amp).numpy()
+        if dims:
+            X = torch.flip(X, dims)
+        P = tiled_predict(model, X, amp=a.amp)
+        P = (torch.flip(P, dims) if dims else P).numpy()
         cm += confusion(decode(P, a.tau), gt_classes(lab))
         probs.append(np.round(P * 255).astype(np.uint8))
     torch.cuda.synchronize()
     res = summarize(cm, NAMES[a.dataset], WET[a.dataset])
     res.update(run_id=run_id, split=a.split_file, query_dataset=a.query_dataset or a.dataset, eval_shot=shot, tau=a.tau, n_images=len(ids), amp=a.amp,
+               flip=a.flip,
                support_encode_s=round(t_sup, 2), s_per_image=round((time.time() - t0) / max(len(ids), 1), 2),
                support_peak_gb=round(sup_peak, 2),
                infer_peak_gb=round(torch.cuda.max_memory_allocated() / 1024 ** 3, 2),

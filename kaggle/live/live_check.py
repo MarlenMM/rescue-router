@@ -25,13 +25,19 @@ except AssertionError:
     root = '/content/rr_code'
     with tarfile.open(find('rr_code.tar.gz')) as t:
         t.extractall(root, filter='data')
-shutil.copytree(root, '/content/rr', dirs_exist_ok=True)
-sh('git clone -q --depth 1 https://github.com/GitGyun/AIC200-Project-StructuredPrediction.git /content/starter')
+# inside rr-gpu-flips this runs next to the GPU-0 queue: keep its files (src, data, starter) untouched
+shutil.copytree(root, '/content/rr', dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns('src') if os.path.exists('/content/rr/src/predict.py') else None)
+if not os.path.isdir('/content/rr/src'):
+    shutil.copytree(f'{root}/src', '/content/rr/src')
+if not os.path.isdir('/content/starter'):
+    sh('git clone -q --depth 1 https://github.com/GitGyun/AIC200-Project-StructuredPrediction.git /content/starter')
 import numpy
 sh(f'pip install -q pytorch_lightning==2.4.0 timm==0.6.13 easydict einops scikit-image pycocotools fastremap numba flow_vis "numpy=={numpy.__version__}"')
 os.makedirs('/content/rr_data', exist_ok=True)
-with tarfile.open(find('floodnet_r768.tar')) as t:
-    t.extractall('/content/rr_data', filter='data')
+if not os.path.isdir('/content/rr_data/floodnet_r768/test'):
+    with tarfile.open(find('floodnet_r768.tar')) as t:
+        t.extractall('/content/rr_data', filter='data')
 ck = find('generalist.ckpt')
 assert os.path.getsize(ck) == 2967114775
 RUN = 'floodnet_50shot_s0_stratified'
