@@ -22,7 +22,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def main():
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(allow_abbrev=False)   # else the shared --data arg is taken as --dataset
     ap.add_argument('--dataset', default='floodnet')
     ap.add_argument('--shot', type=int, default=50)
     ap.add_argument('--seed', type=int, default=0)
