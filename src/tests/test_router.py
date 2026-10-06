@@ -204,3 +204,17 @@ def test_metrics_false_clear_road_is_unsafe():
     assert r['rsv'] == pytest.approx(3 / 6)                         # (1,3),(1,4),(1,5) of 6 truck cells
     s = R.summarize_routing(cm, recs)
     assert s['stranded_recall'] == 0 and s['infeasible_rate'] == 1 and s['cost_ratio_median'] is None
+
+
+def test_cost_ratio_skips_houses_at_the_entry():
+    # the building's ring touches the border road (the base): GT cost 0, so no cost ratio, but feasible
+    m, g, base, blds = setup("""
+        RRRRRRRRRR
+        ....DDD...
+        ....DDD...
+        ....DDD...""")
+    assert g.solve(base).route(blds[0])['cost'] == 0
+    cm, recs = R.route_metrics(g, g, base, blds)
+    assert 'cost_ratio' not in recs[0] and recs[0]['feasible']
+    s = R.summarize_routing(cm, recs)
+    assert s['infeasible_rate'] == 0 and s['cost_ratio_median'] is None and s['n_trivial_gt_routes'] == 1
