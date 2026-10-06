@@ -114,9 +114,10 @@ def main():
         per_img.append(rec)
 
     out = dict(dataset=a.dataset, split_file=a.split_file, n_images=len(ids), n_with_base=n_base,
-               ring=a.ring, min_area=a.min_area, params=dict(R.DEFAULTS, offroad=a.offroad or None, offroad_maxwet=None if a.offroad_maxwet < 0 else a.offroad_maxwet,
-                           foot_cost=None if a.foot_cost < 0 else a.foot_cost,
-                           **(R.POINT_VEHICLES if a.point_vehicles else {}), **json.loads(a.router)),
+               ring=a.ring, min_area=a.min_area, params={**R.DEFAULTS, 'offroad': a.offroad or None,
+                                                         'offroad_maxwet': None if a.offroad_maxwet < 0 else a.offroad_maxwet,
+                                                         'foot_cost': None if a.foot_cost < 0 else a.foot_cost,
+                                                         **(R.POINT_VEHICLES if a.point_vehicles else {}), **json.loads(a.router)},
                gt_status_counts=dict(zip(R.STATUS, gt_counts.tolist())),
                base_mode_counts={m: sum(r['base'] == m for r in per_img) for m in ('TRUCK', 'BOAT', None)},
                gt_vs_gt_agreement=float(np.trace(cm_gt) / max(cm_gt.sum(), 1)),

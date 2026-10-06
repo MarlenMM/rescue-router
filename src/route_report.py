@@ -26,7 +26,8 @@ def main():
     ap.add_argument('--extra', default='', help='extra route_eval.py arguments, e.g. "--offroad_maxwet -1"')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
-    runs = sorted((json.load(open(f)) for f in glob.glob(os.path.join(a.results, 'decode', '*.json'))),
+    runs = sorted((json.load(open(f)) for f in glob.glob(os.path.join(a.results, 'decode', '*.json'))
+                   if '_tta' not in os.path.basename(f)),                 # test-time flips: own report (src/tta.py)
                   key=lambda d: (d['dataset'], int(d['run'].split('_')[1][:-4])))
     lines = ['| run | decode | truck cost | stranded P | stranded R | stranded F1 | status agreement | RSV | unsafe routes '
              '| cost ratio (median) | infeasible |', '|' + '---|' * 11]

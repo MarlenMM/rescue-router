@@ -10,7 +10,9 @@ and ..._test_eval100_fp16 (subset of the full test, same images). The unflipped 
 (step 1000, preds/<run>_floodnet_val_tune30.npz); the unflipped test caches are the existing eval100 and full-test caches.
 report: mIoU (tau 0.5 and each run's own val30-tuned decode) on val30, eval100 and the full test, with bootstrap 95 %
 CIs and the paired difference tta4 - plain over images; per-class IoU; agreement of the flipped views with the
-unflipped one (a mis-registered flip would show up here). Writes results/kaggle_v2/report/tta/tta.{md,json}.
+unflipped one (a mis-registered flip would show up here); post-hoc: TTA probabilities with the plain decode; routing on
+the full test if results/routing/tta/ holds it (src/rebuild_all.py runs route_eval there first); the decision.
+Writes results/kaggle_v2/report/tta/tta.{md,json}.
 The decision whether TTA replaces the headline is taken on val30 (tuned mIoU), then reported on the test splits.
 """
 
@@ -130,6 +132,21 @@ def report(a):
             d = load(os.path.join(a.flips, f'{RUN}_floodnet_test_eval100_fp16_flip{f}.npz'))
             agree[f] = float(np.mean([(decode(d[i] / 255., tau=0.5) == decode(e0[i] / 255., tau=0.5)).mean() for i in ev]))
         out['flip_vs_plain_pixel_agreement_eval100'] = agree
+    # post-hoc only (not used for the decision): TTA probabilities with the plain model's decode
+    plain, tta = sources['full448'][1], sources['full448'][2]
+    cA, cB = per_image(plain, 'test', a.data, dec[RUN]), per_image(tta, 'test', a.data, dec[RUN])
+    out['posthoc_tta_with_plain_decode'] = {s: boot(cA, cB, ids, a.B, np.random.default_rng(0))
+                                            for s, ids in (('full448', list(plain)), ('eval100', ev))}
+    cv = per_image(sources['val30'][2], 'val', a.data, dec[RUN])
+    out['posthoc_tta_with_plain_decode']['val30_tta'] = miou(sum(cv.values()))
+    rt = {}
+    for name, f in (('plain, tuned decode (headline)', 'full/pred_floodnet_50shot_full_tuned.json'),
+                    ('plain, tau 0.5', 'full/pred_floodnet_50shot_full_default.json'),
+                    ('TTA, own tuned decode', 'tta/pred_floodnet_50shot_tta4_full_tuned.json'),
+                    ('TTA, tau 0.5', 'tta/pred_floodnet_50shot_tta4_full_default.json')):
+        if os.path.exists(os.path.join(a.routing, f)):
+            rt[name] = json.load(open(os.path.join(a.routing, f)))['routing']['lam5']
+    out['routing_full'] = rt
     os.makedirs(a.out, exist_ok=True)
     json.dump(out, open(os.path.join(a.out, 'tta.json'), 'w'), indent=1)
     f = lambda d: f"{d['value']:.3f} [{d['ci'][0]:.3f}, {d['ci'][1]:.3f}]"  # noqa: E731
@@ -149,6 +166,30 @@ def report(a):
     if 'flip_vs_plain_pixel_agreement_eval100' in out:
         lines.append('Pixel agreement of each flipped view with the unflipped one (eval100, tau 0.5): ' + ', '.join(
             f'{k} {v:.3f}' for k, v in out['flip_vs_plain_pixel_agreement_eval100'].items()) + '.')
+    ph = out['posthoc_tta_with_plain_decode']
+    d = lambda r: f"{r['diff']['value']:+.3f} [{r['diff']['ci'][0]:+.3f}, {r['diff']['ci'][1]:+.3f}]"  # noqa: E731
+    lines += ['', '## Post-hoc (not used for any decision)',
+              f"TTA probabilities decoded with the **plain** model's val30-tuned decode {dec[RUN]}: full test "
+              f"{ph['full448']['tta']['value']:.3f} vs plain {ph['full448']['plain']['value']:.3f}, paired diff {d(ph['full448'])}; "
+              f"eval100 {ph['eval100']['tta']['value']:.3f} vs {ph['eval100']['plain']['value']:.3f}, diff {d(ph['eval100'])}; "
+              f"val30 {ph['val30_tta']:.3f} (TTA's own decode: {out['splits']['val30']['tuned']['tta']['value']:.3f}, so val30 "
+              'prefers the own decode). Picking this combination because of its test score would be test-set selection, so it '
+              'is reported only as an observation: averaging the views helps a little when the decode stays conservative; the '
+              'TTA-tuned decode lowered the road thresholds (full-test drivable precision '
+              f"{out['splits']['full448']['tuned']['drivable_precision']['tta']:.3f} vs "
+              f"{out['splits']['full448']['tuned']['drivable_precision']['plain']:.3f}) and lost more than the averaging gained."]
+    if rt:
+        lines += ['', '## Routing on the full test (router v3, lam 5, gate 0.3; results/routing/tta/)',
+                  '| maps | stranded P | R | F1 | unsafe routes | agreement |', '|---|---|---|---|---|---|']
+        lines += [f"| {k} | {v['stranded_precision']:.3f} | {v['stranded_recall']:.3f} | {v['stranded_f1']:.3f} | "
+                  f"{v['unsafe_route_rate']:.3f} | {v['reach_agreement']:.3f} |" for k, v in rt.items()]
+    sv, sf = out['splits']['val30']['tuned'], out['splits']['full448']['tuned']
+    adopt = sv['diff']['ci'][0] > 0 and sf['diff']['ci'][0] > 0
+    lines += ['', '## Decision',
+              'Rule fixed before looking at test: adopt TTA if its val30-tuned mIoU beats the plain one on val30 and the paired '
+              f"full-test difference with each run's own decode is clearly positive. val30 {d(sv)}, full test {d(sf)}. "
+              + ('**Adopted.**' if adopt else '**Not adopted: the headline stays the plain model.**')
+              + ' Cost: 4x inference (about 70 s instead of 17 s per photo on a T4).']
     open(os.path.join(a.out, 'tta.md'), 'w').write('\n'.join(lines) + '\n')
     print('\n'.join(lines))
 
@@ -160,6 +201,7 @@ def main():
     ap.add_argument('--flips', default='results/kaggle_v2/flips/rr/preds')
     ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
     ap.add_argument('--out', default='results/kaggle_v2/report/tta')
+    ap.add_argument('--routing', default='results/routing')
     ap.add_argument('--B', type=int, default=2000)
     a = ap.parse_args()
     build(a) if a.cmd == 'build' else report(a)
