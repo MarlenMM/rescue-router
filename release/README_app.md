@@ -17,7 +17,7 @@ truck, then boat, then on foot).
 | path | what |
 |---|---|
 | `viewer/` | the web viewer, built (plain HTML/JS + Leaflet 1.9.4, vendored; no server code, no CDN, no storage). The same files as the live site. All 200 eval100 test photos (100 FloodNet, 100 RescueNet), 8 showcase scenes first. |
-| `src/` | all Python code (identical to the `src/` in the data zip). The Gradio app is `src/gradio_app.py`; the router `src/router.py` (the viewer's `viewer/js/router.js` is its JS port, bit-exact on all 200 scenes). |
+| `src/` | all Python code: the `src/` of the data zip (identical files) plus `src/gradio_viewer.py`. The Gradio apps are `src/gradio_viewer.py` (the web viewer inside Gradio, also for uploads) and `src/gradio_app.py` (the classic view, also used by the notebook); the router is `src/router.py` (the viewer's `viewer/js/router.js` is its JS port, bit-exact on all 200 scenes and on uploads). |
 | `requirements.txt` | Python packages (CPU) |
 | `kaggle/gradio_live/` | scripts that serve the Gradio app with live inference behind a public share link: `colab_gradio_live.py` (one Colab cell, T4) and `run_gradio_live.py` (Kaggle T4) |
 | `demo/uploads/` | three FloodNet test photos the model never saw, for the live-upload demo (expected results in its README) |
@@ -45,12 +45,15 @@ It needs the prediction caches from the data zip (`20260876_MarlenMelis_data.zip
 unzip 20260876_MarlenMelis_data.zip -d rr && cd rr
 python -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python src/cache_pack.py unpack --src results/kaggle_v2/rr_packed     # restores the caches bit for bit
-cp -R <this app folder>/rr_data/. rr_data/                                     # optional: all 100 RescueNet photos
-.venv/bin/python src/gradio_app.py --data rr_data
+cp -R <this app folder>/rr_data <this app folder>/viewer <this app folder>/src .  # viewer, gradio_viewer.py, RescueNet photos
+.venv/bin/python src/gradio_viewer.py --data rr_data
 ```
 
-and open <http://127.0.0.1:7860>. Pick a scene or type a photo id (e.g. `7301`, `12195`), click a house for its route.
-Without the optional copy the app shows all FloodNet eval100 photos and the two RescueNet showcase scenes.
+and open <http://127.0.0.1:7860>. The **Viewer** tab is the web viewer inside Gradio (all 200 test photos); an uploaded
+photo opens in it too, with every viewer visual (zoom, animated truck → boat → walk, water probability, tiers), minus
+what needs labels. The **Classic view** tab is `src/gradio_app.py` (`python src/gradio_app.py --data rr_data` runs it
+alone): pick a scene or type a photo id (e.g. `7301`, `12195`), click a house for its route.
+Without a GPU, `--fake_live` is a test mode: an uploaded eval100 FloodNet photo gets its cached prediction.
 
 ## Live inference on an uploaded photo (GPU)
 
@@ -58,12 +61,13 @@ Uploads run the FloodNet 50-shot model live (~15 s per photo on a T4). It needs 
 `generalist.ckpt` (course Drive) and the starter repository (Chameleon code):
 
 ```bash
-python src/gradio_app.py --live --ckpt results/kaggle_v2/rr/ckpt/floodnet_50shot_s0_stratified.ckpt \
+python src/gradio_viewer.py --live --ckpt results/kaggle_v2/rr/ckpt/floodnet_50shot_s0_stratified.ckpt \
     --mt_ckpt <generalist.ckpt> --chameleon <AIC200-Project-StructuredPrediction>/chameleon \
     --data rr_data --support_file supports/floodnet_stratified_s0.txt --amp fp16 --share
 ```
 
-The notebook runs exactly this model on `demo/uploads/floodnet_7307.jpg` (section 9). `kaggle/gradio_live/colab_gradio_live.py`
+The notebook runs exactly this model on `demo/uploads/floodnet_7307.jpg` (section 9, through `gradio_app.py`'s
+`LiveModel`, which `gradio_viewer.py` reuses). `kaggle/gradio_live/colab_gradio_live.py`
 does the same in one Colab cell (T4; data zip in My Drive) and prints a public `gradio.live` link, used for the
 presentation; `run_gradio_live.py` is the Kaggle version.
 
