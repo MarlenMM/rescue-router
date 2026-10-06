@@ -18,7 +18,7 @@ the predicted maps it finds the houses that cannot be reached by road with **F1 
 FloodNet eval100 were 98.7 % truly truck-reachable; the others say "check first". The "labelled map" these numbers
 compare with is the same router run on the human labels: the datasets label pixels, not reachability.
 
-**Try it.** The web viewer (`docs/`, no server needed) shows all 200 eval100 photos: prediction vs labelled map,
+**Try it:** <https://marlenmm.github.io/rescue-router-demo/> (public copy of `docs/`). The web viewer (`docs/`, no server needed) shows all 200 eval100 photos: prediction vs labelled map,
 house statuses and tiers, animated truck → boat → walk routes, minutes and metres, a water-probability layer and
 shareable links. The Gradio app (`src/gradio_app.py`) does the same in Python and, on a GPU, runs the model on an
 uploaded photo.
@@ -32,7 +32,10 @@ uploaded photo.
 | `src/tests/` | Python tests (router, metrics/decode, scene packing) |
 | `app/` | web viewer source (plain HTML/JS + Leaflet 1.9.4, vendored); `app/js/router.js` is the JS port of `src/router.py` |
 | `app/test/` | JS router parity test against the Python reference (bit-exact on all 200 scenes) |
-| `docs/` | the built viewer (GitHub Pages folder), made by `src/build_viewer.py` |
+| `docs/` | the built viewer (GitHub Pages folder), made by `src/build_viewer.py`; published at <https://marlenmm.github.io/rescue-router-demo/> by `src/publish_demo.sh` |
+| `notebook/` | the final notebook: generator `build_notebook.py`, executed copy `rescue_router_executed.ipynb` (the submitted one) |
+| `writeup/`, `slides/` | write-up (LaTeX, figures, PDF) and slides (PPTX, sources, GIF backup, recording storyboard) |
+| `release/` | submission builder and the app zip's README |
 | `kaggle/` | the Kaggle GPU notebooks (training queue, checkpoint selection, test-time flips, live checks, Gradio share link) |
 | `splits/`, `supports/` | fixed evaluation splits and the support (training) photo lists, with SHA-256 sums |
 | `demo/uploads/` | three FloodNet test photos (not in eval100) for the live-upload demo |
@@ -78,7 +81,13 @@ then open <http://localhost:8766/#s=rescuenet_12195&h=8&m=gt> (canal row: truck,
 ```
 
 serves the Gradio app from the caches on <http://127.0.0.1:7860>. Live inference on uploads needs a GPU:
-`kaggle/gradio_live/run_gradio_live.py` starts it on a Kaggle T4 with a public share link.
+`kaggle/gradio_live/colab_gradio_live.py` (one Colab cell, T4) or `kaggle/gradio_live/run_gradio_live.py` (Kaggle T4)
+starts it with a public share link.
+
+## Submission
+
+`bash release/build_release.sh` assembles the KLMS zip `20260876_MarlenMelis_project.zip` (notebook, write-up,
+slides, data zip, app zip with `release/README_app.md`) and checks that it holds exactly one `.ipynb`.
 
 ## Licences and credits
 
