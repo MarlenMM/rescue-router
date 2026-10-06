@@ -322,7 +322,7 @@ Rules:
 **Implemented 6 Oct (`src/router.py: route_metrics, summarize_routing`; `src/route_eval.py`).** Definitions as built:
 - Infeasible: the predicted route drives a truck onto GT water, flooded or blocked road, or enters a GT building. A boat over GT dry ground is only charged boat cost.
 - RSV: the share of truck-leg cells that are GT hazard (road_flooded/blocked, water) or building, averaged over routes with a truck leg.
-- Cost ratio: C_G(route_P) / C_G(route_G) over feasible predicted routes to GT-reachable buildings, median. `infeasible_rate` = 1 − (feasible ratios / GT-reachable buildings).
+- Cost ratio: C_G(route_P) / C_G(route_G), median over feasible predicted routes to GT-reachable buildings whose GT route costs > 0. About 27 % of houses touch the image-border entry cells and cost 0; an earlier version counted those as ratio 0 and gave a spurious median of 1.0. `infeasible_rate` = share of GT-reachable buildings with no predicted route or an infeasible one.
 
 **GT maps, eval100, default router** (`results/routing/gt_*_eval100_off*.json`, not in git). GT-vs-GT agreement is 1.0 (sanity check):
 
@@ -597,14 +597,15 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
 
-## 15. Status / handoff (updated Tue 6 Oct, 09:35 KST)
+## 15. Status / handoff (updated Tue 6 Oct, 12:05 KST)
 
 **Done**
 - §13 starter API recorded, including 3 starter bugs and their workarounds.
 - §2.1–2.4 data on Drive: preprocessed tars, splits + SHA256SUMS, stratified supports s0–s2, meta/stats. EXIF-180° fix applied to 57 FloodNet images. The s0 lists, val/eval100 splits and the RescueNet pool are mirrored in the repo (`splits/`, `supports/`; SHA256 verified against Drive).
 - fp16 recipe working on T4 (commits `54c01ee`, `8f1cb58`; §13 "Measured … with fp16"). fp16 vs fp32 eval agrees within 0.3 IoU points (§0.1 check passed).
 - G1 run (old recipe, Colab) done: narrow fail, see below.
-- **Track B router (6 Oct 04:10):** `src/router.py` + 14 unit tests + `src/route_eval.py`. GT routing statistics are in §5.4/§6.1. The default is now the off-road truck (×4); see §6.1 for why. **Marlen: please confirm or veto this change.**
+- **Track B router (6 Oct 04:10):** `src/router.py` + unit tests (15) + `src/route_eval.py` + `src/route_report.py`. GT routing statistics are in §5.4/§6.1. The default is the off-road truck (×4); see §6.1 for why. **Kept:** at 12:00 Marlen left this and the ablation to Claude's judgement ("do what is needed, don't skip things").
+- **Decision: dry-building ablation skipped.** The model has no flooded/dry signal (per-building AUC ~0.5). Loss up-weighting would mostly shift the dry threshold, which τ tuning already explored without gain. The wet-context decode fixes dry buildings at zero GPU cost.
 - **Mac CPU environment:** `~/.venvs/rr` (Python 3.12: numpy, scipy, scikit-image, matplotlib, pillow, pytest). Tests: `~/.venvs/rr/bin/python -m pytest src/tests -q`. The preprocessed data (both r768 tars, extracted) is in `~/rr_data/`, outside iCloud. `kaggle/fetch_output.py` downloads notebook outputs with resume, because the Kaggle CLI's single GET breaks on large files with IncompleteRead. Run it with `~/.venvs/kaggle/bin/python`.
 - CPU scripts ready for when the queue finishes: `src/collect_results.py` (tables + curve), `src/decode_tune.py` (per-channel τ + building vote on val30 → eval100). `rr.metrics.decode` now takes a per-channel τ (candidate if p_c ≥ τ_c, winner = max p_c/τ_c; a scalar τ gives the old rule) and `bldg_t` (one flooded/dry label per predicted building).
 - Queue code (commit `136c2fb`): best-val30 checkpoint + cosine lr in `finetune.py`; `predict.py` skips existing caches; `src/run_queue.py`; `rescuenet_val_tune30` (30 pool images outside the s0 supports, 15 target / 15 non-target, seed 0); Kaggle notebooks in `kaggle/`.
@@ -625,6 +626,8 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 - **Notebook `marlenmelis/rr-gpu-queue50`** (`kaggle/queue/run_queue_kaggle.py` with `QUEUE = 'rerun50'`, metadata in `kaggle/queue50/`), **launched 09:21 KST, ETA ~12:45 KST.** GPU 0: FloodNet 50 → select → eval100. GPU 1: RescueNet 50 → select → eval100. It is a separate slug, so the first queue's outputs stay downloadable.
 - `rr-code` dataset rebuilt with `COPYFILE_DISABLE=1 tar --no-xattrs --no-mac-metadata`, because Kaggle unpacks the tarball and macOS had added `._*` files (`tar t` hides them).
 - The progress watcher in the first session died on a DNS error while the Mac slept. The new one retries.
+- **rr-gpu-queue50 result (finished ~11:25 KST):** both 50-shot trainings OK (2.0 h each; snapshots at steps 500/1000/1500/2000 in `results/kaggle_v2/q50/rr/ckpt/`). `select_ckpt.py` failed at once: argparse abbreviation matching read the shared `--data /content/rr_data` as `--dataset`. Fixed with `allow_abbrev=False` (commit after `b8e2daf`).
+- **Relaunched as `marlenmelis/rr-gpu-select50`** (`QUEUE = 'select50'`, metadata `kaggle/select50/`, input = the queue50 output), pushed 11:57 KST. It copies the 8 snapshots and 2 training logs, then per GPU runs `select_ckpt` (4 val30 evaluations at 50 shots) and eval100. ETA ~13:15 KST.
 - Speed (T4, fp16): training 3.6–4.1 s/step. eval100 inference: 2.7 / 3.7 / 4.1 / 5.9 s per image at 1 / 5 / 10 / 20 shots (FloodNet), 6.5 at RescueNet 20.
 
 **Results so far (best-val30 checkpoint, τ = 0.5; tables from `src/collect_results.py`, curve `results/kaggle_v2/report/curve_floodnet.png`):**
@@ -712,6 +715,36 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 - Drivable precision never drops on val30 by construction. On eval100 it rises at 1 / 5 / 20 shots and RescueNet, and is flat at 10 (.671 → .668).
 - **Write-up framing:** the dry-building gain comes from a decode rule built on the model's wet predictions, not from the model's building channels. The model itself does not learn flooded vs dry buildings from these supports, which hold ~4× more flooded than dry building pixels.
 
+**Routing evaluation on predictions (eval100, 6 Oct 12:00; `src/route_report.py` → `results/routing/routing.md`).** Same GT base and GT buildings for both maps. The decode is τ = 0.5 or the tuned decode of each run:
+
+| run | decode | truck cost | stranded P | stranded R | stranded F1 | status agreement | RSV | unsafe routes | cost ratio (median) | infeasible |
+|---|---|---|---|---|---|---|---|---|---|---|
+| floodnet_1shot | τ=0.5 | risk-aware λ=5 | 1.000 | 0.204 | 0.340 | 0.701 | 0.200 | 0.280 | 1.103 | 0.369 |
+| floodnet_1shot | τ=0.5 | plain λ=0 | 1.000 | 0.204 | 0.340 | 0.701 | 0.173 | 0.336 | 1.067 | 0.382 |
+| floodnet_1shot | tau | risk-aware λ=5 | 0.485 | 1.000 | 0.653 | 0.445 | 0.003 | 0.000 | 1.043 | 0.180 |
+| floodnet_1shot | tau | plain λ=0 | 0.485 | 1.000 | 0.653 | 0.445 | 0.003 | 0.000 | 1.049 | 0.180 |
+| floodnet_5shot | τ=0.5 | risk-aware λ=5 | 0.987 | 0.275 | 0.430 | 0.720 | 0.122 | 0.318 | 1.029 | 0.341 |
+| floodnet_5shot | τ=0.5 | plain λ=0 | 0.987 | 0.275 | 0.430 | 0.720 | 0.188 | 0.351 | 1.000 | 0.415 |
+| floodnet_5shot | tau_ctx | risk-aware λ=5 | 0.983 | 0.636 | 0.772 | 0.803 | 0.092 | 0.211 | 1.030 | 0.289 |
+| floodnet_5shot | tau_ctx | plain λ=0 | 0.983 | 0.636 | 0.772 | 0.803 | 0.126 | 0.242 | 1.000 | 0.356 |
+| floodnet_10shot | τ=0.5 | risk-aware λ=5 | 0.981 | 0.591 | 0.738 | 0.788 | 0.099 | 0.164 | 1.037 | 0.280 |
+| floodnet_10shot | τ=0.5 | plain λ=0 | 0.981 | 0.591 | 0.738 | 0.788 | 0.137 | 0.227 | 1.000 | 0.380 |
+| floodnet_10shot | tau_ctx | risk-aware λ=5 | 0.993 | 0.520 | 0.683 | 0.764 | 0.087 | 0.194 | 1.046 | 0.247 |
+| floodnet_10shot | tau_ctx | plain λ=0 | 0.993 | 0.520 | 0.683 | 0.764 | 0.121 | 0.257 | 1.000 | 0.332 |
+| floodnet_20shot | τ=0.5 | risk-aware λ=5 | 1.000 | 0.316 | 0.480 | 0.719 | 0.109 | 0.289 | 1.038 | 0.340 |
+| floodnet_20shot | τ=0.5 | plain λ=0 | 1.000 | 0.316 | 0.480 | 0.719 | 0.158 | 0.338 | 1.000 | 0.393 |
+| floodnet_20shot | tau_ctx | risk-aware λ=5 | 0.984 | 0.461 | 0.628 | 0.754 | 0.104 | 0.256 | 1.036 | 0.330 |
+| floodnet_20shot | tau_ctx | plain λ=0 | 0.984 | 0.461 | 0.628 | 0.754 | 0.151 | 0.290 | 1.000 | 0.384 |
+| rescuenet_20shot | τ=0.5 | risk-aware λ=5 | 0.900 | 0.360 | 0.514 | 0.932 | 0.063 | 0.101 | 1.051 | 0.140 |
+| rescuenet_20shot | τ=0.5 | plain λ=0 | 0.900 | 0.360 | 0.514 | 0.932 | 0.086 | 0.101 | 1.031 | 0.162 |
+| rescuenet_20shot | tau_bldg | risk-aware λ=5 | 0.900 | 0.360 | 0.514 | 0.938 | 0.045 | 0.077 | 1.050 | 0.088 |
+| rescuenet_20shot | tau_bldg | plain λ=0 | 0.900 | 0.360 | 0.514 | 0.938 | 0.059 | 0.091 | 1.028 | 0.125 |
+
+- **Risk-aware truck costs help every run.** RSV falls by ~25–35 % (FloodNet 10-shot tuned: .121 → .087) and infeasible routes by 4–10 points, at a median cost premium of 3–5 %.
+- **Stranded detection: high precision (.98–1.0), low recall (.32–.64).** Predicted maps over-connect: they miss water barriers, so cut-off houses look truck-reachable. That is the dangerous direction; feed it into the failure analysis.
+- **The tuned decode raises stranded recall at 5 and 20 shots** (.275 → .636, .316 → .461), mostly through more water (τ_water .15–.25). At 10 shots it lowers recall (.59 → .52).
+- 1-shot tuned is degenerate (τ_road_clear .8 → almost no road; every house "stranded", recall 1.0, precision .49). Don't headline it.
+
 **Earlier plan (kept for reference): the core queue on Kaggle, launched Tue 6 Oct 02:40 KST, ETA 11:30–12:00 KST** (Kaggle session limit 12 h; no new job starts after 9.5 h):
 - GPU 0: FloodNet 1-shot → eval100 cache → 50-shot → cache → 20-shot → cache → 10-shot → cache.
 - GPU 1: RescueNet 20-shot → cache → FloodNet 5-shot → cache → RescueNet 50-shot → cache.
@@ -743,7 +776,7 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 1. ~~Track B router + unit tests + routing metrics on GT maps~~ (done 04:10).
 2. ~~Download, check logs, tables + curve~~ (done 09:30 for 5 runs). When `rr-gpu-queue50` completes: `~/.venvs/kaggle/bin/python kaggle/fetch_output.py marlenmelis/rr-gpu-queue50 results/kaggle_v2`, which merges into the same `rr/` folders. Then rerun `src/collect_results.py`, `src/decode_tune.py --runs <the two 50-shot runs>`. Originally this step said: fill the data-efficiency curve (val30 + eval100) and the per-class table vs PSPNet (§5.2).
 3. ~~Decode tuning on val30 from the caches~~ (done 09:35 for 5 runs; the two 50-shot runs follow after the rerun). See "Decode tuning" below.
-4. Optional, if time and quota allow (latest start Wed afternoon): one ablation run of FloodNet 50-shot with dry buildings up-weighted in the loss, reported next to (not instead of) the main 50-shot model.
+4. ~~Optional dry-building ablation~~: **skipped** (see the decision above).
 5. Then §10 Tue/Wed: Gradio app, web viewer (`app/` → `docs/`), routing evaluation on predictions, failure analysis, figures, write-up, slides; G3 notebook check on a fresh T4 (Colab free tier is enough for inference, or Kaggle).
 
 ## 14. Sources

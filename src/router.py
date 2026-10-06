@@ -256,8 +256,8 @@ def route_metrics(pred_grid, gt_grid, base, blds):
             rec['cost_gt_opt'] = rg['cost']
         if rp is not None:
             rec.update(eval_route_on_gt(rp, gt_grid))
-            if rg is not None and rec['feasible']:
-                rec['cost_ratio'] = rec['cost_gt'] / max(rg['cost'], 1e-9)
+            if rg is not None and rec['feasible'] and rg['cost'] > 0:   # cost 0 = house touches the entry
+                rec['cost_ratio'] = rec['cost_gt'] / rg['cost']
         recs.append(rec)
     return cm, recs
 
@@ -271,6 +271,7 @@ def summarize_routing(cm, recs):
     truck_routes = [r for r in with_route if r['rsv'] is not None]
     gt_reach = [r for r in recs if 'cost_gt_opt' in r]
     ratios = [r['cost_ratio'] for r in gt_reach if 'cost_ratio' in r]
+    infeasible = [not r.get('feasible', False) for r in gt_reach]          # no predicted route, or unsafe
     return dict(
         n_buildings=int(cm.sum()), gt_status_counts=cm.sum(1).tolist(), pred_status_counts=cm.sum(0).tolist(),
         stranded_precision=float(prec), stranded_recall=float(rec),
@@ -279,5 +280,6 @@ def summarize_routing(cm, recs):
         rsv_mean=float(np.mean([r['rsv'] for r in truck_routes])) if truck_routes else None,
         unsafe_route_rate=float(np.mean([r['unsafe'] for r in truck_routes])) if truck_routes else None,
         cost_ratio_median=float(np.median(ratios)) if ratios else None,
-        infeasible_rate=float(1 - len(ratios) / len(gt_reach)) if gt_reach else None,
-        n_routes_gt=len(gt_reach), n_routes_pred=len(with_route))
+        infeasible_rate=float(np.mean(infeasible)) if gt_reach else None,
+        n_routes_gt=len(gt_reach), n_routes_pred=len(with_route), n_cost_ratio=len(ratios),
+        n_trivial_gt_routes=sum(r['cost_gt_opt'] == 0 for r in gt_reach))
