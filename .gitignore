@@ -15,6 +15,7 @@
 !/splits/
 !/supports/
 !/demo/
+!/notebook/
 __pycache__/
 *.pyc
 .DS_Store
