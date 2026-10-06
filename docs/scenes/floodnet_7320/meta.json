@@ -1,0 +1,72 @@
+{
+ "id": "7320",
+ "dataset": "floodnet",
+ "run": "floodnet_50shot_s0_stratified",
+ "decode": {
+  "tau": [
+   0.4,
+   0.35,
+   0.45,
+   0.35,
+   0.45
+  ],
+  "variant": "tau"
+ },
+ "caption": "Flooded street: trucks reach most houses, some are cut off",
+ "size": [
+  768,
+  576
+ ],
+ "class_names": [
+  "road clear",
+  "road flooded",
+  "building flooded",
+  "building dry",
+  "water"
+ ],
+ "class_colors": [
+  [
+   46,
+   204,
+   64
+  ],
+  [
+   0,
+   116,
+   217
+  ],
+  [
+   230,
+   40,
+   40
+  ],
+  [
+   245,
+   180,
+   0
+  ],
+  [
+   0,
+   31,
+   120
+  ]
+ ],
+ "iou": {
+  "road clear": null,
+  "road flooded": 0.829,
+  "building flooded": 0.893,
+  "building dry": null,
+  "water": null
+ },
+ "n_buildings": 16,
+ "status_pred": {
+  "TRUCK": 13,
+  "BOAT": 0,
+  "ISOLATED": 3
+ },
+ "status_gt": {
+  "TRUCK": 13,
+  "BOAT": 0,
+  "ISOLATED": 3
+ }
+}

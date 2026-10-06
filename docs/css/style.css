@@ -1,0 +1,127 @@
+:root {
+  --bg: #0b1220;
+  --card: rgba(13, 20, 36, 0.88);
+  --line: rgba(148, 163, 184, 0.22);
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --accent: #22d3ee;
+  --truck: #22c55e;
+  --boat: #f97316;
+  --isolated: #ef4444;
+  --disagree: #e879f9;
+  --radius: 14px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+#map { position: fixed; inset: 0; background: var(--bg); }
+.leaflet-container { background: var(--bg); font: inherit; }
+.leaflet-control-attribution { background: rgba(11, 18, 32, 0.8) !important; color: var(--muted); font-size: 11px; }
+.leaflet-control-attribution a { color: #cbd5e1; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
+
+.title { position: fixed; top: 12px; left: 12px; z-index: 1000; padding: 10px 14px; max-width: min(460px, calc(100vw - 400px)); }
+.title h1 { margin: 0; font-size: 18px; letter-spacing: 0.2px; }
+.title p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+
+.dock { position: fixed; left: 12px; bottom: 28px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; width: 300px; }
+.counter { padding: 10px 14px; }
+.counter .big { font-size: 26px; font-weight: 700; line-height: 1.1; }
+.counter .side { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.counter .hint { margin: 6px 0 0; font-size: 12px; }
+.counter .big small { font-size: 15px; color: var(--muted); font-weight: 500; }
+.counter .lbl { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
+.counter .split { display: flex; gap: 10px; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.counter .split b { color: var(--text); }
+.counter .duo { display: flex; gap: 18px; }
+.counter .duo > div { flex: 1; }
+@media (min-width: 761px) { .leaflet-bottom.leaflet-right { margin-right: 364px; } }
+
+.panel { position: fixed; top: 12px; right: 12px; bottom: 12px; width: 340px; z-index: 1000; display: flex; flex-direction: column; }
+.panel-body { overflow-y: auto; padding: 4px 16px 16px; }
+.sheet-toggle { display: none; }
+section { padding: 10px 0; border-bottom: 1px solid var(--line); }
+section:last-child { border-bottom: 0; }
+h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+
+.scenes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.scenes button { position: relative; padding: 0; border: 2px solid transparent; border-radius: 8px; overflow: hidden;
+  background: #111827; cursor: pointer; aspect-ratio: 4 / 3; }
+.scenes button img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scenes button[aria-pressed="true"] { border-color: var(--accent); }
+.scenes button .tag { position: absolute; left: 3px; bottom: 3px; font-size: 9px; padding: 0 4px; border-radius: 4px;
+  background: rgba(0, 0, 0, 0.65); color: #fff; }
+.scenes button .warn { position: absolute; right: 3px; top: 3px; font-size: 9px; padding: 0 4px; border-radius: 4px; background: var(--disagree); color: #1f0b24; font-weight: 700; }
+.model { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+
+.seg { display: flex; background: #0f172a; border: 1px solid var(--line); border-radius: 10px; padding: 3px; margin-bottom: 8px; }
+.seg button { flex: 1; border: 0; background: transparent; color: var(--muted); padding: 7px 4px; border-radius: 7px; cursor: pointer; font: inherit; font-weight: 600; }
+.seg button[aria-checked="true"] { background: #1e293b; color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+
+.row { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
+.row input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+.row input[type="range"] { margin-left: auto; width: 110px; accent-color: var(--accent); }
+.pill { margin-left: auto; background: #1e293b; border-radius: 999px; padding: 0 8px; font-size: 12px; color: var(--disagree); font-weight: 700; }
+
+.hint { color: var(--muted); }
+.route-card { padding: 12px 14px; }
+.route-card h3 { margin: 0 0 6px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.route-card p { margin: 4px 0; color: #cbd5e1; font-size: 13px; }
+.route-card .gtline { color: var(--muted); }
+.route-card .mismatch { color: var(--disagree); font-weight: 600; }
+.route-card .legs { display: flex; gap: 6px; margin: 8px 0 2px; height: 8px; border-radius: 4px; overflow: hidden; background: #1e293b; }
+.route-card .legs span { display: block; height: 100%; }
+
+.legend { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.legend li { display: flex; align-items: center; gap: 8px; }
+.sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; flex: none; }
+.badge { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 2px solid #fff; flex: none; }
+.badge.truck { background: var(--truck); } .badge.boat { background: var(--boat); } .badge.isolated { background: var(--isolated); }
+.line { width: 22px; height: 4px; border-radius: 2px; display: inline-block; flex: none; }
+.truckline { background: #fff; box-shadow: 0 0 0 1px #111; } .boatline { background: var(--accent); margin-left: 6px; }
+.sq.base { width: 10px; height: 10px; background: #fff; border: 1px solid #111; display: inline-block; }
+.about p { color: #cbd5e1; font-size: 12.5px; margin: 0 0 8px; }
+
+/* house status badges and route vehicles (Leaflet divIcons) */
+.st { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; display: grid; place-items: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); color: #fff; }
+.st svg { width: 13px; height: 13px; }
+.st.truck { background: var(--truck); } .st.boat { background: var(--boat); } .st.isolated { background: var(--isolated); }
+.st.sel { outline: 3px solid var(--accent); outline-offset: 2px; }
+.vehicle { font-size: 22px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)); }
+.house-poly { cursor: pointer; }
+
+/* swipe divider (screen-space overlay; the map panes are clipped in app.js) */
+.swipe { position: fixed; inset: 0; z-index: 900; pointer-events: none; }
+.swipe-line { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 6px rgba(0, 0, 0, 0.7); left: var(--x, 50%); }
+.swipe-handle { position: absolute; top: 50%; left: var(--x, 50%); transform: translate(-50%, -50%); pointer-events: auto;
+  width: 40px; height: 40px; border-radius: 50%; border: 2px solid #fff; background: #0f172a; color: #fff; font-size: 18px; cursor: ew-resize; touch-action: none; }
+.swipe-tag { position: absolute; top: calc(50% + 28px); padding: 2px 8px; border-radius: 6px; background: rgba(0, 0, 0, 0.6); font-size: 12px; font-weight: 600; }
+.swipe-tag.left { right: calc(100% - var(--x, 50%) + 10px); }
+.swipe-tag.right { left: calc(var(--x, 50%) + 10px); }
+
+/* phone: the panel becomes a bottom sheet */
+@media (max-width: 760px) {
+  .title { max-width: none; padding: 8px 12px; top: calc(8px + env(safe-area-inset-top)); left: 8px; right: 8px; }
+  .title h1 { font-size: 16px; }
+  .title p { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 52vh; border-radius: 16px 16px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+  .panel.collapsed .panel-body { display: none; }
+  .sheet-toggle { display: flex; align-items: center; justify-content: center; gap: 8px; flex-direction: column; width: 100%;
+    background: none; border: 0; color: var(--muted); padding: 6px 0 4px; cursor: pointer; font: inherit; font-size: 12px; }
+  .grip { width: 40px; height: 4px; border-radius: 2px; background: #475569; }
+  .dock { left: 8px; right: 8px; width: auto; bottom: calc(var(--sheet-h, 48px) + 8px); gap: 6px; }
+  .counter { padding: 6px 12px; }
+  .counter .big { font-size: 20px; }
+  .counter .hint { display: none; }
+  .route-card { padding: 8px 12px; }
+  .route-card h3 { font-size: 14px; margin-bottom: 2px; }
+  .route-card p { font-size: 12px; margin: 2px 0; }
+  .scenes { grid-template-columns: repeat(8, 1fr); gap: 4px; }
+  .scenes button .tag { display: none; }
+  .leaflet-control-zoom { display: none; }
+}
