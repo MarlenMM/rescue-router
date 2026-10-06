@@ -25,8 +25,8 @@
 
 <div class="swipe" id="swipe" hidden>
   <div class="swipe-line"></div>
-  <button class="swipe-handle" id="swipeHandle" aria-label="Drag to compare prediction and ground truth">⟷</button>
-  <span class="swipe-tag left">Prediction</span><span class="swipe-tag right">Ground truth</span>
+  <button class="swipe-handle" id="swipeHandle" aria-label="Drag to compare the prediction and the labelled map">⟷</button>
+  <span class="swipe-tag left">Prediction</span><span class="swipe-tag right">Labelled map</span>
 </div>
 
 <aside class="panel card" id="panel">
@@ -44,14 +44,23 @@
       <h2>Map</h2>
       <div class="seg" role="radiogroup" aria-label="Map source">
         <button role="radio" data-src="pred" aria-checked="true">Prediction</button>
-        <button role="radio" data-src="gt" aria-checked="false">Ground truth</button>
+        <button role="radio" data-src="gt" aria-checked="false" title="The same router on the human labels">Labelled map</button>
         <button role="radio" data-src="swipe" aria-checked="false">Swipe</button>
       </div>
       <label class="row"><input type="checkbox" id="tClasses" checked> Flood map <input type="range" id="opacity" min="0" max="100" value="60" aria-label="Flood map opacity"></label>
       <label class="row"><input type="checkbox" id="tStatus" checked> House status</label>
-      <label class="row"><input type="checkbox" id="tDisagree"> Disagreements with ground truth <span class="pill" id="nDisagree">0</span></label>
+      <label class="row"><input type="checkbox" id="tDisagree"> Disagreements with the labelled map <span class="pill" id="nDisagree">0</span></label>
       <label class="row"><input type="checkbox" id="tBase" checked> Entry points</label>
       <label class="row"><input type="checkbox" id="tRisk" checked> Risk-aware truck (avoid likely water)</label>
+    </section>
+
+    <section>
+      <h2>Entry point</h2>
+      <p class="entry-mode">Rescue team enters: <span id="entryMode"></span></p>
+      <div class="btns">
+        <button id="entryPick" aria-pressed="false">Choose on map</button>
+        <button id="entryAuto">Auto</button>
+      </div>
     </section>
 
     <section>
@@ -59,9 +68,10 @@
       <ul class="legend" id="legend"></ul>
       <ul class="legend">
         <li><span class="badge truck"></span>Reachable by truck</li>
-        <li><span class="badge boat"></span>Truck, then boat</li>
-        <li><span class="badge isolated"></span>Isolated: foot or air team</li>
-        <li><span class="line truckline"></span>Truck leg <span class="line boatline"></span>Boat leg</li>
+        <li><span class="badge boat"></span>Boat needed</li>
+        <li><span class="badge foot"></span>Last stretch on foot</li>
+        <li><span class="badge isolated"></span>No route: air team</li>
+        <li><span class="line truckline"></span>Truck <span class="line boatline"></span>Boat <span class="line footline"></span>Foot</li>
         <li><span class="sq base"></span>Entry point (truck or boat)</li>
       </ul>
     </section>
@@ -69,8 +79,10 @@
     <section class="about">
       <h2>About</h2>
       <p>A drone photo is mapped into five classes by <b>Chameleon</b>, adapted from only <b>50 labelled photos</b> (FloodNet) or 20 (RescueNet).
-        A router on 4×4-pixel cells then finds the cheapest way from the image edge to each house: truck on dry ground
-        (roads, or yards at 4× cost; never where water is likely), then a boat across water. Same router on the true map for comparison.</p>
+        A router on 4×4-pixel cells then finds the cheapest way from the entry point to each house: truck on dry ground
+        (roads, or yards at 4× cost; never where water is likely), then a boat across water, then the last stretch on foot
+        (never back into a vehicle). The labelled map is the same router run on the human labels: the datasets label pixels,
+        not reachability.</p>
       <p>FloodNet 50-shot: mIoU .47 on the full 448-image test (PSPNet with 1,445 labels: .85 on these classes).
         Two scenes are honest failures: shallow water read as dry land.</p>
     </section>

@@ -63,11 +63,13 @@
  "status_pred": {
   "TRUCK": 12,
   "BOAT": 0,
+  "FOOT": 0,
   "ISOLATED": 0
  },
  "status_gt": {
   "TRUCK": 6,
   "BOAT": 2,
-  "ISOLATED": 4
+  "FOOT": 4,
+  "ISOLATED": 0
  }
 }

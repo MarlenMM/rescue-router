@@ -54,7 +54,7 @@ def gallery(a, plt):
         for s in ax.spines.values():
             s.set_visible(False)
         r = rt[i]
-        cm = np.array(r.get('status_confusion', np.zeros((3, 3))))
+        cm = np.array(r.get('status_confusion', np.zeros((4, 4))))
         cons = (f'routing: {r["n_buildings"]} houses, {int(cm[1:, 0].sum())} stranded shown as truck-reachable, '
                 f'{r.get("n_unsafe_routes", 0)} unsafe truck routes') if r['n_buildings'] else 'routing: no houses, no effect'
         ax.set_title(f'{i}  {tag}\n{cons}', fontsize=8.5, loc='left')

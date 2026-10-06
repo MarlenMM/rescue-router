@@ -79,7 +79,7 @@ def main():
     for i, P in zip([str(x) for x in z['ids']], z['probs']):
         gt = gt_classes(load_label(a.data, ds, 'test', i))
         r, preds[i] = per_image(i, P, gt, dec)
-        cm = np.array(rt[i].get('status_confusion', np.zeros((3, 3))))
+        cm = np.array(rt[i].get('status_confusion', np.zeros((4, 4))))
         r.update(n_buildings=rt[i]['n_buildings'], stranded_missed=int(cm[1:, 0].sum()),
                  n_unsafe_routes=rt[i].get('n_unsafe_routes', 0), base=rt[i]['base'])
         rows.append(r)

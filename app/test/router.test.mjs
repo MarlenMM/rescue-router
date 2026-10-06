@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sceneGrids, STATUS, TRUCK, BOAT } from '../js/router.js';
+import { sceneGrids, STATUS, TRUCK, BOAT, FOOT } from '../js/router.js';
 
 const SCENES = join(dirname(fileURLToPath(import.meta.url)), '..', 'scenes');
 const index = JSON.parse(readFileSync(join(SCENES, 'scenes.json'), 'utf8'));
@@ -25,7 +25,8 @@ function recost(grid, r) {
     assert.ok(r.modes[k] >= r.modes[k - 1], 'no switch back to truck');
     const L = y !== y0 && x !== x0 ? Math.SQRT2 : 1;
     if (r.modes[k] === TRUCK) { assert.ok(grid.truckOk[b]); c += grid.truckStep(L, b); }
-    else { assert.ok(grid.boatOk[b]); c += L * grid.par.boat_cost + (r.modes[k - 1] === TRUCK ? grid.par.launch : 0); }
+    else if (r.modes[k] === BOAT) { assert.ok(grid.boatOk[b]); c += L * grid.par.boat_cost + (r.modes[k - 1] === TRUCK ? grid.par.launch : 0); }
+    else { assert.ok(grid.footOk[b]); c += L * grid.par.foot_cost + (r.modes[k - 1] !== FOOT ? grid.par.alight : 0); }
   }
   return c;
 }
@@ -48,12 +49,7 @@ for (const s of index.scenes) {
           assert.ok(Math.abs(r.cost - ref.cost) <= 1e-9 * Math.max(1, ref.cost),
                     `${name} lam${lam} building ${b.id}: JS ${r.cost} vs Python ${ref.cost}`);
           assert.ok(Math.abs(recost(grids[name], r) - r.cost) <= 1e-9 * Math.max(1, r.cost));
-          if (STATUS[sol.status(b.ring)] === 'BOAT') assert.equal(r.modes.at(-1), BOAT);
-          if (STATUS[sol.status(b.ring)] === 'TRUCK') {                // the viewer's road route
-            const t = sol.route(b.ring, true);
-            assert.ok(t.modes.every(m => m === TRUCK) && t.cost >= r.cost);
-            assert.ok(Math.abs(recost(grids[name], t) - t.cost) <= 1e-9 * Math.max(1, t.cost));
-          }
+          assert.equal(r.modes.at(-1), sol.status(b.ring), 'route ends in the mode of the status');
           checked++;
         }
       }

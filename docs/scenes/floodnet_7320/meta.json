@@ -12,7 +12,7 @@
   ],
   "variant": "tau"
  },
- "caption": "Flooded street: trucks reach most houses, some are cut off",
+ "caption": "Flooded street: trucks reach most houses, three need a boat and a walk",
  "size": [
   768,
   576
@@ -62,11 +62,13 @@
  "status_pred": {
   "TRUCK": 13,
   "BOAT": 0,
-  "ISOLATED": 3
+  "FOOT": 3,
+  "ISOLATED": 0
  },
  "status_gt": {
   "TRUCK": 13,
   "BOAT": 0,
-  "ISOLATED": 3
+  "FOOT": 3,
+  "ISOLATED": 0
  }
 }

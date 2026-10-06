@@ -35,15 +35,15 @@ from viz import COLORS, NAMES, blend, colorize, load_image, load_label  # noqa: 
 
 RUNS = {'floodnet': 'floodnet_50shot_s0_stratified', 'rescuenet': 'rescuenet_20shot_s0_stratified'}
 LAMS = (5.0, 0.0)
-STATUS_RGB = {R.TRUCK: (46, 204, 64), R.BOAT: (255, 140, 0), R.ISOLATED: (230, 30, 60)}
+STATUS_RGB = {R.TRUCK: (46, 204, 64), R.BOAT: (255, 140, 0), R.FOOT: (167, 139, 250), R.ISOLATED: (230, 30, 60)}
 
 # showcase scenes (dataset, id, caption); picked by Marlen from the contact sheets on 6 Oct
 SCENES = [
     ('floodnet', '9107', 'Dry neighbourhood: every house reachable by truck'),
-    ('floodnet', '7320', 'Flooded street: trucks reach most houses, some are cut off'),
-    ('floodnet', '7301', 'Truck, boat and isolated houses in one scene'),
+    ('floodnet', '7320', 'Flooded street: trucks reach most houses, three need a boat and a walk'),
+    ('floodnet', '7301', 'Truck, boat and on-foot rescues in one scene'),
     ('floodnet', '7423', 'Boat rescues across flooded roads'),
-    ('floodnet', '7611', 'Mostly isolated: no dry way in'),
+    ('floodnet', '7611', 'Cut off by water: most houses need a boat, then a walk'),
     ('floodnet', '7241', 'Honest failure: shallow water read as dry land'),
     ('rescuenet', '15833', 'Hurricane Michael: clear road, intact and damaged houses'),
     ('rescuenet', '12195', 'Hurricane Michael, honest failure: canal houses look reachable by road'),
@@ -146,7 +146,8 @@ def grid_json(s):
     p = g5['pred'].par
     return dict(h=g5['pred'].h, w=g5['pred'].w, cell=R.CELL, dataset=s['dataset'],
                 params=dict(lam=p['lam'], boat_cost=p['boat_cost'], launch=p['launch'], boat_p=p['boat_p'],
-                            offroad=p['offroad'], offroad_maxwet_pred=PRED_OFFROAD_MAXWET, offroad_maxwet_gt=None),
+                            offroad=p['offroad'], foot_cost=p['foot_cost'], alight=p['alight'],
+                            offroad_maxwet_pred=PRED_OFFROAD_MAXWET, offroad_maxwet_gt=None),
                 profile={k: list(v) for k, v in R.PROFILES[s['dataset']].items()},
                 base=None if s['base'] is None else dict(cells=s['base'][0].tolist(), mode=R.STATUS[s['base'][1]]),
                 pred=one(g5['pred']), gt=one(g5['gt']))
@@ -194,10 +195,10 @@ def sheet_row(s, caption):
     cap = Image.new('RGB', (row.shape[1], 34), 'white')
     dr = ImageDraw.Draw(cap)
     cg, cp = counts(s['buildings'], 'status_gt'), counts(s['buildings'], 'status_pred')
-    fmt = lambda c: f"{c['TRUCK']} truck / {c['BOAT']} boat / {c['ISOLATED']} isolated"  # noqa: E731
+    fmt = lambda c: f"{c['TRUCK']} truck / {c['BOAT']} boat / {c['FOOT']} foot / {c['ISOLATED']} no route"  # noqa: E731
     dr.text((8, 4), f"{s['dataset']} {s['id']} ({s['run'].split('_')[1]}): {caption}", fill='black')
     dr.text((8, 18), f"GT: {fmt(cg)}    prediction: {fmt(cp)}    "
-                     f"(photo | GT + GT status | prediction + predicted status)", fill=(60, 60, 60))
+                     f"(photo | labelled map + status | prediction + status)", fill=(60, 60, 60))
     return np.concatenate([np.asarray(cap), row], 0)
 
 

@@ -6,8 +6,9 @@ Live inference on an uploaded photo (GPU; FloodNet 50-shot checkpoint, same reci
     python src/gradio_app.py --live --ckpt <ckpt> --mt_ckpt <generalist.ckpt> --chameleon <starter>/chameleon \
         --data <rr_data> --support_file supports/floodnet_stratified_s0.txt [--amp fp16] --share
 
-Controls: map (prediction / ground truth), risk-aware truck cost (lam 5 / 0), boat cost per cell.
-Click a house: its route (truck leg white, boat leg cyan), a summary, and the "unreachable by road" count.
+Controls: map (prediction / labelled map = the router on the human labels), risk-aware truck cost (lam 5 / 0),
+boat cost per cell, and the entry point (auto, or click to choose where the rescue team enters).
+Click a house: its route (truck white, boat cyan, walk violet dots), a summary, the "unreachable by road" count.
 Routing is router.py with the same settings as route_eval.py (off-road gate on the predicted map only).
 """
 
@@ -26,8 +27,12 @@ from export_web_assets import RUNS, SCENES, build_scene, load_cached, make_grids
 from viz import COLORS, NAMES, blend  # noqa: E402
 
 K = 2                                                   # display scale (768x576 -> 1536x1152)
-STATUS_RGB = {R.TRUCK: (34, 197, 94), R.BOAT: (249, 115, 22), R.ISOLATED: (239, 68, 68)}
-CYAN, WHITE = (34, 211, 238), (255, 255, 255)
+STATUS_RGB = {R.TRUCK: (34, 197, 94), R.BOAT: (249, 115, 22), R.FOOT: (167, 139, 250), R.ISOLATED: (239, 68, 68)}
+CYAN, WHITE, VIOLET = (34, 211, 238), (255, 255, 255), (167, 139, 250)
+LEG = {R.TRUCK: ('truck', WHITE), R.BOAT: ('boat', CYAN), R.FOOT: ('on foot', VIOLET)}
+TITLE = {R.TRUCK: 'Truck can reach it', R.BOAT: 'Boat needed', R.FOOT: 'Last stretch on foot',
+         R.ISOLATED: 'No route: send an air team'}
+SIDE = {'pred': 'Prediction', 'gt': 'Labelled map'}
 CLASS_WORD = {'floodnet': {2: 'flooded building', 3: 'dry building'},
               'rescuenet': {2: 'intact building', 3: 'damaged building'}}
 
@@ -37,13 +42,32 @@ def solve(st):
     """(Re)build the grids for the current costs and solve both maps from the base."""
     s = st['scene']
     st['grids'] = make_grids(s, lam=5.0 if st['risk'] else 0.0, boat_cost=st['boat'])
-    st['sol'] = {k: g.solve(s['base']) for k, g in st['grids'].items()} if s['base'] is not None else {}
+    base = st.get('entry') or s['base']
+    st['sol'] = {k: g.solve(base) for k, g in st['grids'].items()} if base is not None else {}
     st['status'] = {k: [sol.status(b) for b in s['bld']] for k, sol in st['sol'].items()}
     return st
 
 
 def new_state(s, title, risk=True, boat=3.0, src='pred'):
-    return solve(dict(scene=s, title=title, risk=risk, boat=boat, src=src if s['gt'] is not None else 'pred', sel=None))
+    return solve(dict(scene=s, title=title, risk=risk, boat=boat, src=src if s['gt'] is not None else 'pred', sel=None,
+                      entry=None, msg=None))
+
+
+def set_entry(st, x, y):
+    """Entry chosen by the user at image pixel (x, y): a 3x3-cell staging area, truck on dry ground, boat on water.
+    The labelled map decides what the ground is (the prediction when there is none), as for the auto entry."""
+    g = st['grids'].get('gt', st['grids']['pred'])
+    cy, cx = min(g.h - 1, max(0, int(y // R.CELL))), min(g.w - 1, max(0, int(x // R.CELL)))
+    c = cy * g.w + cx
+    if g.wall.flat[c] and not g.boat_ok.flat[c]:
+        st['msg'] = 'That is a building: click a road, a yard or water.'
+        return st
+    mode = R.TRUCK if g.truck_ok.flat[c] else R.BOAT
+    ok = g.truck_ok if mode == R.TRUCK else g.boat_ok
+    cells = [yy * g.w + xx for yy in range(cy - 1, cy + 2) for xx in range(cx - 1, cx + 2)
+             if 0 <= yy < g.h and 0 <= xx < g.w and (ok[yy, xx] or yy * g.w + xx == c)]
+    st.update(entry=(np.array(cells), mode), msg=None, sel=None)
+    return solve(st)
 
 
 def cached_state(key, args, **kw):
@@ -60,10 +84,11 @@ def render(st):
     cls = s[side].repeat(K, 0).repeat(K, 1)
     im = Image.fromarray(blend(big, cls, s['dataset'], 0.5))
     dr = ImageDraw.Draw(im)
-    if s['base'] is not None:
+    base = st.get('entry') or s['base']
+    if base is not None:
         w = s['cells']['pred'][0].shape[1]
-        col = WHITE if s['base'][1] == R.TRUCK else CYAN
-        for c in s['base'][0]:
+        col = WHITE if base[1] == R.TRUCK else CYAN
+        for c in base[0]:
             y, x = divmod(int(c), w)
             dr.rectangle([x * R.CELL * K, y * R.CELL * K, (x + 1) * R.CELL * K - 1, (y + 1) * R.CELL * K - 1], fill=col)
     status = st['status'].get(side, [R.ISOLATED] * len(s['bld']))
@@ -72,16 +97,23 @@ def render(st):
         sel = st['sel'] is not None and st['sel'][0] == j
         dr.polygon(poly, outline=CYAN if sel else STATUS_RGB[stt], width=8 if sel else 4)
     route = st['sel'][1] if st['sel'] is not None else None
-    if route is not None:
+    if route is not None and len(route['cells']) > 1:
         pts = [(x * R.CELL * K + R.CELL * K / 2, y * R.CELL * K + R.CELL * K / 2) for y, x in route['cells']]
-        k = route['modes'].index(R.BOAT) if R.BOAT in route['modes'] else len(pts)
-        legs = [(pts[:max(k, 1)], WHITE), (pts[max(k - 1, 0):] if k < len(pts) else [], CYAN)]
-        for leg, _ in legs:
+        modes = route['modes']
+        legs = []
+        for m in (R.TRUCK, R.BOAT, R.FOOT):                        # one leg per mode, joined at the switch cell
+            if m in modes:
+                first, last = modes.index(m), len(modes) - 1 - modes[::-1].index(m)
+                legs.append((m, pts[max(first - 1, 0):last + 1]))
+        for m, leg in legs:
             if len(leg) > 1:
                 dr.line(leg, fill=(0, 0, 0), width=12, joint='curve')
-        for leg, col in legs:
-            if len(leg) > 1:
-                dr.line(leg, fill=col, width=6, joint='curve')
+        for m, leg in legs:
+            if len(leg) > 1 and m != R.FOOT:
+                dr.line(leg, fill=LEG[m][1], width=6, joint='curve')
+            elif len(leg) > 1:
+                for px, py in leg[::2]:                            # walking leg: dotted
+                    dr.ellipse([px - 4, py - 4, px + 4, py + 4], fill=VIOLET)
         x0, y0 = pts[0]
         dr.ellipse([x0 - 9, y0 - 9, x0 + 9, y0 + 9], fill=WHITE, outline=(0, 0, 0), width=3)
     for r, stt in zip(s['buildings'], status):                     # badges on top of the route
@@ -92,24 +124,29 @@ def render(st):
 
 def counter_md(st):
     s = st['scene']
-    if s['base'] is None:
-        return '**No entry point** at the image border on this map.'
+    msg = f"  \n*{st['msg']}*" if st.get('msg') else ''
+    entry = 'chosen' if st.get('entry') else 'auto (largest road or dry land at the edge)'
+    if not st['sol']:
+        return '**No entry point** at the image border: choose one.' + msg
     M = len(s['bld'])
 
-    def line(side, label):
+    def line(side):
         v = st['status'][side]
-        road, boat = sum(x != R.TRUCK for x in v), sum(x == R.BOAT for x in v)
-        return f'**{label}: unreachable by road {road} / {M}** · {boat} by boat · {road - boat} isolated'
-    out = [line(st['src'], 'Prediction' if st['src'] == 'pred' else 'Ground truth')]
-    if st['src'] == 'pred' and 'gt' in st['status']:
-        out.append(line('gt', 'Ground truth'))
-    return '  \n'.join(out)
+        n = {k: sum(x == k for x in v) for k in range(len(R.STATUS))}
+        none = f" · {n[R.ISOLATED]} no route" if n[R.ISOLATED] else ''
+        return f"**{SIDE[side]}: unreachable by road {M - n[R.TRUCK]} / {M}** · {n[R.BOAT]} by boat · {n[R.FOOT]} on foot{none}"
+    out = [line(st['src'])]
+    other = 'gt' if st['src'] == 'pred' else 'pred'
+    if other in st['status']:
+        out.append(line(other))
+    return '  \n'.join(out) + f'  \nEntry point: {entry}' + msg
 
 
 def legend_md(ds):
     sw = ' · '.join(f'<span style="color:rgb{COLORS[ds][c]}">■</span> {n}' for c, n in enumerate(NAMES[ds]))
-    return (f'{sw}<br><span style="color:#22c55e">●</span> truck · <span style="color:#f97316">●</span> truck, then boat · '
-            '<span style="color:#ef4444">●</span> isolated · white line = truck leg, cyan = boat leg, squares = entry points')
+    return (f'{sw}<br><span style="color:#22c55e">●</span> truck · <span style="color:#f97316">●</span> boat needed · '
+            '<span style="color:#a78bfa">●</span> last stretch on foot · <span style="color:#ef4444">●</span> no route (air team) · '
+            'lines: white truck, cyan boat, violet dots on foot · squares = entry point')
 
 
 def pick(st, x, y):
@@ -128,22 +165,20 @@ def route_md(st, j):
     other = 'gt' if side == 'pred' else 'pred'
     stt = st['status'][side][j]
     route = st['sel'][1]
-    title = {R.TRUCK: 'Truck can reach it', R.BOAT: 'Truck, then boat', R.ISOLATED: 'Isolated: send a foot or air team'}[stt]
-    out = [f'### House {j}: {title}']
+    out = [f'### House {j}: {TITLE[stt]}']
     if route is not None:
-        k = route['modes'].index(R.BOAT) if R.BOAT in route['modes'] else None
-        n_t = len(route['cells']) - 1 if k is None else max(k - 1, 0)
-        n_b = 0 if k is None else len(route['cells']) - k
-        legs = (f'truck {n_t} cells' if n_t else 'boat launched at the image edge') + (f', boat {n_b} cells' if n_b else '')
-        out.append(f'{legs} · route cost **{route["cost"]:.0f}** (truck on road = 1 per cell, '
-                   f'yards ×{R.DEFAULTS["offroad"]:g}, boat {st["boat"]:g} per cell + launch {R.DEFAULTS["launch"]:g})')
+        steps = np.bincount(route['modes'][1:], minlength=3)
+        legs = ' → '.join(f'{LEG[m][0]} {n}' for m, n in enumerate(steps) if n) or 'the house is at the entry point'
+        out.append(f'{legs} cells · route cost **{route["cost"]:.0f}** (truck on road 1 per cell, yards ×{R.DEFAULTS["offroad"]:g}; '
+                   f'boat {st["boat"]:g} + launch {R.DEFAULTS["launch"]:g}; on foot {R.DEFAULTS["foot_cost"]:g} + '
+                   f'{R.DEFAULTS["alight"]:g} to get out)')
     else:
-        out.append('No truck or boat route from the image edge on this map.')
+        out.append('No truck, boat or walking route from the entry point on this map.')
+    word = {R.TRUCK: 'truck', R.BOAT: 'boat', R.FOOT: 'on foot', R.ISOLATED: 'no route'}
     if other in st['status']:
         so = st['status'][other][j]
-        name = 'Ground truth' if other == 'gt' else 'Prediction'
-        out.append(f'{name}: **{R.STATUS[so].lower()}**' + (' ✓' if so == stt else ' ✗ (disagrees)'))
-    out.append(f'Labelled {CLASS_WORD[s["dataset"]][s["bld"][j]["cls"]]}' if s['gt'] is not None
+        out.append(f'{SIDE[other]}: **{word[so]}**' + (' ✓' if so == stt else ' ✗ (disagrees)'))
+    out.append(f'Label: {CLASS_WORD[s["dataset"]][s["bld"][j]["cls"]]}' if s['gt'] is not None
                else f'Predicted {CLASS_WORD[s["dataset"]][s["bld"][j]["cls"]]}')
     return '  \n'.join(out)
 
@@ -201,24 +236,32 @@ def build_ui(args, live=None):
             f'**{st["title"]}** · click a house to send a rescue team'
 
     def on_scene(key, risk, boat, src):
-        return show_state(cached_state(key, args, risk=risk, boat=boat, src='gt' if src == 'Ground truth' else 'pred'))
+        return show_state(cached_state(key, args, risk=risk, boat=boat, src='gt' if src == 'Labelled map' else 'pred'))
 
     def on_param(st, risk, boat, src):
-        st.update(risk=risk, boat=boat, src='gt' if src == 'Ground truth' and st['scene']['gt'] is not None else 'pred')
+        st.update(risk=risk, boat=boat, src='gt' if src == 'Labelled map' and st['scene']['gt'] is not None else 'pred')
         st = solve(st)
         if st['sel'] is not None and st['sol']:
             j = st['sel'][0]
-            st['sel'] = (j, route_for(st, j))
+            st['sel'] = (j, st['sol'][st['src']].route(st['scene']['bld'][j]))
             return st, render(st), counter_md(st), route_md(st, j)
         return st, render(st), counter_md(st), ''
 
-    def on_click(st, evt: gr.SelectData):
+    def on_click(st, action, evt: gr.SelectData):
         x, y = evt.index[0] / K, evt.index[1] / K
+        if action == 'Set the entry point':
+            st = set_entry(st, x, y)
+            return st, render(st), counter_md(st), ''
         j = pick(st, x, y)
         if j is None or not st['sol']:
-            return st, render(st), ''
-        st['sel'] = (j, route_for(st, j))
-        return st, render(st), route_md(st, j)
+            return st, render(st), counter_md(st), ''
+        st['sel'] = (j, st['sol'][st['src']].route(st['scene']['bld'][j]))
+        return st, render(st), counter_md(st), route_md(st, j)
+
+    def on_auto(st):
+        st.update(entry=None, msg=None, sel=None)
+        st = solve(st)
+        return st, render(st), counter_md(st), ''
 
     def on_upload(img, risk, boat):
         if img is None:
@@ -238,7 +281,11 @@ def build_ui(args, live=None):
             with gr.Column(scale=1, min_width=300):
                 scene = gr.Dropdown(show + more, value=show[0][1], label='Scene (8 showcase scenes first, then all of eval100)')
                 upload = gr.Image(type='numpy', sources=['upload'], label='…or upload a drone photo (live inference, GPU)')
-                src = gr.Radio(['Prediction', 'Ground truth'], value='Prediction', label='Map')
+                src = gr.Radio(['Prediction', 'Labelled map'], value='Prediction',
+                               label='Map (labelled map = the same router on the human labels)')
+                action = gr.Radio(['Route to a house', 'Set the entry point'], value='Route to a house',
+                                  label='Clicking the photo will…')
+                auto = gr.Button('Auto entry point (largest road or dry land at the edge)', size='sm')
                 risk = gr.Checkbox(True, label='Risk-aware truck (avoid likely water)')
                 boat = gr.Slider(1, 6, value=R.DEFAULTS['boat_cost'], step=0.5, label='Boat cost per cell (truck on road = 1)')
                 counter = gr.Markdown()
@@ -252,26 +299,10 @@ def build_ui(args, live=None):
         scene.change(on_scene, [scene, risk, boat, src], outs).then(lambda: '', None, info)
         for c in (risk, boat, src):
             c.change(on_param, [st, risk, boat, src], [st, view, counter, info])
-        view.select(on_click, [st], [st, view, info])
+        view.select(on_click, [st, action], [st, view, counter, info])
+        auto.click(on_auto, [st], [st, view, counter, info])
         upload.upload(on_upload, [upload, risk, boat], outs)
     return demo
-
-
-def route_for(st, j):
-    """route shown for house j on the current map: the road route for a TRUCK house, else the cheapest"""
-    sol, b = st['sol'][st['src']], st['scene']['bld'][j]
-    return road_route(sol, b) if st['status'][st['src']][j] == R.TRUCK else sol.route(b)
-
-
-def road_route(sol, b):
-    """cheapest truck-only route to a TRUCK house (the web viewer shows the same, see app/js/router.js)"""
-    n, r = sol.grid.n, b['ring']
-    j = r[np.argmin(sol.dist[r])]
-    nodes = [j]
-    while sol.pred[nodes[-1]] >= 0:
-        nodes.append(sol.pred[nodes[-1]])
-    cells = np.array(nodes[::-1]) % n
-    return dict(cells=list(zip(*np.divmod(cells, sol.grid.w))), modes=[R.TRUCK] * len(nodes), cost=float(sol.dist[j]))
 
 
 def main():
