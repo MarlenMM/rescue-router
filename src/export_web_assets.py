@@ -70,45 +70,62 @@ def polygon(mask, tol=1.5):
     return [[round(float(x), 1), round(float(y), 1)] for y, x in c]
 
 
-def scene(dataset, i, results, data):
-    """Everything about one scene: maps, grids, buildings, statuses (dict of arrays + records)."""
+def load_cached(dataset, i, results, data):
+    """photo, GT class map, cached uint8 probabilities and the tuned decode of one eval100 image."""
     run = RUNS[dataset]
     z = np.load(os.path.join(results, 'preds', f'{run}_{dataset}_test_eval100_fp16.npz'))
     ids = [str(x) for x in z['ids']]
-    probs = z['probs'][ids.index(i)]
     dec = json.load(open(os.path.join(results, 'decode', f'{run}.json')))['chosen']
-    img = load_image(data, dataset, 'test', i)
-    gt = gt_classes(load_label(data, dataset, 'test', i))
+    return dict(img=load_image(data, dataset, 'test', i), gt=gt_classes(load_label(data, dataset, 'test', i)),
+                probs=z['probs'][ids.index(i)], decode=dec, run=run)
+
+
+def build_scene(dataset, img, probs, dec, gt=None):
+    """Decoded maps, cell grids, base and buildings of one photo. probs: uint8 (C, H, W). Without GT (an
+    uploaded photo) the base and the buildings come from the prediction itself."""
     pred = decode(probs.astype(np.float32) / 255, **dec)
-    gcls, pcls = R.cell_classes(gt), R.cell_classes(pred)
-    gprob, pprob = R.onehot_probs(gt), R.cell_probs(probs)
-    base = R.base_cells(gcls, dataset, offroad=True)
-    blds = R.buildings_from_gt(gt, dataset)
-    masks = building_masks(gt, dataset)
+    ref = pred if gt is None else gt
+    rcls = R.cell_classes(ref)
+    blds = R.buildings_from_gt(ref, dataset)
+    masks = building_masks(ref, dataset)
     assert len(masks) == len(blds)
-    grids = {}
-    for lam in LAMS:
-        grids[lam] = dict(pred=R.Grid(pcls, pprob, dataset, lam=lam, offroad_maxwet=PRED_OFFROAD_MAXWET),
-                          gt=R.Grid(gcls, gprob, dataset, lam=lam))
     recs = []
     for b, m in zip(blds, masks):
         cy, cx = b['centroid']
         recs.append(dict(id=b['id'], cls=b['cls'], area_px=b['area_px'], centroid=[round(cx, 1), round(cy, 1)],
                          polygon=polygon(m), ring=b['ring'].tolist(), py={}))
-    if base is not None:
+    return dict(dataset=dataset, img=img, gt=gt, pred=pred, decode=dec, base=R.base_cells(rcls, dataset, offroad=True),
+                bld=blds, buildings=recs, cells=dict(pred=(R.cell_classes(pred), R.cell_probs(probs)),
+                                                     gt=None if gt is None else (rcls, R.onehot_probs(gt))))
+
+
+def make_grids(s, lam=R.DEFAULTS['lam'], boat_cost=R.DEFAULTS['boat_cost']):
+    """Routing grids as route_eval.py builds them: the prediction with the off-road gate, GT without."""
+    kw = dict(lam=lam, boat_cost=boat_cost)
+    out = dict(pred=R.Grid(*s['cells']['pred'], s['dataset'], offroad_maxwet=PRED_OFFROAD_MAXWET, **kw))
+    if s['cells']['gt'] is not None:
+        out['gt'] = R.Grid(*s['cells']['gt'], s['dataset'], **kw)
+    return out
+
+
+def scene(dataset, i, results, data):
+    """Everything about one cached eval100 scene, with the Python reference statuses and costs (lam 5, 0)."""
+    c = load_cached(dataset, i, results, data)
+    s = build_scene(dataset, c['img'], c['probs'], c['decode'], c['gt'])
+    s.update(id=i, run=c['run'], grids={lam: make_grids(s, lam) for lam in LAMS})
+    if s['base'] is not None:
         for lam in LAMS:
-            for name, g in grids[lam].items():
-                sol = g.solve(base)
-                for r, b in zip(recs, blds):
+            for name, g in s['grids'][lam].items():
+                sol = g.solve(s['base'])
+                for r, b in zip(s['buildings'], s['bld']):
                     rt = sol.route(b)
                     r['py'].setdefault(f'lam{lam:g}', {})[name] = dict(
                         status=R.STATUS[sol.status(b)], cost=None if rt is None else rt['cost'])
-    for r in recs:
-        s = r['py'].get('lam5', {})
-        r['status_pred'] = s.get('pred', {}).get('status', 'ISOLATED')
-        r['status_gt'] = s.get('gt', {}).get('status', 'ISOLATED')
-    return dict(dataset=dataset, id=i, run=run, decode=dec, img=img, gt=gt, pred=pred, base=base,
-                grids=grids, buildings=recs)
+    for r in s['buildings']:
+        st = r['py'].get('lam5', {})
+        r['status_pred'] = st.get('pred', {}).get('status', 'ISOLATED')
+        r['status_gt'] = st.get('gt', {}).get('status', 'ISOLATED')
+    return s
 
 
 def iou_per_class(pred, gt):
