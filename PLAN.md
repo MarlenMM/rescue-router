@@ -597,7 +597,7 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
 
-## 15. Status / handoff (updated Tue 6 Oct, 15:30 KST)
+## 15. Status / handoff (updated Tue 6 Oct, 15:45 KST)
 
 **Done**
 - §13 starter API recorded, including 3 starter bugs and their workarounds.
@@ -805,7 +805,13 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 2. ~~Download, check logs, tables + curve~~ (done; all 7 runs as of 15:30). The 50-shot outputs were fetched into `results/kaggle_v2/{q50,s50}/` with `kaggle/fetch_output.py`; their `*50shot*` files were copied into `results/kaggle_v2/rr/`. Then `src/collect_results.py`, `src/decode_tune.py --runs …` and `src/route_report.py` were rerun. Originally this step said: fill the data-efficiency curve (val30 + eval100) and the per-class table vs PSPNet (§5.2).
 3. ~~Decode tuning on val30 from the caches~~ (done, all 7 runs). ~~Routing evaluation on predictions~~ (done, all 7 runs, `src/route_report.py`). See "Decode tuning" below.
 4. ~~Optional dry-building ablation~~: **skipped** (see the decision above).
-5. Then §10 Tue/Wed: Gradio app, web viewer (`app/` → `docs/`), routing evaluation on predictions, failure analysis, figures, write-up, slides; G3 notebook check on a fresh T4 (Colab free tier is enough for inference, or Kaggle).
+5. **Next phase (new chat, from 6 Oct ~16:00): Track B product.** Marlen wants to see the final product first; the write-up and slides wait until it exists. In order:
+   1. **Showcase scenes + export (CPU, Mac).** Pick 8 eval100 scenes: 6 FloodNet from the 50-shot model, 2 RescueNet. Cover truck-only, truck + boat, isolated, and one honest failure (a missed water barrier). Use the per-run tuned decode (`results/kaggle_v2/rr/decode/<run>.json`, key `chosen`). For RescueNet, use 20-shot (eval100 tuned .421) rather than 50 (.402), unless the scenes look better with 50; state which. Write `export_web_assets` (in `src/`) to produce, per scene: photo, pred/GT RGBA overlays, cell-grid JSON (classes + wet probability), buildings JSON (id, polygon, centroid, status pred/GT), meta. Local images are 768×576 (`~/rr_data`); §6.4's 2048-px photo would need the original FloodNet/RescueNet files, so use 768 (or 1024 from the r1024 subset tar on Drive) unless the originals are fetched for the 8 scenes only.
+   2. **Web viewer** (`app/` source → built into `docs/`): plain HTML/JS + Leaflet 1.9 (`L.CRS.Simple`), no build step. Layer toggles + opacity, prediction/GT swap, swipe slider, building status layer, click a house → **JS port of `src/router.py`** (same costs: λ = 5, boat ×3, launch 40, off-road ×4, no switch back; must reproduce the Python statuses and costs exactly on the exported grids; test that) → animated truck then boat, "Unreachable by road: N / M" counter, "disagreements with GT" toggle, scene picker, legend, attribution (FloodNet CDLA-Permissive; RescueNet licence note). Check it on phone width and in incognito.
+   3. **Gradio app** (§6.3): showcase scenes from the caches (CPU), upload → live inference (GPU; test on Kaggle later, or leave it as a notebook cell). Risk-aware toggle, boat-speed slider, click → route + summary.
+   4. **Deploy:** a separate **public** repo `MarlenMM/rescue-router-demo` holding only the built `docs/` viewer (decision 6 Oct 15:40: keep `rescue-router` private until grading, then fold everything into it: clean PLAN/history, make it public, Pages from `docs/`, retire the demo repo with a redirect). `gh` CLI is logged in as MarlenMM. **Creating the repo and publishing need Marlen's explicit OK at that moment.** Script the export (private `docs/` → demo repo) as one command.
+   5. Screen recording (60–90 s) later, by Marlen.
+6. After the product: failure analysis (§5.3), figures, write-up, slides, final notebook (§7), G3 T4 check. Optional: the full-448 test for FloodNet 50 (~2 GPU-h on Kaggle).
 
 ## 14. Sources
 - FloodNet: https://github.com/BinaLab/FloodNet-Supervised_v1.0 · paper https://arxiv.org/abs/2012.02951
