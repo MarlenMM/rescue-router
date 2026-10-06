@@ -27,11 +27,17 @@ const DATASET = {
   rescuenet: { name: 'RescueNet', event: 'Hurricane Michael, Florida 2018',
     attrib: '<a href="https://springernature.figshare.com/collections/RescueNet_A_High_Resolution_UAV_Semantic_Segmentation_Benchmark_Dataset_for_Natural_Disaster_Damage_Assessment/6647354/1">RescueNet</a> (figshare CC0; GitHub release CC BY-NC-ND 4.0)' },
 };
+// colour-blind palette (Okabe-Ito) for the five class slots, by meaning: clear road sky blue, flooded road dark blue /
+// blocked road bluish green (pink is the on-foot status), flooded or damaged building vermillion, dry or intact building yellow, water navy
+const CB_CLASS = {
+  floodnet: [[86, 180, 233], [0, 114, 178], [213, 94, 0], [240, 228, 66], [0, 31, 120]],
+  rescuenet: [[86, 180, 233], [0, 158, 115], [240, 228, 66], [213, 94, 0], [0, 31, 120]],
+};
 const MODEL_ATTRIB = '<a href="https://github.com/GitGyun/chameleon">Chameleon</a> (Kim et al., ECCV 2024)';
 
 const $ = (id) => document.getElementById(id);
 const state = { index: null, key: null, s: null, src: 'pred', layer: 'classes', lam: 5, swipe: 0.5, sel: null, anim: null,
-  entry: null, picking: false, ds: 'floodnet', sort: 'id' };
+  entry: null, picking: false, ds: 'floodnet', sort: 'id', cb: false };
 
 // ---------- map and panes ----------
 const map = L.map('map', { crs: L.CRS.Simple, zoomSnap: 0.25, zoomDelta: 0.5, minZoom: -4, maxZoom: 4,
@@ -164,6 +170,7 @@ async function loadScene(key) {
   };
   setOpacities();
   drawPwetLegend();
+  if (state.cb) applyPalette();
   map.attributionControl._attributions = {};
   map.attributionControl.addAttribution(`${DATASET[meta.dataset].attrib} · ${MODEL_ATTRIB}`);
   drawLegend();
@@ -194,6 +201,7 @@ function solve() {
   s.status = { pred: s.blds.map(b => s.sol.pred.status(b.goals)), gt: s.blds.map(b => s.sol.gt.status(b.goals)) };
   s.tier = s.blds.map((b, i) => tier(s.status.pred[i], s.sol.cautious.status(b.goals)));
   drawHouses();
+  drawHouseList();
   drawBase();
   drawCounter();
   if (state.sel) select(state.sel.i, state.sel.side, false);
@@ -256,6 +264,50 @@ function drawHouses() {
   $('nDisagree').textContent = nDis;
 }
 
+// ---------- house list (keyboard access to every house) ----------
+function drawHouseList() {
+  const s = state.s, side = state.src === 'gt' ? 'gt' : 'pred', box = $('houses');
+  $('housesNote').textContent = s.blds.length ? `${s.blds.length} · ${SIDE[side].toLowerCase()}` : '';
+  box.innerHTML = '';
+  s.blds.forEach((b, i) => {
+    const st = s.status[side][i], tr = side === 'pred' ? s.tier[i] : null;
+    const kind = tr === 'PROBABLE_TRUCK' ? 'check' : KIND[st];
+    const word = tr === 'PROBABLE_TRUCK' ? 'truck, check first' : tr === 'CONFIDENT_TRUCK' ? 'truck (confident)' : WORD[st];
+    const dis = s.status.pred[i] !== s.status.gt[i];
+    const el = document.createElement('button');
+    el.setAttribute('role', 'option');
+    el.dataset.i = i;
+    el.innerHTML = `<span class="st ${kind}" aria-hidden="true">${SVG[kind]}</span><span class="what">House ${b.id}: ${word}` +
+      `<br><span class="sub">${CLASS_LABEL[s.ds][b.cls]}</span></span>` +
+      (dis ? `<span class="dis" title="Prediction and labelled map disagree">≠ ${WORD[s.status[side === 'pred' ? 'gt' : 'pred'][i]]}</span>` : '');
+    el.setAttribute('aria-label', `House ${b.id}: ${word}, ${CLASS_LABEL[s.ds][b.cls]}` +
+      (dis ? `; the ${side === 'pred' ? 'labelled map' : 'prediction'} says ${WORD[s.status[side === 'pred' ? 'gt' : 'pred'][i]]}` : ''));
+    el.addEventListener('click', () => { if (base()) { select(i, side); writeHash(); } });
+    box.appendChild(el);
+  });
+  markHouse();
+}
+
+function markHouse() {                                             // aria-selected + roving tabindex
+  const items = [...$('houses').children], cur = state.sel ? state.sel.i : 0;
+  items.forEach((el, k) => {
+    el.setAttribute('aria-selected', String(Boolean(state.sel) && k === cur));
+    el.tabIndex = k === cur ? 0 : -1;
+  });
+}
+
+$('houses').addEventListener('keydown', (e) => {
+  const items = [...$('houses').children], k = items.indexOf(document.activeElement);
+  if (k < 0) return;
+  const to = { ArrowDown: k + 1, ArrowUp: k - 1, Home: 0, End: items.length - 1 }[e.key];
+  if (to === undefined) return;
+  e.preventDefault();
+  const el = items[Math.max(0, Math.min(items.length - 1, to))];
+  items.forEach(x => { x.tabIndex = -1; });
+  el.tabIndex = 0;
+  el.focus();
+});
+
 function drawBase() {
   const s = state.s, b = base();
   groups.base.clearLayers();
@@ -297,6 +349,7 @@ function drawCounter() {
 function select(i, side, animate = true) {
   const s = state.s, b = s.blds[i];
   state.sel = { i, side };
+  markHouse();
   stopAnim();
   groups.route.clearLayers();
   drawHouses();
@@ -439,6 +492,7 @@ function setSource(src) {
   updateClip();
   if (state.s) {
     drawCounter();
+    drawHouseList();
     if (state.sel) {
       const side = src === 'swipe' ? state.sel.side : src;
       if (side !== state.sel.side || src !== 'swipe') select(state.sel.i, side);
@@ -447,12 +501,13 @@ function setSource(src) {
 }
 
 function updateClip() {
-  if (state.src !== 'swipe') { panes.pred.style.clip = panes.gt.style.clip = ''; return; }
+  if (state.src !== 'swipe') { panes.pred.style.clipPath = panes.gt.style.clipPath = ''; return; }
   const size = map.getSize();
   const nw = map.containerPointToLayerPoint([0, 0]), se = map.containerPointToLayerPoint(size);
   const x = map.containerPointToLayerPoint([size.x * state.swipe, 0]).x;
-  panes.pred.style.clip = `rect(${nw.y}px, ${x}px, ${se.y}px, ${nw.x}px)`;
-  panes.gt.style.clip = `rect(${nw.y}px, ${se.x}px, ${se.y}px, ${x}px)`;
+  const box = (l, r) => `polygon(${l}px ${nw.y}px, ${r}px ${nw.y}px, ${r}px ${se.y}px, ${l}px ${se.y}px)`;
+  panes.pred.style.clipPath = box(nw.x, x);                        // clip-path, not the deprecated clip: rect()
+  panes.gt.style.clipPath = box(x, se.x);
   $('swipe').style.setProperty('--x', `${state.swipe * 100}%`);
 }
 map.on('move zoom resize viewreset', updateClip);
@@ -473,8 +528,47 @@ handle.addEventListener('keydown', (e) => {
 // ---------- legend, controls ----------
 function drawLegend() {
   const m = state.s.meta;
+  const cols = classColors();
   $('legend').innerHTML = m.class_names.map((n, c) =>
-    `<li><span class="sw" style="background:rgb(${m.class_colors[c].join(',')})"></span>${n}</li>`).join('');
+    `<li><span class="sw" style="background:rgb(${cols[c].join(',')})"></span>${n}</li>`).join('');
+}
+
+// ---------- colour-blind palette ----------
+const classColors = () => (state.cb ? CB_CLASS[state.s.ds] : state.s.meta.class_colors);
+
+async function recolored(url, from, to) {
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0);
+  const d = ctx.getImageData(0, 0, c.width, c.height), a = d.data;
+  const key = (r, g, b) => (r << 16) | (g << 8) | b, lut = new Map(from.map((f, k) => [key(...f), to[k]]));
+  for (let i = 0; i < a.length; i += 4) {                          // overlays are exact colours, alpha 0 or 255
+    if (!a[i + 3]) continue;
+    const q = lut.get(key(a[i], a[i + 1], a[i + 2]));
+    if (q) { a[i] = q[0]; a[i + 1] = q[1]; a[i + 2] = q[2]; }
+  }
+  ctx.putImageData(d, 0, 0);
+  return c.toDataURL();
+}
+
+async function applyPalette() {
+  document.documentElement.classList.toggle('cb', state.cb);
+  const s = state.s;
+  if (!s) return;
+  if (state.cb && !s.cbUrls) {
+    const [p, g] = await Promise.all(['pred', 'gt'].map(k => recolored(s.dir + k + '.png', s.meta.class_colors, CB_CLASS[s.ds])));
+    if (state.s !== s) return;                                     // the scene changed meanwhile
+    s.cbUrls = { pred: p, gt: g };
+  }
+  for (const k of ['pred', 'gt']) state.overlays[k].setUrl(state.cb ? s.cbUrls[k] : s.dir + k + '.png');
+  drawLegend();
+  drawHouses();
+  drawHouseList();
+  if (state.sel) select(state.sel.i, state.sel.side, false);
 }
 
 function getVar(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
@@ -558,6 +652,7 @@ $('tClasses').addEventListener('change', setOpacities);
 $('tStatus').addEventListener('change', drawHouses);
 $('tDisagree').addEventListener('change', drawHouses);
 $('tBase').addEventListener('change', drawBase);
+$('tCb').addEventListener('change', () => { state.cb = $('tCb').checked; applyPalette(); writeHash(); });
 $('tRisk').addEventListener('change', () => { state.lam = $('tRisk').checked ? 5 : 0; solve(); writeHash(); });
 $('entryPick').addEventListener('click', () => setPicking(!state.picking));
 $('entryAuto').addEventListener('click', () => { state.entry = null; state.entryMsg = null; setPicking(false); solve(); writeHash(); });
@@ -570,11 +665,11 @@ $('sheetToggle').addEventListener('click', () => {
 addEventListener('resize', () => { clearTimeout(state.rt); state.rt = setTimeout(fit, 150); });
 addEventListener('hashchange', applyHash);                          // back/forward, or a pasted link
 
-// ---------- the view in the URL: #s=<scene>&h=<house id>[gt]&e=<x>,<y>&m=gt|swipe&l=pwet&r=0 ----------
+// ---------- the view in the URL: #s=<scene>&h=<house id>[gt]&e=<x>,<y>&m=gt|swipe&l=pwet&r=0&cb=1 ----------
 function readHash() {
   const h = decodeURIComponent(location.hash.slice(1));
   const q = new URLSearchParams(h.includes('=') ? h : `s=${h}`);   // old links: #floodnet_7241
-  return Object.fromEntries(['s', 'h', 'e', 'm', 'l', 'r'].map(k => [k, q.get(k)]));
+  return Object.fromEntries(['s', 'h', 'e', 'm', 'l', 'r', 'cb'].map(k => [k, q.get(k)]));
 }
 
 function writeHash(push = false) {
@@ -585,6 +680,7 @@ function writeHash(push = false) {
   if (state.src !== 'pred') q.push(`m=${state.src}`);
   if (state.layer !== 'classes') q.push(`l=${state.layer}`);
   if (!state.lam) q.push('r=0');
+  if (state.cb) q.push('cb=1');
   const url = `#${q.join('&')}`;
   if (url !== location.hash) history[push ? 'pushState' : 'replaceState'](null, '', url);
 }
@@ -594,6 +690,7 @@ async function applyHash() {
   if (!state.s || (p.s && p.s !== state.key)) await loadScene(p.s);
   if (p.r != null && (p.r !== '0') !== Boolean(state.lam)) { $('tRisk').checked = p.r !== '0'; state.lam = p.r === '0' ? 0 : 5; solve(); }
   if (p.l) setLayer(p.l);
+  if (p.cb != null && (p.cb === '1') !== state.cb) { state.cb = p.cb === '1'; $('tCb').checked = state.cb; await applyPalette(); }
   if (p.m && ['pred', 'gt', 'swipe'].includes(p.m)) setSource(p.m);
   if (p.e) {
     const [x, y] = p.e.split(',').map(Number);
