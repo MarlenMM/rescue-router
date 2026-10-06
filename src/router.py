@@ -14,7 +14,9 @@ Graph: states (cell, mode), mode in {TRUCK, BOAT}, 8-connected, step length 1 or
   TRUCK  enters a road_clear cell, cost len * (1 + lam * (p1 + p4))   (risk-aware; lam = 0 = plain),
          or dry 'other' land (lawn, trees, background) at `offroad` x that cost (None = roads only,
          the strict PLAN §6.1 rule; on GT maps it leaves ~75 % of FloodNet houses ISOLATED behind
-         their own yards, so the default lets the truck cross dry land slowly)
+         their own yards, so the default lets the truck cross dry land slowly). offroad_maxwet = g:
+         off-road only where p1 + p4 < g (92 % of the GT-water cells on predicted truck routes were
+         predicted 'other' land, median p_wet .21; tuned on val30, see PLAN §15)
   BOAT   enters a boat cell (FloodNet road_flooded or water; RescueNet water) or a cell with
          p_boat >= 0.5, cost len * boat_cost
   launch TRUCK -> BOAT into a neighbouring boat cell, extra cost `launch`; no switch back
@@ -38,7 +40,7 @@ PROFILES = {
     'floodnet': dict(truck=(0,), boat=(1, 4), wall=(2, 3), risk=(1, 4), bldg=(2, 3), hazard=(1, 4)),
     'rescuenet': dict(truck=(0,), boat=(4,), wall=(1, 2, 3), risk=(1, 4), bldg=(2, 3), hazard=(1, 4)),
 }
-DEFAULTS = dict(lam=5.0, boat_cost=3.0, launch=40.0, boat_p=0.5, offroad=4.0)
+DEFAULTS = dict(lam=5.0, boat_cost=3.0, launch=40.0, boat_p=0.5, offroad=4.0, offroad_maxwet=None)
 
 # majority-vote tie-break: on equal pixel counts the less drivable class wins
 # (road_clear < other < water < road_flooded < bldg_dry < bldg_flooded)
@@ -95,7 +97,10 @@ class Grid:
         self.probs = np.asarray(probs, np.float32)
         pr = self.prof
         self.wall = np.isin(self.cls, pr['wall'])
+        self.risk = self.probs[list(pr['risk'])].sum(0)
         self.offroad = (self.cls == OTHER) if self.par['offroad'] else np.zeros_like(self.wall)
+        if self.par['offroad_maxwet'] is not None:
+            self.offroad &= self.risk < self.par['offroad_maxwet']
         self.truck_ok = (np.isin(self.cls, pr['truck']) | self.offroad) & ~self.wall
         self.boat_ok = (np.isin(self.cls, pr['boat']) | (self.probs[list(pr['boat'])].sum(0) >= self.par['boat_p'])) \
             & ~self.wall

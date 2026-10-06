@@ -218,3 +218,13 @@ def test_cost_ratio_skips_houses_at_the_entry():
     assert 'cost_ratio' not in recs[0] and recs[0]['feasible']
     s = R.summarize_routing(cm, recs)
     assert s['infeasible_rate'] == 0 and s['cost_ratio_median'] is None and s['n_trivial_gt_routes'] == 1
+
+
+def test_offroad_gate_blocks_wet_looking_land():
+    m = grid_map("RR..D")
+    p = np.stack([(m == c) for c in range(5)]).astype(np.float32)
+    p[4, 0, 3] = 0.3                                                # lawn cell (0,3) looks 30 % water
+    base, target = (np.array([0]), R.TRUCK), dict(ring=np.array([3]))
+    assert R.Grid(m, p).solve(base).status(target) == R.TRUCK
+    assert R.Grid(m, p, offroad_maxwet=0.2).solve(base).status(target) == R.ISOLATED
+    assert R.Grid(m, p, offroad_maxwet=0.5).solve(base).status(target) == R.TRUCK
