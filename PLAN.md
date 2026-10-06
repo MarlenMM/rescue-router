@@ -597,7 +597,7 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
 
-## 15. Status / handoff (updated Tue 6 Oct, 12:05 KST)
+## 15. Status / handoff (updated Tue 6 Oct, 15:30 KST)
 
 **Done**
 - §13 starter API recorded, including 3 starter bugs and their workarounds.
@@ -627,10 +627,10 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 - `rr-code` dataset rebuilt with `COPYFILE_DISABLE=1 tar --no-xattrs --no-mac-metadata`, because Kaggle unpacks the tarball and macOS had added `._*` files (`tar t` hides them).
 - The progress watcher in the first session died on a DNS error while the Mac slept. The new one retries.
 - **rr-gpu-queue50 result (finished ~11:25 KST):** both 50-shot trainings OK (2.0 h each; snapshots at steps 500/1000/1500/2000 in `results/kaggle_v2/q50/rr/ckpt/`). `select_ckpt.py` failed at once: argparse abbreviation matching read the shared `--data /content/rr_data` as `--dataset`. Fixed with `allow_abbrev=False` (commit after `b8e2daf`).
-- **Relaunched as `marlenmelis/rr-gpu-select50`** (`QUEUE = 'select50'`, metadata `kaggle/select50/`, input = the queue50 output), pushed 11:57 KST. It copies the 8 snapshots and 2 training logs, then per GPU runs `select_ckpt` (4 val30 evaluations at 50 shots) and eval100. ETA ~13:15 KST.
+- **Relaunched as `marlenmelis/rr-gpu-select50`** (`QUEUE = 'select50'`, metadata `kaggle/select50/`, input = the queue50 output), pushed 11:57 KST. It copies the 8 snapshots and 2 training logs, then per GPU runs `select_ckpt` (4 val30 evaluations at 50 shots) and eval100. **Done:** FloodNet 50 in 40 + 30 min, RescueNet 50 in 44 + 33 min. Outputs are in `results/kaggle_v2/s50/` and merged into `results/kaggle_v2/rr/` (the 50-shot files only). Kaggle GPU use on 6 Oct: about 5.9 + 2.1 + 1.3 ≈ 9.3 session-hours of 30.
 - Speed (T4, fp16): training 3.6–4.1 s/step. eval100 inference: 2.7 / 3.7 / 4.1 / 5.9 s per image at 1 / 5 / 10 / 20 shots (FloodNet), 6.5 at RescueNet 20.
 
-**Results so far (best-val30 checkpoint, τ = 0.5; tables from `src/collect_results.py`, curve `results/kaggle_v2/report/curve_floodnet.png`):**
+**Results, all 7 runs (best-val30 checkpoint, τ = 0.5; tables from `src/collect_results.py`, curve `results/kaggle_v2/report/curve_floodnet.png`):**
 
 #### floodnet val30 (τ = 0.5)
 
@@ -640,6 +640,7 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 | 5 | 500 | 0.476 | 0.280 | 0.638 | 0.000 | 0.177 | 0.314 | 0.556 | 0.769 | 0.546 |
 | 10 | 1000 | 0.346 | 0.342 | 0.487 | 0.027 | 0.283 | 0.297 | 0.509 | 0.519 | 0.590 |
 | 20 | 1000 | 0.317 | 0.369 | 0.673 | 0.017 | 0.398 | 0.355 | 0.424 | 0.556 | 0.643 |
+| 50 | 1000 | 0.299 | 0.331 | 0.727 | 0.271 | 0.553 | 0.436 | 0.567 | 0.387 | 0.655 |
 
 #### floodnet eval100 (τ = 0.5)
 
@@ -649,20 +650,25 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 | 5 | 100 | 0.454 | 0.324 | 0.673 | 0.015 | 0.136 | 0.320 | 0.539 | 0.741 | 0.599 |
 | 10 | 100 | 0.497 | 0.317 | 0.509 | 0.098 | 0.221 | 0.328 | 0.671 | 0.658 | 0.612 |
 | 20 | 100 | 0.412 | 0.362 | 0.674 | 0.002 | 0.335 | 0.357 | 0.540 | 0.635 | 0.634 |
+| 50 | 100 | 0.511 | 0.398 | 0.721 | 0.211 | 0.446 | 0.457 | 0.805 | 0.583 | 0.618 |
 
 #### rescuenet val30 (τ = 0.5)
 
 | shot | best step | road_clear | road_blocked | bldg_intact | bldg_damaged | water | mIoU | drv P | drv R | wet IoU |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 20 | 1500 | 0.635 | 0.091 | 0.472 | 0.410 | 0.855 | 0.493 | 0.735 | 0.824 | 0.775 |
+| 50 | 2000 | 0.663 | 0.103 | 0.627 | 0.356 | 0.696 | 0.489 | 0.812 | 0.783 | 0.625 |
 
 #### rescuenet eval100 (τ = 0.5)
 
 | shot | n img | road_clear | road_blocked | bldg_intact | bldg_damaged | water | mIoU | drv P | drv R | wet IoU |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 20 | 100 | 0.613 | 0.049 | 0.354 | 0.271 | 0.645 | 0.386 | 0.731 | 0.791 | 0.472 |
+| 50 | 100 | 0.621 | 0.052 | 0.592 | 0.364 | 0.401 | 0.406 | 0.763 | 0.770 | 0.308 |
 
 - **Val30 history (mIoU per eval):**
+  - FloodNet 50-shot (snapshots, `select_ckpt.py`): .267 / **.436** / .411 / .425 (steps 500–2000).
+  - RescueNet 50-shot: .270 / .401 / .478 / **.489**.
   - 1-shot: .151 / **.160** / .135 / .142
   - 5-shot: .166 / **.314** / .285 / .281
   - 10-shot: .212 / .283 / .294 / **.297**
@@ -670,7 +676,8 @@ Rehearse 3× on Thursday morning; stay under 4:50.
   - RescueNet 20-shot: best .493 at step 1500.
 - With cosine lr, the late evaluations are stable (20-shot: .32–.35 after step 1000). The v1 swings (water .48 ↔ .06) are gone.
 - Recipe v2 at 20 shots (val30 .355) is not better than G1's best eval (.389 at step 1750, recipe v1). It is about the same as G1's final checkpoint (.336).
-- **The curve is flat from 5 to 20 shots** (eval100 mIoU .320 → .328 → .357). road_flooded sits at .29–.36 and is far from PSPNet's .82 with 1,445 labels.
+- **The curve is flat from 5 to 20 shots** (eval100 mIoU .320 → .328 → .357), then **jumps at 50 shots** (.457 at τ 0.5, .492 tuned). At 50 shots: drivable precision .805, road_flooded .398, dry buildings .211 (no fix needed).
+- **RescueNet 50-shot is not better than 20** on eval100 (.406 vs .386 at τ 0.5; .402 vs .421 tuned). Buildings improve (intact .35 → .59) but water drops (.65 → .40), and its tuned decode did not transfer. road_flooded sits at .29–.36 and is far from PSPNet's .82 with 1,445 labels.
 - **Dry buildings collapse** (IoU ≤ .10 from 5 shots on). At 1 shot, both building classes sit at ~.24: the 1-shot image has dry and flooded buildings in similar amounts.
 - Water rises steadily with shots (.005 → .34).
 
@@ -683,6 +690,10 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 | run | split | decode | ch0 | ch1 | ch2 | ch3 | ch4 | mIoU | drv P | drv R | wet IoU |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| floodnet_1shot | val30 | τ=0.5 | 0.056 | 0.298 | 0.228 | 0.212 | 0.004 | **0.160** | 0.057 | 0.868 | 0.459 |
+| floodnet_1shot | val30 | tuned τ | 0.149 | 0.340 | 0.490 | 0.255 | 0.039 | **0.255** | 0.163 | 0.625 | 0.302 |
+| floodnet_1shot | eval100 | τ=0.5 | 0.101 | 0.292 | 0.243 | 0.241 | 0.005 | **0.176** | 0.102 | 0.863 | 0.467 |
+| floodnet_1shot | eval100 | tuned τ | 0.220 | 0.278 | 0.518 | 0.264 | 0.039 | **0.264** | 0.265 | 0.564 | 0.313 |
 | floodnet_5shot | val30 | τ=0.5 | 0.476 | 0.280 | 0.638 | 0.000 | 0.177 | **0.314** | 0.555 | 0.769 | 0.546 |
 | floodnet_5shot | val30 | tuned τ + wet ctx | 0.512 | 0.339 | 0.716 | 0.221 | 0.312 | **0.420** | 0.680 | 0.674 | 0.658 |
 | floodnet_5shot | eval100 | τ=0.5 | 0.454 | 0.324 | 0.673 | 0.015 | 0.136 | **0.320** | 0.539 | 0.741 | 0.599 |
@@ -691,26 +702,34 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 | floodnet_10shot | val30 | tuned τ + wet ctx | 0.346 | 0.336 | 0.665 | 0.320 | 0.323 | **0.398** | 0.510 | 0.519 | 0.624 |
 | floodnet_10shot | eval100 | τ=0.5 | 0.497 | 0.317 | 0.510 | 0.098 | 0.221 | **0.329** | 0.671 | 0.658 | 0.612 |
 | floodnet_10shot | eval100 | tuned τ + wet ctx | 0.495 | 0.313 | 0.647 | 0.221 | 0.238 | **0.383** | 0.668 | 0.657 | 0.640 |
-| floodnet_1shot | val30 | τ=0.5 | 0.056 | 0.298 | 0.228 | 0.212 | 0.004 | **0.160** | 0.057 | 0.868 | 0.459 |
-| floodnet_1shot | val30 | tuned τ | 0.149 | 0.340 | 0.490 | 0.255 | 0.039 | **0.255** | 0.163 | 0.625 | 0.302 |
-| floodnet_1shot | eval100 | τ=0.5 | 0.101 | 0.292 | 0.243 | 0.241 | 0.005 | **0.176** | 0.102 | 0.863 | 0.467 |
-| floodnet_1shot | eval100 | tuned τ | 0.220 | 0.278 | 0.518 | 0.264 | 0.039 | **0.264** | 0.265 | 0.564 | 0.313 |
 | floodnet_20shot | val30 | τ=0.5 | 0.317 | 0.368 | 0.673 | 0.017 | 0.398 | **0.355** | 0.424 | 0.556 | 0.643 |
 | floodnet_20shot | val30 | tuned τ + wet ctx | 0.327 | 0.376 | 0.671 | 0.333 | 0.571 | **0.456** | 0.442 | 0.556 | 0.716 |
 | floodnet_20shot | eval100 | τ=0.5 | 0.412 | 0.362 | 0.674 | 0.002 | 0.334 | **0.357** | 0.540 | 0.635 | 0.634 |
 | floodnet_20shot | eval100 | tuned τ + wet ctx | 0.422 | 0.394 | 0.653 | 0.167 | 0.477 | **0.422** | 0.561 | 0.631 | 0.661 |
+| floodnet_50shot | val30 | τ=0.5 | 0.299 | 0.331 | 0.727 | 0.270 | 0.553 | **0.436** | 0.567 | 0.387 | 0.655 |
+| floodnet_50shot | val30 | tuned τ | 0.363 | 0.415 | 0.733 | 0.373 | 0.534 | **0.484** | 0.569 | 0.500 | 0.696 |
+| floodnet_50shot | eval100 | τ=0.5 | 0.511 | 0.398 | 0.721 | 0.211 | 0.446 | **0.457** | 0.805 | 0.583 | 0.618 |
+| floodnet_50shot | eval100 | tuned τ | 0.526 | 0.430 | 0.720 | 0.341 | 0.441 | **0.492** | 0.759 | 0.632 | 0.656 |
 | rescuenet_20shot | val30 | τ=0.5 | 0.635 | 0.090 | 0.473 | 0.410 | 0.855 | **0.493** | 0.735 | 0.824 | 0.775 |
 | rescuenet_20shot | val30 | tuned τ + vote | 0.676 | 0.141 | 0.596 | 0.499 | 0.877 | **0.558** | 0.898 | 0.732 | 0.810 |
 | rescuenet_20shot | eval100 | τ=0.5 | 0.613 | 0.049 | 0.354 | 0.271 | 0.645 | **0.386** | 0.731 | 0.791 | 0.472 |
 | rescuenet_20shot | eval100 | tuned τ + vote | 0.607 | 0.059 | 0.484 | 0.309 | 0.644 | **0.421** | 0.810 | 0.707 | 0.499 |
+| rescuenet_50shot | val30 | τ=0.5 | 0.663 | 0.103 | 0.627 | 0.356 | 0.696 | **0.489** | 0.812 | 0.784 | 0.625 |
+| rescuenet_50shot | val30 | tuned τ + vote | 0.691 | 0.118 | 0.662 | 0.537 | 0.750 | **0.552** | 0.915 | 0.738 | 0.689 |
+| rescuenet_50shot | eval100 | τ=0.5 | 0.621 | 0.052 | 0.592 | 0.364 | 0.401 | **0.406** | 0.763 | 0.770 | 0.308 |
+| rescuenet_50shot | eval100 | tuned τ + vote | 0.621 | 0.055 | 0.526 | 0.389 | 0.418 | **0.402** | 0.786 | 0.747 | 0.340 |
 
-- floodnet_10shot_s0_stratified: τ = [0.5, 0.6, 0.2, 0.8, 0.5], vote = 0.2, wet ctx (d px, f) = [96, 0.02], chosen = tau_ctx; eval100 τ-only mIoU 0.341
-- floodnet_1shot_s0_stratified: τ = [0.8, 0.3, 0.1, 0.8, 0.1], vote = None, wet ctx (d px, f) = None, chosen = tau; eval100 τ-only mIoU 0.264
-- floodnet_20shot_s0_stratified: τ = [0.5, 0.4, 0.5, 0.45, 0.25], vote = None, wet ctx (d px, f) = [128, 0.01], chosen = tau_ctx; eval100 τ-only mIoU 0.394
-- floodnet_5shot_s0_stratified: τ = [0.7, 0.3, 0.3, 0.45, 0.15], vote = 0.2, wet ctx (d px, f) = [96, 0.02], chosen = tau_ctx; eval100 τ-only mIoU 0.341
-- rescuenet_20shot_s0_stratified: τ = [0.8, 0.6, 0.3, 0.3, 0.25], vote = 0.4, wet ctx (d px, f) = None, chosen = tau_bldg; eval100 τ-only mIoU 0.407
+- floodnet_1shot_s0_stratified: τ = [0.8, 0.3, 0.1, 0.8, 0.1], vote = None, wet ctx (d px, f) = None, chosen = tau
+- floodnet_5shot_s0_stratified: τ = [0.7, 0.3, 0.3, 0.45, 0.15], vote = 0.2, wet ctx (d px, f) = [96, 0.02], chosen = tau_ctx
+- floodnet_10shot_s0_stratified: τ = [0.5, 0.6, 0.2, 0.8, 0.5], vote = 0.2, wet ctx (d px, f) = [96, 0.02], chosen = tau_ctx
+- floodnet_20shot_s0_stratified: τ = [0.5, 0.4, 0.5, 0.45, 0.25], vote = None, wet ctx (d px, f) = [128, 0.01], chosen = tau_ctx
+- floodnet_50shot_s0_stratified: τ = [0.4, 0.35, 0.45, 0.35, 0.45], vote = None, wet ctx (d px, f) = None, chosen = tau
+- rescuenet_20shot_s0_stratified: τ = [0.8, 0.6, 0.3, 0.3, 0.25], vote = 0.4, wet ctx (d px, f) = None, chosen = tau_bldg
+- rescuenet_50shot_s0_stratified: τ = [0.6, 0.55, 0.5, 0.25, 0.25], vote = 0.7, wet ctx (d px, f) = None, chosen = tau_bldg
 
-- **eval100 mIoU gains:** +.09 (1-shot), +.03 (5), +.05 (10), +.07 (20), +.04 (RescueNet 20).
+- **eval100 mIoU gains:** +.09 (1-shot), +.03 (5), +.05 (10), +.07 (20), **+.035 (50)**, +.04 (RescueNet 20), −.004 (RescueNet 50).
+- **At 50 shots the model learns flooded vs dry itself:** per-building p_dry-share AUC .763 (val30) / .733 (eval100), against ~.5 at 5–20 shots. Tuning keeps plain per-channel τ (the wet-context rule no longer helps), and dry IoU on eval100 rises .211 → .341.
+- FloodNet 50 tuned: eval100 drivable precision falls .805 → .759, although the val30 constraint held (.567 → .569). Report both decodes for the headline model.
 - **Dry buildings on eval100:** .015 → .088 / .098 → .221 / .002 → .167 at 5 / 10 / 20 shots.
 - Drivable precision never drops on val30 by construction. On eval100 it rises at 1 / 5 / 20 shots and RescueNet, and is flat at 10 (.671 → .668).
 - **Write-up framing:** the dry-building gain comes from a decode rule built on the model's wet predictions, not from the model's building channels. The model itself does not learn flooded vs dry buildings from these supports, which hold ~4× more flooded than dry building pixels.
@@ -735,13 +754,22 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 | floodnet_20shot | τ=0.5 | plain λ=0 | 1.000 | 0.316 | 0.480 | 0.719 | 0.158 | 0.338 | 1.000 | 0.393 |
 | floodnet_20shot | tau_ctx | risk-aware λ=5 | 0.984 | 0.461 | 0.628 | 0.754 | 0.104 | 0.256 | 1.036 | 0.330 |
 | floodnet_20shot | tau_ctx | plain λ=0 | 0.984 | 0.461 | 0.628 | 0.754 | 0.151 | 0.290 | 1.000 | 0.384 |
+| floodnet_50shot | τ=0.5 | risk-aware λ=5 | 1.000 | 0.305 | 0.467 | 0.718 | 0.108 | 0.304 | 1.039 | 0.324 |
+| floodnet_50shot | τ=0.5 | plain λ=0 | 1.000 | 0.305 | 0.467 | 0.718 | 0.172 | 0.349 | 1.000 | 0.418 |
+| floodnet_50shot | tau | risk-aware λ=5 | 0.993 | 0.502 | 0.667 | 0.758 | 0.103 | 0.251 | 1.035 | 0.315 |
+| floodnet_50shot | tau | plain λ=0 | 0.993 | 0.502 | 0.667 | 0.758 | 0.142 | 0.282 | 1.000 | 0.387 |
 | rescuenet_20shot | τ=0.5 | risk-aware λ=5 | 0.900 | 0.360 | 0.514 | 0.932 | 0.063 | 0.101 | 1.051 | 0.140 |
 | rescuenet_20shot | τ=0.5 | plain λ=0 | 0.900 | 0.360 | 0.514 | 0.932 | 0.086 | 0.101 | 1.031 | 0.162 |
 | rescuenet_20shot | tau_bldg | risk-aware λ=5 | 0.900 | 0.360 | 0.514 | 0.938 | 0.045 | 0.077 | 1.050 | 0.088 |
 | rescuenet_20shot | tau_bldg | plain λ=0 | 0.900 | 0.360 | 0.514 | 0.938 | 0.059 | 0.091 | 1.028 | 0.125 |
+| rescuenet_50shot | τ=0.5 | risk-aware λ=5 | 0.500 | 0.120 | 0.194 | 0.911 | 0.074 | 0.103 | 1.061 | 0.151 |
+| rescuenet_50shot | τ=0.5 | plain λ=0 | 0.500 | 0.120 | 0.194 | 0.911 | 0.076 | 0.110 | 1.032 | 0.143 |
+| rescuenet_50shot | tau_bldg | risk-aware λ=5 | 0.500 | 0.280 | 0.359 | 0.908 | 0.063 | 0.088 | 1.071 | 0.147 |
+| rescuenet_50shot | tau_bldg | plain λ=0 | 0.500 | 0.280 | 0.359 | 0.908 | 0.063 | 0.091 | 1.043 | 0.147 |
 
 - **Risk-aware truck costs help every run.** RSV falls by ~25–35 % (FloodNet 10-shot tuned: .121 → .087) and infeasible routes by 4–10 points, at a median cost premium of 3–5 %.
-- **Stranded detection: high precision (.98–1.0), low recall (.32–.64).** Predicted maps over-connect: they miss water barriers, so cut-off houses look truck-reachable. That is the dangerous direction; feed it into the failure analysis.
+- **FloodNet 50-shot routing:** tuned decode, risk-aware: stranded F1 .667 (P .993, R .502), status agreement .758, RSV .103, unsafe routes .251, infeasible .315. RescueNet 50 is weak at stranded detection (only 25 GT non-truck houses; F1 .36 tuned).
+- **Stranded detection: high precision (.98–1.0), low recall (.30–.64).** Predicted maps over-connect: they miss water barriers, so cut-off houses look truck-reachable. That is the dangerous direction; feed it into the failure analysis.
 - **The tuned decode raises stranded recall at 5 and 20 shots** (.275 → .636, .316 → .461), mostly through more water (τ_water .15–.25). At 10 shots it lowers recall (.59 → .52).
 - 1-shot tuned is degenerate (τ_road_clear .8 → almost no road; every house "stranded", recall 1.0, precision .49). Don't headline it.
 
@@ -774,8 +802,8 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Next (in order):**
 1. ~~Track B router + unit tests + routing metrics on GT maps~~ (done 04:10).
-2. ~~Download, check logs, tables + curve~~ (done 09:30 for 5 runs). When `rr-gpu-queue50` completes: `~/.venvs/kaggle/bin/python kaggle/fetch_output.py marlenmelis/rr-gpu-queue50 results/kaggle_v2`, which merges into the same `rr/` folders. Then rerun `src/collect_results.py`, `src/decode_tune.py --runs <the two 50-shot runs>`. Originally this step said: fill the data-efficiency curve (val30 + eval100) and the per-class table vs PSPNet (§5.2).
-3. ~~Decode tuning on val30 from the caches~~ (done 09:35 for 5 runs; the two 50-shot runs follow after the rerun). See "Decode tuning" below.
+2. ~~Download, check logs, tables + curve~~ (done; all 7 runs as of 15:30). The 50-shot outputs were fetched into `results/kaggle_v2/{q50,s50}/` with `kaggle/fetch_output.py`; their `*50shot*` files were copied into `results/kaggle_v2/rr/`. Then `src/collect_results.py`, `src/decode_tune.py --runs …` and `src/route_report.py` were rerun. Originally this step said: fill the data-efficiency curve (val30 + eval100) and the per-class table vs PSPNet (§5.2).
+3. ~~Decode tuning on val30 from the caches~~ (done, all 7 runs). ~~Routing evaluation on predictions~~ (done, all 7 runs, `src/route_report.py`). See "Decode tuning" below.
 4. ~~Optional dry-building ablation~~: **skipped** (see the decision above).
 5. Then §10 Tue/Wed: Gradio app, web viewer (`app/` → `docs/`), routing evaluation on predictions, failure analysis, figures, write-up, slides; G3 notebook check on a fresh T4 (Colab free tier is enough for inference, or Kaggle).
 

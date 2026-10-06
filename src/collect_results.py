@@ -34,6 +34,8 @@ def collect(res_dir):
     runs = {}
     for f in sorted(glob.glob(os.path.join(res_dir, 'metrics', '*.json'))):
         name = os.path.basename(f)[:-5]
+        if '_step' in name:                       # per-snapshot val of a --defer_val run (select_ckpt.py)
+            continue
         m = json.load(open(f))
         mo = re.match(r'(floodnet|rescuenet)_(\d+)shot_s(\d+)_(\w+?)(?:_(floodnet|rescuenet)_test_eval100.*)?$', name)
         if not mo:
