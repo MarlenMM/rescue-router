@@ -6,14 +6,21 @@ Live inference on an uploaded photo (GPU; FloodNet 50-shot checkpoint, same reci
     python src/gradio_app.py --live --ckpt <ckpt> --mt_ckpt <generalist.ckpt> --chameleon <starter>/chameleon \
         --data <rr_data> --support_file supports/floodnet_stratified_s0.txt [--amp fp16] --share
 
-Controls: map (prediction / labelled map = the router on the human labels), risk-aware truck cost (lam 5 / 0),
-boat cost per cell, and the entry point (auto, or click to choose where the rescue team enters).
+Upload path without a GPU, for testing the UI only (TEST MODE, says so on screen): --fake_live answers an uploaded
+eval100 FloodNet photo with its cached prediction.
+
+Controls: scene (dropdown, or type a photo id and press Enter), map (prediction / labelled map = the router on the
+human labels), risk-aware truck cost (lam 5 / 0), boat cost per cell, and the entry point (auto, or click to choose
+where the rescue team enters). Uploaded photos have no labels: the houses and the entry point come from the
+prediction, and the app says so.
 Click a house: its route (truck white, boat cyan, walk violet dots), a summary, the "unreachable by road" count.
 Routing is router.py with the same settings as route_eval.py (off-road gate on the predicted map only).
 """
 
 import argparse
+import json
 import os
+import re
 import sys
 
 import numpy as np
@@ -142,9 +149,12 @@ def counter_md(st):
     s = st['scene']
     msg = f"  \n*{st['msg']}*" if st.get('msg') else ''
     entry = 'chosen' if st.get('entry') else 'auto (largest road or dry land at the edge)'
+    M = len(s['bld'])
+    if not M:
+        return ('**No houses found in this photo by the model.**' if s['gt'] is None
+                else '**No houses in this photo** (labelled map): pick another one.') + msg
     if not st['sol']:
         return '**No entry point** at the image border: choose one.' + msg
-    M = len(s['bld'])
 
     def line(side):
         v = st['status'][side]
@@ -244,24 +254,74 @@ class LiveModel:
         return np.round(tiled_predict(self.model, X, amp=self.amp).numpy() * 255).astype(np.uint8)
 
 
-def prep_upload(img):
-    """any RGB photo -> 768x576 (landscape; portrait photos are rotated), as prep_data.py sizes the datasets"""
+def prep_upload(img, notes=None):
+    """any RGB photo -> 768x576 as prep_data.py sizes the datasets: portrait photos are rotated, other aspect ratios
+    are centre-cropped to 4:3 (not stretched: vehicle widths and the scale must stay right). `notes` (a list)
+    collects what was done, for the upload warning."""
+    notes = [] if notes is None else notes
     im = Image.fromarray(img).convert('RGB')
     if im.height > im.width:
         im = im.rotate(90, expand=True)
+        notes.append('portrait photo rotated to landscape')
+    w, h = im.size
+    if abs(w / h - 4 / 3) > 0.02:
+        cw, ch = (round(h * 4 / 3), h) if w / h > 4 / 3 else (w, round(w * 3 / 4))
+        im = im.crop(((w - cw) // 2, (h - ch) // 2, (w - cw) // 2 + cw, (h - ch) // 2 + ch))
+        notes.append(f'cropped from {w}x{h} to the centre {cw}x{ch} (4:3)')
+    if im.width < 768:
+        notes.append(f'small photo ({im.width}x{im.height}) upscaled: expect a blurrier map')
     return np.asarray(im.resize((768, 576), Image.BOX if im.width >= 768 else Image.BICUBIC))
+
+
+UPLOAD_NOTE = ('**Uploaded photos have no labels.** The houses and the entry point come from the model\'s own map: '
+               'houses it misses get no route, and there is no labelled map to compare with. The model is FloodNet '
+               '50-shot (Hurricane Harvey suburbs): use a drone photo taken straight down from a similar height; '
+               'minutes and metres assume FloodNet\'s scale.')
+
+
+class FakeLive:
+    """TEST MODE without a GPU: an uploaded eval100 FloodNet photo gets its cached prediction (exact pixel match
+    after prep_upload, mean |diff| < 3); anything else is refused. Only for testing the upload path of the UI."""
+
+    def __init__(self, args):
+        z = np.load(os.path.join(args.results, 'preds', f'{RUNS["floodnet"]}_floodnet_test_eval100_fp16.npz'))
+        self.ids, self.probs = [str(i) for i in z['ids']], z['probs']
+        self.small = {i: np.asarray(Image.open(os.path.join(args.data, 'floodnet_r768', 'test', 'images', f'{i}.jpg'))
+                                    .convert('RGB').resize((96, 72), Image.BOX), np.float32) for i in self.ids}
+        self.last = None
+
+    def __call__(self, photo):
+        q = np.asarray(Image.fromarray(photo).resize((96, 72), Image.BOX), np.float32)
+        d = {i: float(np.abs(q - v).mean()) for i, v in self.small.items()}
+        i = min(d, key=d.get)
+        if d[i] > 3:
+            raise ValueError('TEST MODE (--fake_live) only knows the eval100 FloodNet photos')
+        self.last = i
+        return self.probs[self.ids.index(i)]
 
 
 # ---------- UI ----------
 def build_ui(args, live=None):
     import gradio as gr
-    import json
     dec50 = json.load(open(os.path.join(args.results, 'decode', f'{RUNS["floodnet"]}.json')))['chosen']
-    show = [(f'{"FloodNet" if d == "floodnet" else "RescueNet"} {i}: {c}', f'{d}:{i}') for d, i, c in SCENES]
-    more = []
+    NAME = {'floodnet': 'FloodNet', 'rescuenet': 'RescueNet'}
+    show = [(f'{NAME[d]} {i}: {c}', f'{d}:{i}') for d, i, c in SCENES]
+    more, ids_of = [], {}
+    stats = os.path.join(REPO, 'app', 'scenes', 'scenes.json')     # house counts per photo, if exported
+    stats = {x['key']: x for x in json.load(open(stats))['scenes']} if os.path.exists(stats) else {}
+
+    def label(ds, i):
+        x = stats.get(f'{ds}_{i}')
+        if x is None:
+            return f'{NAME[ds]} {i}'
+        if not x['n_buildings']:
+            return f'{NAME[ds]} {i} · no houses'
+        cut = x['n_buildings'] - x['status_pred']['TRUCK']
+        return f'{NAME[ds]} {i} · {x["n_buildings"]} houses, {cut} not reachable by truck'
     for ds in ('floodnet', 'rescuenet'):
         ids = [l.strip() for l in open(os.path.join(REPO, 'splits', f'{ds}_test_eval100.txt')) if l.strip()]
-        more += [(f'{ds} {i}', f'{ds}:{i}') for i in ids if (ds, i) not in {(d, j) for d, j, _ in SCENES}]
+        ids_of[ds] = ids
+        more += [(label(ds, i), f'{ds}:{i}') for i in ids if (ds, i) not in {(d, j) for d, j, _ in SCENES}]
 
     def show_state(st):
         return st, render(st), counter_md(st), legend_md(st['scene']['dataset']), \
@@ -295,16 +355,42 @@ def build_ui(args, live=None):
         st = solve(st)
         return st, render(st), counter_md(st), ''
 
+    def on_jump(text):
+        """photo id typed in the box (optionally 'fn'/'rn'/'floodnet'/'rescuenet' first) -> that scene"""
+        m = re.fullmatch(r'\s*(fn|rn|floodnet|rescuenet)?\s*(\d+)\s*', text or '', re.I)
+        if m:
+            want = {'fn': 'floodnet', 'rn': 'rescuenet'}.get((m[1] or '').lower(), (m[1] or '').lower())
+            for ds, ids in ids_of.items():
+                if m[2] in ids and want in ('', ds):
+                    return gr.update(value=f'{ds}:{m[2]}'), f'{NAME[ds]} {m[2]}'
+        rng = ', '.join(f'{NAME[d]} {min(map(int, v))}–{max(map(int, v))}' for d, v in ids_of.items())
+        return gr.skip(), (f'*No test photo "{(text or "").strip()}". The 200 eval100 photos are {rng} '
+                           '(not every number in between).*')
+
     def on_upload(img, risk, boat):
         if img is None:
             return [gr.skip()] * 5
         if live is None:
             raise gr.Error('Live inference needs a GPU: start the app with --live in the notebook (Kaggle/Colab). '
                            'Locally, pick a scene from the cache.')
-        photo = prep_upload(img)
-        s = build_scene('floodnet', photo, live(photo), dec50, gt=None)
+        notes = []
+        photo = prep_upload(img, notes)
+        try:
+            probs = live(photo)
+        except ValueError as e:
+            raise gr.Error(str(e))
+        s = build_scene('floodnet', photo, probs, dec50, gt=None)
         s.update(tier_stats=tier_stats('floodnet'))
-        return show_state(new_state(s, 'your photo (FloodNet 50-shot, no ground truth)', risk=risk, boat=boat))
+        title = 'your photo (FloodNet 50-shot, no labels)'
+        if isinstance(live, FakeLive):
+            title = f'TEST MODE: cached prediction of eval100 photo {live.last}, not the model'
+        st = new_state(s, title, risk=risk, boat=boat)
+        gr.Warning('No labels for an uploaded photo: houses and the entry point come from the prediction.'
+                   + (' Photo ' + '; '.join(notes) + '.' if notes else ''))
+        out = list(show_state(st))
+        out[4] = (f'**{title}** · click a house to send a rescue team  \n⚠ {UPLOAD_NOTE}'
+                  + (f'  \nPhoto: {"; ".join(notes)}.' if notes else ''))
+        return out
 
     with gr.Blocks(title='Rescue Router') as demo:
         gr.Markdown('# Rescue Router\nFlood map of a drone photo by **Chameleon** adapted from **50 labelled photos** '
@@ -312,8 +398,12 @@ def build_ui(args, live=None):
         st = gr.State()
         with gr.Row():
             with gr.Column(scale=1, min_width=300):
-                scene = gr.Dropdown(show + more, value=show[0][1], label='Scene (8 showcase scenes first, then all of eval100)')
+                scene = gr.Dropdown(show + more, value=show[0][1], filterable=True,
+                                    label='Scene (8 showcase scenes first, then all 200 test photos of eval100)')
+                jump = gr.Textbox(label='…or type a photo id, then Enter', placeholder='e.g. 7241 or 12195', max_lines=1)
+                jump_msg = gr.Markdown()
                 upload = gr.Image(type='numpy', sources=['upload'], label='…or upload a drone photo (live inference, GPU)')
+                gr.Markdown(f'<small>{UPLOAD_NOTE}</small>')
                 src = gr.Radio(['Prediction', 'Labelled map'], value='Prediction',
                                label='Map (labelled map = the same router on the human labels)')
                 action = gr.Radio(['Route to a house', 'Set the entry point'], value='Route to a house',
@@ -335,6 +425,7 @@ def build_ui(args, live=None):
         view.select(on_click, [st, action], [st, view, counter, info])
         auto.click(on_auto, [st], [st, view, counter, info])
         upload.upload(on_upload, [upload, risk, boat], outs)
+        jump.submit(on_jump, [jump], [scene, jump_msg])
     return demo
 
 
@@ -345,6 +436,7 @@ def main():
     ap.add_argument('--port', type=int, default=7860)
     ap.add_argument('--share', action='store_true')
     ap.add_argument('--live', action='store_true')
+    ap.add_argument('--fake_live', action='store_true', help='TEST MODE: uploads of eval100 photos get their cache')
     ap.add_argument('--ckpt', default=None)
     ap.add_argument('--mt_ckpt', default='/content/generalist.ckpt')
     ap.add_argument('--chameleon', default='/content/AIC200-Project-StructuredPrediction/chameleon')
@@ -355,7 +447,7 @@ def main():
     ap.add_argument('--channel_chunk', type=int, default=1)
     a = ap.parse_args()
     a.results, a.data = os.path.abspath(a.results), os.path.abspath(a.data)
-    live = LiveModel(a) if a.live else None
+    live = LiveModel(a) if a.live else FakeLive(a) if a.fake_live else None
     build_ui(a, live).launch(server_name='127.0.0.1', server_port=a.port, share=a.share)
 
 
