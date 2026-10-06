@@ -5,8 +5,9 @@
 #   bash release/build_release.sh [OUT]          # default OUT=~/rr_push/submission
 #
 # data.zip = the bundle the G3 run used (src/make_bundle.py at e4ec713, Kaggle dataset marlenmelis/rr-bundle), as is:
-# its code (src, splits, supports, demo, kaggle/live, requirements) is unchanged since (checked below; its README.md is
-# the one of that commit, without the demo URL).
+# every file of its code (src, splits, supports, demo, kaggle/live, requirements) is unchanged since (checked below;
+# files added later, such as src/gradio_viewer.py, ship in the app zip only; its README.md is the one of that commit).
+
 # code.ipynb = notebook/rescue_router_executed.ipynb (executed on a fresh T4; never regenerate without re-running G3).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -17,8 +18,8 @@ BUNDLE_COMMIT=e4ec713
 DATA="$HOME/rr_data"
 cd "$ROOT"
 
-# the data zip's code must still be the code at HEAD
-if [[ -n "$(git diff --stat "$BUNDLE_COMMIT" HEAD -- src splits supports demo kaggle/live requirements.txt)" ]]; then
+# the data zip's code must still be the code at HEAD (modified, deleted or renamed files; additions are fine)
+if [[ -n "$(git diff --stat --diff-filter=MDRT "$BUNDLE_COMMIT" HEAD -- src splits supports demo kaggle/live requirements.txt)" ]]; then
   echo "code changed since the bundle ($BUNDLE_COMMIT): rebuild it with src/make_bundle.py and re-run G3" >&2; exit 1
 fi
 [[ -z "$(git status --porcelain src)" ]] || { echo "uncommitted changes in src/" >&2; exit 1; }

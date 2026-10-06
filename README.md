@@ -80,7 +80,9 @@ then open <http://localhost:8766/#s=rescuenet_12195&h=8&m=gt> (canal row: truck,
 ~/.venvs/rr/bin/python src/gradio_app.py
 ```
 
-serves the Gradio app from the caches on <http://127.0.0.1:7860>. Live inference on uploads needs a GPU:
+serves the Gradio app from the caches on <http://127.0.0.1:7860>; `src/gradio_viewer.py` (same arguments) puts the web
+viewer inside Gradio, so an uploaded photo gets every viewer visual (animated route, swipe, layers), and keeps the
+classic view as a second tab. Live inference on uploads needs a GPU:
 `kaggle/gradio_live/colab_gradio_live.py` (one Colab cell, T4) or `kaggle/gradio_live/run_gradio_live.py` (Kaggle T4)
 starts it with a public share link.
 
