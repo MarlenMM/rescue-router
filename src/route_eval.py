@@ -25,6 +25,9 @@ import router as R  # noqa: E402
 from rr.metrics import decode, gt_classes  # noqa: E402
 
 SPLIT = {'test': 'test', 'val': 'val'}
+# off-road gate for predicted maps (the GT grid has none): tuned on FloodNet 50-shot val30 (stranded F1
+# .548 -> .971 at 0.3), see PLAN §15 "Off-road gate"; the web viewer's JS router uses the same value
+PRED_OFFROAD_MAXWET = 0.3
 
 
 def main():
@@ -39,6 +42,8 @@ def main():
     ap.add_argument('--decode', default=None, help='JSON with per-channel "tau" (and "bias"), see decode_tune.py')
     ap.add_argument('--lams', default='5,0')
     ap.add_argument('--offroad', type=float, default=R.DEFAULTS['offroad'], help='0 = roads only (strict §6.1)')
+    ap.add_argument('--offroad_maxwet', type=float, default=PRED_OFFROAD_MAXWET,
+                    help='prediction grid only: off-road where p_wet < this (<0 = no gate)')
     ap.add_argument('--ring', type=int, default=2)
     ap.add_argument('--min_area', type=int, default=150)
     ap.add_argument('--out', default=None)
@@ -81,14 +86,19 @@ def main():
             pred = decode(probs.astype(np.float32) / 255, **dec)
             pc, pp = R.cell_classes(pred), R.cell_probs(probs)
             for lam in lams:
-                cm, recs = R.route_metrics(R.Grid(pc, pp, a.dataset, lam=lam, offroad=a.offroad or None), ggrid[lam], base, blds)
+                cm, recs = R.route_metrics(R.Grid(pc, pp, a.dataset, lam=lam, offroad=a.offroad or None,
+                                           offroad_maxwet=None if a.offroad_maxwet < 0 else a.offroad_maxwet), ggrid[lam], base, blds)
                 acc[lam][0][...] += cm
                 acc[lam][1].extend(dict(r, image=i) for r in recs)
-            rec['pred_status'] = acc[lams[0]][0].sum(0).tolist()
+                if lam == lams[0]:                      # this image only (rows GT, cols pred)
+                    rec['status_confusion'] = cm.tolist()
+                    rec['pred_status'] = cm.sum(0).tolist()
+                    rec['n_unsafe_routes'] = sum(bool(r.get('unsafe')) for r in recs)
+                    rec['n_infeasible'] = sum(not r.get('feasible', False) for r in recs if 'cost_gt_opt' in r)
         per_img.append(rec)
 
     out = dict(dataset=a.dataset, split_file=a.split_file, n_images=len(ids), n_with_base=n_base,
-               ring=a.ring, min_area=a.min_area, params=dict(R.DEFAULTS, offroad=a.offroad or None),
+               ring=a.ring, min_area=a.min_area, params=dict(R.DEFAULTS, offroad=a.offroad or None, offroad_maxwet=None if a.offroad_maxwet < 0 else a.offroad_maxwet),
                gt_status_counts=dict(zip(R.STATUS, gt_counts.tolist())),
                base_mode_counts={m: sum(r['base'] == m for r in per_img) for m in ('TRUCK', 'BOAT', None)},
                gt_vs_gt_agreement=float(np.trace(cm_gt) / max(cm_gt.sum(), 1)),
