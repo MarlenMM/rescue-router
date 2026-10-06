@@ -1,0 +1,17 @@
+{
+ "v": 4,
+ "createdOnFiles": {"v": 1, "at": "2026-10-06T20:25:00Z"},
+ "lists": "css",
+ "title": "Rescue Router",
+ "order": ["cover", "problem", "formulation", "data", "track-a", "track-b", "learned"],
+ "sections": {
+  "intro": {"description": "Who, what, and the problem with the best results", "start": "cover"},
+  "method": {"description": "How the task is encoded, the data, the weights and the training", "start": "formulation"},
+  "results": {"description": "Track A segmentation, Track B routing system, and what we learned", "start": "track-a"}
+ },
+ "faces": {
+  "rubik": {"family": "Rubik", "href": "https://fonts.googleapis.com/css2?family=Rubik:wght@400..700&display=swap"},
+  "ibm-plex-sans": {"family": "IBM Plex Sans", "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap"}
+ },
+ "designSystems": []
+}

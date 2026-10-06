@@ -1,0 +1,20 @@
+<section id="learned" data-transition="fade" style="background:#0F1B2D;color:#F6F4EF;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:44px">
+<h2 style="font-family:'Rubik', Arial, sans-serif;font-size:64px;font-weight:600;line-height:1.1">What I tried and what I learned</h2>
+<div style="display:flex;flex-direction:row;gap:64px;align-items:start">
+<div style="display:flex;flex-direction:column;gap:12px">
+<img src="/_blob/505521be3b73bd2b5763e61f5b661813" alt="Honest failure, FloodNet 7241: shallow water predicted as land; the six houses wrongly shown as truck-reachable carry yellow check-first badges" style="width:640px;height:480px;object-fit:cover;border-radius:12px">
+<p style="font-size:24px;color:#B8C7D6;width:640px">Honest failure: shallow water read as land. All 6 wrongly “truck” houses are flagged “check first”.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:30px">
+<p style="font-size:30px;line-height:1.35;color:#DCE4EC"><b style="color:#5CC8E8">The dangerous error</b> is shallow water read as dry land. A rule from that analysis (no off-road driving where water is likely) raised cut-off F1 from .74 to .84.</p>
+<p style="font-size:30px;line-height:1.35;color:#DCE4EC"><b style="color:#5CC8E8">Saying how sure we are</b> helps rescuers more than a few IoU points.</p>
+<p style="font-size:30px;line-height:1.35;color:#DCE4EC"><b style="color:#5CC8E8">Tried and dropped:</b> test-time flips (−.017 with their own tuning), 10 instead of 5 labels (no gain), smoothing.</p>
+<p style="font-size:30px;line-height:1.35;color:#DCE4EC"><b style="color:#5CC8E8">Limits:</b> US hurricanes, not Korean city floods; single photos without GPS; the “labelled map” is my router on human labels, not field truth.</p>
+</div>
+</div>
+<div style="position:absolute;left:128px;right:128px;bottom:64px;display:flex;flex-direction:row;justify-content:space-between">
+<p style="font-size:24px;color:#8FA3B8">Rescue Router · Marlen Melis · 20260876</p>
+<p style="font-size:24px;color:#8FA3B8">6 / 6</p>
+</div>
+<aside>What I learned. The most dangerous mistake is shallow water read as dry land: the map then invites a truck into water. Here is that failure, honestly: the model thought this flooded street was land. But the six houses it wrongly calls truck-reachable are all flagged "check first", because the system routes every map twice, once cautiously. A simple rule from the failure analysis — no off-road driving where the water probability is high — raised the cut-off F1 from .74 to .84. So: saying how sure we are matters more than a few IoU points. Things I tried and dropped: test-time flips, which looked good on the tuning photos but lost on the test set; more labels between 5 and 10, which gave nothing measurable; and smoothing. Limits: these are US hurricanes, not Korean city floods; single photos without GPS; and the labelled map is my router on human labels, not field-checked access. Thank you.</aside>
+</section>
