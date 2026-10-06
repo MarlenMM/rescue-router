@@ -597,7 +597,7 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
 
-## 15. Status / handoff (updated Tue 6 Oct, 15:45 KST)
+## 15. Status / handoff (updated Tue 6 Oct, 17:45 KST)
 
 **Done**
 - §13 starter API recorded, including 3 starter bugs and their workarounds.
@@ -734,44 +734,123 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 - Drivable precision never drops on val30 by construction. On eval100 it rises at 1 / 5 / 20 shots and RescueNet, and is flat at 10 (.671 → .668).
 - **Write-up framing:** the dry-building gain comes from a decode rule built on the model's wet predictions, not from the model's building channels. The model itself does not learn flooded vs dry buildings from these supports, which hold ~4× more flooded than dry building pixels.
 
-**Routing evaluation on predictions (eval100, 6 Oct 12:00; `src/route_report.py` → `results/routing/routing.md`).** Same GT base and GT buildings for both maps. The decode is τ = 0.5 or the tuned decode of each run:
+**Routing evaluation on predictions (eval100, 6 Oct 12:00, table regenerated 17:30 with the off-road gate g = .3 on predicted maps; `src/route_report.py` → `results/routing/routing.md`).** Same GT base and GT buildings for both maps. The decode is τ = 0.5 or the tuned decode of each run:
 
 | run | decode | truck cost | stranded P | stranded R | stranded F1 | status agreement | RSV | unsafe routes | cost ratio (median) | infeasible |
 |---|---|---|---|---|---|---|---|---|---|---|
-| floodnet_1shot | τ=0.5 | risk-aware λ=5 | 1.000 | 0.204 | 0.340 | 0.701 | 0.200 | 0.280 | 1.103 | 0.369 |
-| floodnet_1shot | τ=0.5 | plain λ=0 | 1.000 | 0.204 | 0.340 | 0.701 | 0.173 | 0.336 | 1.067 | 0.382 |
+| floodnet_1shot | τ=0.5 | risk-aware λ=5 | 0.878 | 0.799 | 0.837 | 0.788 | 0.137 | 0.149 | 1.160 | 0.377 |
+| floodnet_1shot | τ=0.5 | plain λ=0 | 0.878 | 0.799 | 0.837 | 0.788 | 0.105 | 0.159 | 1.137 | 0.372 |
 | floodnet_1shot | tau | risk-aware λ=5 | 0.485 | 1.000 | 0.653 | 0.445 | 0.003 | 0.000 | 1.043 | 0.180 |
 | floodnet_1shot | tau | plain λ=0 | 0.485 | 1.000 | 0.653 | 0.445 | 0.003 | 0.000 | 1.049 | 0.180 |
-| floodnet_5shot | τ=0.5 | risk-aware λ=5 | 0.987 | 0.275 | 0.430 | 0.720 | 0.122 | 0.318 | 1.029 | 0.341 |
-| floodnet_5shot | τ=0.5 | plain λ=0 | 0.987 | 0.275 | 0.430 | 0.720 | 0.188 | 0.351 | 1.000 | 0.415 |
-| floodnet_5shot | tau_ctx | risk-aware λ=5 | 0.983 | 0.636 | 0.772 | 0.803 | 0.092 | 0.211 | 1.030 | 0.289 |
-| floodnet_5shot | tau_ctx | plain λ=0 | 0.983 | 0.636 | 0.772 | 0.803 | 0.126 | 0.242 | 1.000 | 0.356 |
-| floodnet_10shot | τ=0.5 | risk-aware λ=5 | 0.981 | 0.591 | 0.738 | 0.788 | 0.099 | 0.164 | 1.037 | 0.280 |
-| floodnet_10shot | τ=0.5 | plain λ=0 | 0.981 | 0.591 | 0.738 | 0.788 | 0.137 | 0.227 | 1.000 | 0.380 |
-| floodnet_10shot | tau_ctx | risk-aware λ=5 | 0.993 | 0.520 | 0.683 | 0.764 | 0.087 | 0.194 | 1.046 | 0.247 |
-| floodnet_10shot | tau_ctx | plain λ=0 | 0.993 | 0.520 | 0.683 | 0.764 | 0.121 | 0.257 | 1.000 | 0.332 |
-| floodnet_20shot | τ=0.5 | risk-aware λ=5 | 1.000 | 0.316 | 0.480 | 0.719 | 0.109 | 0.289 | 1.038 | 0.340 |
-| floodnet_20shot | τ=0.5 | plain λ=0 | 1.000 | 0.316 | 0.480 | 0.719 | 0.158 | 0.338 | 1.000 | 0.393 |
-| floodnet_20shot | tau_ctx | risk-aware λ=5 | 0.984 | 0.461 | 0.628 | 0.754 | 0.104 | 0.256 | 1.036 | 0.330 |
-| floodnet_20shot | tau_ctx | plain λ=0 | 0.984 | 0.461 | 0.628 | 0.754 | 0.151 | 0.290 | 1.000 | 0.384 |
-| floodnet_50shot | τ=0.5 | risk-aware λ=5 | 1.000 | 0.305 | 0.467 | 0.718 | 0.108 | 0.304 | 1.039 | 0.324 |
-| floodnet_50shot | τ=0.5 | plain λ=0 | 1.000 | 0.305 | 0.467 | 0.718 | 0.172 | 0.349 | 1.000 | 0.418 |
-| floodnet_50shot | tau | risk-aware λ=5 | 0.993 | 0.502 | 0.667 | 0.758 | 0.103 | 0.251 | 1.035 | 0.315 |
-| floodnet_50shot | tau | plain λ=0 | 0.993 | 0.502 | 0.667 | 0.758 | 0.142 | 0.282 | 1.000 | 0.387 |
-| rescuenet_20shot | τ=0.5 | risk-aware λ=5 | 0.900 | 0.360 | 0.514 | 0.932 | 0.063 | 0.101 | 1.051 | 0.140 |
-| rescuenet_20shot | τ=0.5 | plain λ=0 | 0.900 | 0.360 | 0.514 | 0.932 | 0.086 | 0.101 | 1.031 | 0.162 |
-| rescuenet_20shot | tau_bldg | risk-aware λ=5 | 0.900 | 0.360 | 0.514 | 0.938 | 0.045 | 0.077 | 1.050 | 0.088 |
-| rescuenet_20shot | tau_bldg | plain λ=0 | 0.900 | 0.360 | 0.514 | 0.938 | 0.059 | 0.091 | 1.028 | 0.125 |
-| rescuenet_50shot | τ=0.5 | risk-aware λ=5 | 0.500 | 0.120 | 0.194 | 0.911 | 0.074 | 0.103 | 1.061 | 0.151 |
-| rescuenet_50shot | τ=0.5 | plain λ=0 | 0.500 | 0.120 | 0.194 | 0.911 | 0.076 | 0.110 | 1.032 | 0.143 |
-| rescuenet_50shot | tau_bldg | risk-aware λ=5 | 0.500 | 0.280 | 0.359 | 0.908 | 0.063 | 0.088 | 1.071 | 0.147 |
-| rescuenet_50shot | tau_bldg | plain λ=0 | 0.500 | 0.280 | 0.359 | 0.908 | 0.063 | 0.091 | 1.043 | 0.147 |
+| floodnet_5shot | τ=0.5 | risk-aware λ=5 | 0.935 | 0.587 | 0.721 | 0.764 | 0.105 | 0.237 | 1.029 | 0.348 |
+| floodnet_5shot | τ=0.5 | plain λ=0 | 0.935 | 0.587 | 0.721 | 0.764 | 0.142 | 0.264 | 1.000 | 0.407 |
+| floodnet_5shot | tau_ctx | risk-aware λ=5 | 0.935 | 0.647 | 0.765 | 0.793 | 0.090 | 0.209 | 1.030 | 0.301 |
+| floodnet_5shot | tau_ctx | plain λ=0 | 0.935 | 0.647 | 0.765 | 0.793 | 0.123 | 0.244 | 1.000 | 0.364 |
+| floodnet_10shot | τ=0.5 | risk-aware λ=5 | 0.865 | 0.810 | 0.837 | 0.778 | 0.067 | 0.084 | 1.054 | 0.289 |
+| floodnet_10shot | τ=0.5 | plain λ=0 | 0.865 | 0.810 | 0.837 | 0.778 | 0.102 | 0.126 | 1.001 | 0.358 |
+| floodnet_10shot | tau_ctx | risk-aware λ=5 | 0.858 | 0.810 | 0.834 | 0.774 | 0.049 | 0.096 | 1.071 | 0.250 |
+| floodnet_10shot | tau_ctx | plain λ=0 | 0.858 | 0.810 | 0.834 | 0.774 | 0.074 | 0.126 | 1.014 | 0.299 |
+| floodnet_20shot | τ=0.5 | risk-aware λ=5 | 0.909 | 0.595 | 0.719 | 0.766 | 0.094 | 0.213 | 1.043 | 0.332 |
+| floodnet_20shot | τ=0.5 | plain λ=0 | 0.909 | 0.595 | 0.719 | 0.766 | 0.126 | 0.236 | 1.000 | 0.361 |
+| floodnet_20shot | tau_ctx | risk-aware λ=5 | 0.911 | 0.606 | 0.728 | 0.774 | 0.091 | 0.205 | 1.038 | 0.320 |
+| floodnet_20shot | tau_ctx | plain λ=0 | 0.911 | 0.606 | 0.728 | 0.774 | 0.125 | 0.232 | 1.000 | 0.354 |
+| floodnet_50shot | τ=0.5 | risk-aware λ=5 | 0.899 | 0.725 | 0.802 | 0.784 | 0.070 | 0.165 | 1.045 | 0.328 |
+| floodnet_50shot | τ=0.5 | plain λ=0 | 0.899 | 0.725 | 0.802 | 0.784 | 0.092 | 0.175 | 1.000 | 0.382 |
+| floodnet_50shot | tau | risk-aware λ=5 | 0.899 | 0.725 | 0.802 | 0.781 | 0.068 | 0.162 | 1.035 | 0.325 |
+| floodnet_50shot | tau | plain λ=0 | 0.899 | 0.725 | 0.802 | 0.781 | 0.092 | 0.185 | 1.000 | 0.380 |
+| rescuenet_20shot | τ=0.5 | risk-aware λ=5 | 0.900 | 0.360 | 0.514 | 0.932 | 0.060 | 0.104 | 1.055 | 0.140 |
+| rescuenet_20shot | τ=0.5 | plain λ=0 | 0.900 | 0.360 | 0.514 | 0.932 | 0.076 | 0.094 | 1.034 | 0.147 |
+| rescuenet_20shot | tau_bldg | risk-aware λ=5 | 0.900 | 0.360 | 0.514 | 0.938 | 0.044 | 0.077 | 1.050 | 0.088 |
+| rescuenet_20shot | tau_bldg | plain λ=0 | 0.900 | 0.360 | 0.514 | 0.938 | 0.058 | 0.087 | 1.029 | 0.121 |
+| rescuenet_50shot | τ=0.5 | risk-aware λ=5 | 0.636 | 0.280 | 0.389 | 0.914 | 0.067 | 0.092 | 1.071 | 0.162 |
+| rescuenet_50shot | τ=0.5 | plain λ=0 | 0.636 | 0.280 | 0.389 | 0.914 | 0.067 | 0.095 | 1.044 | 0.151 |
+| rescuenet_50shot | tau_bldg | risk-aware λ=5 | 0.500 | 0.280 | 0.359 | 0.908 | 0.064 | 0.088 | 1.080 | 0.151 |
+| rescuenet_50shot | tau_bldg | plain λ=0 | 0.500 | 0.280 | 0.359 | 0.908 | 0.062 | 0.091 | 1.051 | 0.147 |
 
+- *The bullets below were written for the gate-free table (`results/routing/routing_nogate.md`); with the gate, recall is higher and precision lower (see "Off-road gate").*
 - **Risk-aware truck costs help every run.** RSV falls by ~25–35 % (FloodNet 10-shot tuned: .121 → .087) and infeasible routes by 4–10 points, at a median cost premium of 3–5 %.
 - **FloodNet 50-shot routing:** tuned decode, risk-aware: stranded F1 .667 (P .993, R .502), status agreement .758, RSV .103, unsafe routes .251, infeasible .315. RescueNet 50 is weak at stranded detection (only 25 GT non-truck houses; F1 .36 tuned).
 - **Stranded detection: high precision (.98–1.0), low recall (.30–.64).** Predicted maps over-connect: they miss water barriers, so cut-off houses look truck-reachable. That is the dangerous direction; feed it into the failure analysis.
 - **The tuned decode raises stranded recall at 5 and 20 shots** (.275 → .636, .316 → .461), mostly through more water (τ_water .15–.25). At 10 shots it lowers recall (.59 → .52).
 - 1-shot tuned is degenerate (τ_road_clear .8 → almost no road; every house "stranded", recall 1.0, precision .49). Don't headline it.
+
+**Track A completion (6 Oct 15:45–17:45).** GPU: notebook `rr-gpu-extra` (`QUEUE = 'extra'`, metadata `kaggle/extra/`), 1.7 h on 2× T4. It ran the zero-label transfer and the full 448-image test of FloodNet 50-shot, split into `splits/floodnet_test_full_part{1,2}.txt`. `splits/floodnet_test_full.txt` was regenerated from the 448 test ids, sorted numerically; it matches the SHA-256 in `splits/SHA256SUMS`. `predict.py --query_dataset` keeps the checkpoint's own supports and takes queries from the other dataset. Outputs are in `results/kaggle_v2/extra/`, with caches merged into `results/kaggle_v2/rr/preds/`. Kaggle GPU use on 6 Oct: ≈ 11 of 30 session-hours.
+
+*§5.2 PSPNet comparison* (`src/baseline_table.py` → `results/kaggle_v2/report/baselines.md`; full-test metrics in `full_test_floodnet50.json`):
+
+| method | labels | bldg flooded | bldg dry (non-flooded) | road flooded | road clear (non-flooded) | water | mean of these 5 | paper mIoU (9 cl.) |
+|---|---|---|---|---|---|---|---|---|
+| ENet (paper) | 1,445 | 6.9 | 47.4 | 12.5 | 48.4 | 49.0 | 32.8 | 42.6 |
+| DeepLabV3+ (paper) | 1,445 | 32.7 | 72.8 | 52.0 | 70.2 | 75.2 | 60.6 | 61.5 |
+| PSPNet (paper) | 1,445 | 68.9 | 89.8 | 82.2 | 91.2 | 92.0 | 84.8 | 79.7 |
+| Chameleon 50-shot, eval100, τ 0.5 | 50 | 72.1 | 21.1 | 39.8 | 51.1 | 44.6 | 45.7 | – |
+| Chameleon 50-shot, eval100, tuned | 50 | 72.0 | 34.1 | 43.0 | 52.6 | 44.1 | 49.2 | – |
+| Chameleon 50-shot, full test (448 img), τ 0.5 | 50 | 55.8 | 29.8 | 29.3 | 50.1 | 45.0 | 42.0 | – |
+| Chameleon 50-shot, full test (448 img), tuned | 50 | 57.7 | 50.0 | 29.1 | 54.4 | 44.8 | 47.2 | – |
+
+Caveats: the paper trains on 10 classes at 713×713 and reports the full 448-image test; we train a 5-channel task (other classes decoded as "other") at 768×576 with 50 labels (3.5 % of 1,445). The 5-class decode removes confusions with tree/grass/vehicle/pool, which can inflate our IoU a little. eval100 is a stratified subset (50 % with flooded road/building), not the paper split.
+
+- **Full test, FloodNet 50-shot:** mIoU .420 (τ 0.5) / .472 (tuned). Drivable precision .857 / .830, recall .547 / .612, wet IoU .548 / .584.
+- The full test is lower than eval100 on flooded buildings (.56 vs .72), because eval100 is stratified 50 % flooded. It is higher on dry buildings (.50 tuned).
+- **Headline framing:** with 50 labels (3.5 %), Chameleon beats ENet on 4 of 5 classes (water 45 vs 49) and DeepLabV3+ on flooded buildings (58 vs 33). It is far below PSPNet on every class, worst on flooded roads (29 vs 82).
+
+*§3.4 cross-disaster* (`src/transfer_eval.py` → `results/kaggle_v2/report/transfer.md`): RescueNet eval100 on the shared super-classes road (0+1), building (2+3) and water (4):
+
+| model (RescueNet eval100) | road IoU | building IoU | water IoU | mean |
+|---|---|---|---|---|
+| zero-label transfer: FloodNet 50-shot (0 RescueNet labels), τ 0.5 | 0.353 | 0.263 | 0.225 | 0.280 |
+| zero-label transfer: FloodNet 50-shot, FloodNet-tuned decode | 0.375 | 0.366 | 0.223 | 0.321 |
+| re-adapted: RescueNet 20-shot, τ 0.5 | 0.625 | 0.548 | 0.645 | 0.606 |
+| re-adapted: RescueNet 20-shot, tuned decode | 0.600 | 0.640 | 0.644 | 0.628 |
+| re-adapted: RescueNet 50-shot, τ 0.5 | 0.649 | 0.603 | 0.401 | 0.551 |
+| re-adapted: RescueNet 50-shot, tuned decode | 0.645 | 0.632 | 0.418 | 0.565 |
+
+- **Zero-label transfer reaches about half of what 20 RescueNet labels give** (mean .32 vs .63). A new disaster needs its own few labels, which is the story's point.
+
+*§5.3 failure analysis* (`src/failures.py` → `results/kaggle_v2/report/failures/`, with `per_image.json`, `worst.json` and contact sheets `sheet_1..4.png`). FloodNet 50-shot, tuned decode, eval100. The 12 worst images by road score (mean IoU of the road channels covering ≥ 1 % of the image), plus the 4 largest false-"clear" clusters, all tagged by eye:
+
+| tag | failure | images (of the 16) | routing consequence |
+|---|---|---|---|
+| 1 | dark surface confused (here: a dark water channel decoded as clear road) | 6377 | false "clear" (no houses in the scene) |
+| 2 | **shallow / muddy / sandy water decoded as dry land or clear road** | 7284, 7355, 7370, 7486, 7308 | **the dangerous one.** Without the gate: 25 stranded houses shown as truck-reachable in these 5 images. With the off-road gate: 6 (7355: 3, 7308: 3) |
+| 3 | canopy breaking a road | – | – |
+| 4 | road / driveway missed (pale concrete decoded as other) | 6420, 6468 | small: the truck still crosses off-road at ×4 cost |
+| 5 | water ↔ flooded-road (or pond) confusion | 6468, 6775, 6785, 6786, 7268, 7935 | benign: both are boat cells |
+| 6 | flooded ↔ dry building | 6695, 6468 | status priority only |
+| 7 | tile-border artefact (class switch along the tile row y ≈ 192) | 6775, 6785, 6786 | benign (inside water) |
+| 8 | **GT label ambiguity**: bridges over the flood labelled "flooded road" (7291, 6695); houses in a dry street labelled "flooded" (6412, qualitative figure) | 7291, 6695 (+ 6412) | counted as "unsafe" / "missed", though the prediction is arguably right (7291: 2 houses) |
+| 9 | thin structures (power lines over water) decoded as clear road | 7268, 7759 | could open a false truck "bridge"; none here (no houses) |
+
+- Gallery: `results/kaggle_v2/report/figures/failure_gallery.png` (2×3: 7370, 7486, 7308, 7291, 6775, 6420; GT | prediction, with tag and routing consequence).
+- Qualitative grid: `figures/qualitative.png` (7320, 7415 flooded; 6412, 9107 dry; columns photo, GT, 1/5/20/50-shot).
+- Overlay colours (`src/viz.py`): green clear road, blue flooded road, red flooded building, **amber dry building** (grey vanished on grey roofs), navy water. RescueNet uses magenta for blocked roads.
+
+*Off-road gate (router, from the failure analysis).* 92 % of the GT-water cells on predicted truck routes were predicted "other" land, crossed off-road (median p_wet .21). New router option `offroad_maxwet = g`: off-road only where p1 + p4 < g. **Prediction grids only; GT grids are unchanged.** Tuned on FloodNet 50 val30 (stranded F1 .548 → .971 at g = .3), then applied to eval100 unchanged. **It is the default in `route_eval.py` (`PRED_OFFROAD_MAXWET = 0.3`); the web viewer's JS router must use the same value.** Sweep (`results/routing/gate/gate.md`, tuned decode, λ = 5):
+
+| split | gate g | stranded P | R | F1 | agreement | RSV | unsafe | cost ratio | infeasible | GT stranded | pred stranded |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| val30 | none | 1.000 | 0.377 | 0.548 | 0.783 | 0.089 | 0.225 | 1.045 | 0.288 | 53 | 20 |
+| val30 | 0.5 | 1.000 | 0.377 | 0.548 | 0.783 | 0.089 | 0.225 | 1.045 | 0.288 | 53 | 20 |
+| val30 | 0.3 | 1.000 | 0.943 | 0.971 | 0.894 | 0.064 | 0.097 | 1.060 | 0.318 | 53 | 50 |
+| val30 | 0.2 | 0.773 | 0.962 | 0.857 | 0.818 | 0.048 | 0.058 | 1.084 | 0.359 | 53 | 66 |
+| val30 | 0.15 | 0.699 | 0.962 | 0.810 | 0.783 | 0.043 | 0.053 | 1.150 | 0.388 | 53 | 73 |
+| val30 | 0.1 | 0.520 | 0.981 | 0.680 | 0.646 | 0.023 | 0.009 | 1.234 | 0.459 | 53 | 100 |
+| val30 | 0.05 | 0.452 | 0.981 | 0.619 | 0.571 | 0.026 | 0.011 | 1.576 | 0.529 | 53 | 115 |
+| val30 | 0 | 0.366 | 1.000 | 0.535 | 0.429 | 0.000 | 0.000 | 2.347 | 0.618 | 53 | 145 |
+| eval100 | none | 0.993 | 0.502 | 0.667 | 0.758 | 0.103 | 0.251 | 1.035 | 0.315 | 269 | 136 |
+| eval100 | 0.5 | 0.993 | 0.546 | 0.705 | 0.774 | 0.100 | 0.236 | 1.035 | 0.315 | 269 | 148 |
+| eval100 | 0.3 | 0.899 | 0.725 | 0.802 | 0.781 | 0.068 | 0.162 | 1.035 | 0.325 | 269 | 217 |
+| eval100 | 0.2 | 0.811 | 0.892 | 0.850 | 0.746 | 0.038 | 0.085 | 1.094 | 0.328 | 269 | 296 |
+| eval100 | 0.15 | 0.659 | 0.955 | 0.780 | 0.647 | 0.028 | 0.051 | 1.103 | 0.423 | 269 | 390 |
+| eval100 | 0.1 | 0.588 | 0.989 | 0.738 | 0.572 | 0.007 | 0.009 | 1.184 | 0.478 | 269 | 452 |
+| eval100 | 0.05 | 0.518 | 1.000 | 0.683 | 0.480 | 0.001 | 0.004 | 1.345 | 0.559 | 269 | 519 |
+| eval100 | 0 | 0.470 | 1.000 | 0.640 | 0.408 | 0.000 | 0.000 | 1.527 | 0.631 | 269 | 572 |
+
+- **eval100 at g = .3:** stranded F1 .667 → .802, unsafe routes .251 → .162, RSV .103 → .068, at precision .993 → .899. Missed stranded houses fall from 134 to 74.
+- The routing table above, "Routing evaluation on predictions", is now **with the gate** (regenerated); the gate-free version is `results/routing/routing_nogate.md`.
+- With the gate, FloodNet routing on eval100 (risk-aware, tuned decode): stranded F1 .653 / .765 / .834 / .728 / .802 at 1 / 5 / 10 / 20 / 50 shots.
+
+**Still open for Track A** (all need the Track B code or come later): the final notebook (§7) with `RUN_TRAINING=False`, which recomputes FloodNet 50 live and loads the rest from caches; the G3 check on a fresh T4; the write-up and slides. Dropped on purpose: R3 diverse supports, R5 100-shot, R6 seeds, the 1024-px ablation.
 
 **Earlier plan (kept for reference): the core queue on Kaggle, launched Tue 6 Oct 02:40 KST, ETA 11:30–12:00 KST** (Kaggle session limit 12 h; no new job starts after 9.5 h):
 - GPU 0: FloodNet 1-shot → eval100 cache → 50-shot → cache → 20-shot → cache → 10-shot → cache.
@@ -807,11 +886,11 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 4. ~~Optional dry-building ablation~~: **skipped** (see the decision above).
 5. **Next phase (from 6 Oct ~16:00): Track B product.** Marlen wants to see the final product first; the write-up and slides wait until it exists. In order:
    1. **Showcase scenes + export (CPU, Mac).** Pick 8 eval100 scenes: 6 FloodNet from the 50-shot model, 2 RescueNet. Cover truck-only, truck + boat, isolated, and one honest failure (a missed water barrier). Use the per-run tuned decode (`results/kaggle_v2/rr/decode/<run>.json`, key `chosen`). For RescueNet, use 20-shot (eval100 tuned .421) rather than 50 (.402), unless the scenes look better with 50; state which. Write `export_web_assets` (in `src/`) to produce, per scene: photo, pred/GT RGBA overlays, cell-grid JSON (classes + wet probability), buildings JSON (id, polygon, centroid, status pred/GT), meta. Local images are 768×576 (`~/rr_data`); §6.4's 2048-px photo would need the original FloodNet/RescueNet files, so use 768 (or 1024 from the r1024 subset tar on Drive) unless the originals are fetched for the 8 scenes only.
-   2. **Web viewer** (`app/` source → built into `docs/`): plain HTML/JS + Leaflet 1.9 (`L.CRS.Simple`), no build step. Layer toggles + opacity, prediction/GT swap, swipe slider, building status layer, click a house → **JS port of `src/router.py`** (same costs: λ = 5, boat ×3, launch 40, off-road ×4, no switch back; must reproduce the Python statuses and costs exactly on the exported grids; test that) → animated truck then boat, "Unreachable by road: N / M" counter, "disagreements with GT" toggle, scene picker, legend, attribution (FloodNet CDLA-Permissive; RescueNet licence note). Check it on phone width and in incognito.
+   2. **Web viewer** (`app/` source → built into `docs/`): plain HTML/JS + Leaflet 1.9 (`L.CRS.Simple`), no build step. Layer toggles + opacity, prediction/GT swap, swipe slider, building status layer, click a house → **JS port of `src/router.py`** (same costs: λ = 5, boat ×3, launch 40, off-road ×4 **gated at p_wet < .3 on predicted maps** (none on GT maps), no switch back; must reproduce the Python statuses and costs exactly on the exported grids; test that). Overlay colours from `src/viz.py` → animated truck then boat, "Unreachable by road: N / M" counter, "disagreements with GT" toggle, scene picker, legend, attribution (FloodNet CDLA-Permissive; RescueNet licence note). Check it on phone width and in incognito.
    3. **Gradio app** (§6.3): showcase scenes from the caches (CPU), upload → live inference (GPU; test on Kaggle later, or leave it as a notebook cell). Risk-aware toggle, boat-speed slider, click → route + summary.
    4. **Deploy:** a separate **public** repo `MarlenMM/rescue-router-demo` holding only the built `docs/` viewer (decision 6 Oct 15:40: keep `rescue-router` private until grading, then fold everything into it: clean PLAN/history, make it public, Pages from `docs/`, retire the demo repo with a redirect). `gh` CLI is logged in as MarlenMM. **Creating the repo and publishing need Marlen's explicit OK at that moment.** Script the export (private `docs/` → demo repo) as one command.
    5. Screen recording (60–90 s) later, by Marlen.
-6. After the product: failure analysis (§5.3), figures, write-up, slides, final notebook (§7), G3 T4 check. Optional: the full-448 test for FloodNet 50 (~2 GPU-h on Kaggle).
+6. ~~Failure analysis, PSPNet table, cross-disaster transfer, full-448 test, figures~~ (done 17:45; see "Track A completion"). After the product: write-up, slides, final notebook (§7), G3 T4 check.
 
 ## 14. Sources
 - FloodNet: https://github.com/BinaLab/FloodNet-Supervised_v1.0 · paper https://arxiv.org/abs/2012.02951
