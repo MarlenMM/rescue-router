@@ -581,16 +581,16 @@ OK), submit by Thu 12:30, live Gradio link pushed ~15:15 for the 16:00 presentat
 Gradio app (`src/gradio_app.py` + caches it needs, or the share-link notebook), README with both URLs and the local
 commands, and Marlen's recording; the data zip per §2.6. Every reported number is reproducible with
 `src/rebuild_all.py` (CPU) from the data zip.]*
-- [ ] Only one .ipynb anywhere in the zip
-- [ ] Notebook ran top to bottom on a fresh **T4**
-- [ ] Every number in the slides and write-up appears in a notebook output
-- [ ] Weights list starts with Chameleon, with links
-- [ ] Data counts and links for both datasets
-- [ ] "Track A + B" on the title slide and in the write-up
-- [ ] 1 title + ≤6 slides; talk ≤ 5:00
-- [ ] Pages URL works in incognito
-- [ ] Zip uploads to KLMS (test early)
-- [ ] `<NAME>` filled in exactly as on KLMS
+- [x] Only one .ipynb anywhere in the zip (checked recursively by `release/build_release.sh`)
+- [x] Notebook ran top to bottom on a fresh **T4** (Kaggle, G3, 25.8 min; the Colab path is untested)
+- [x] Every number in the slides and write-up appears in a notebook output (slides checked 7 Oct 05:45; PSPNet shows as 84.8)
+- [x] Weights list starts with Chameleon, with links (write-up §3)
+- [x] Data counts and links for both datasets
+- [x] "Track A + B" on the title slide and in the write-up
+- [x] 1 title + ≤6 slides (PPTX, 7 slides with notes); talk ≤ 5:00 (notes ≈ 4:40; Marlen rehearses)
+- [x] Pages URL works in a fresh browser profile (browser pane, desktop + 375 px phone width, no console errors)
+- [ ] Zip uploads to KLMS (Marlen: limit 3 GB; the zip is 458 MB)
+- [x] `<NAME>` filled in exactly as on KLMS (`20260876_MarlenMelis`, Marlen 7 Oct)
 
 ---
 
@@ -661,10 +661,10 @@ commands, and Marlen's recording; the data zip per §2.6. Every reported number 
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
 
-## 15. Status / handoff (updated Wed 7 Oct, 05:28 KST)
+## 15. Status / handoff (updated Wed 7 Oct, 05:46 KST)
 
 ### Quick summary (read this first; details below)
-**Deadline:** submit Thu 8 Oct 12:30 KST, present 16:00. **Done:** all GPU training/inference (7 runs), all Track A analysis, the Track B product (scenes, web viewer, Gradio on CPU), improvement Batches 1–9 + the RescueNet gate, **final notebook + G3 passed on a fresh T4** (`notebook/rescue_router_executed.ipynb`, 25.8 min, live recompute = cache exactly). **Write-up done** (`writeup/20260876_MarlenMelis_writeup.pdf`, 3 pages incl. references). **Slides done** (Claude Slides artifact https://claude.ai/artifact/YYgLzsuLXTeRiQmWUtpyJw, title + 6, talk in the speaker notes; Marlen downloads the PDF for KLMS). **Not started:** zips, recording (Marlen, storyboard `slides/recording_script.md`), deploy (Batch 12). **File names: `20260876_MarlenMelis_*`** (Marlen, 7 Oct; the course example is `20261234_JohnDoe`). **Rebuild everything on CPU:** `python src/rebuild_all.py` (15 min, ends with a headline check).
+**Deadline:** submit Thu 8 Oct 12:30 KST, present 16:00. **Done:** all GPU training/inference (7 runs), all Track A analysis, the Track B product (scenes, web viewer, Gradio on CPU), improvement Batches 1–9 + the RescueNet gate, **final notebook + G3 passed on a fresh T4** (`notebook/rescue_router_executed.ipynb`, 25.8 min, live recompute = cache exactly). **Write-up done** (`writeup/20260876_MarlenMelis_writeup.pdf`, 3 pages incl. references). **Slides done** (Claude Slides artifact https://claude.ai/artifact/YYgLzsuLXTeRiQmWUtpyJw, title + 6, talk in the speaker notes; Marlen downloads the PDF for KLMS). **Batch 12 done (05:46, see 0r): submission built and demo public.** KLMS zip `~/rr_push/submission/20260876_MarlenMelis_project.zip` (458 MB: code.ipynb 8.4, writeup.pdf 1.0, slides.pptx 1.6, data.zip 363, app.zip 84 MB; one .ipynb), rebuilt by `bash release/build_release.sh`; **public viewer https://marlenmm.github.io/rescue-router-demo/** (repo MarlenMM/rescue-router-demo). Marlen uploads the zip to KLMS (limit 3 GB). **Not done:** recording (Marlen; the app zip has the GIF), the Colab path of the notebook and the Colab live-link rehearsal (both need GPU OK and the data zip in My Drive). **File names: `20260876_MarlenMelis_*`** (Marlen, 7 Oct; the course example is `20261234_JohnDoe`). **Rebuild everything on CPU:** `python src/rebuild_all.py` (15 min, ends with a headline check).
 
 **Track A (segmentation), headline = FloodNet 50-shot on the full 448-image test:** mIoU .420 [.386, .455] (τ 0.5) / **.472 [.437, .506]** (tuned decode), bootstrap 95 % CI. Per class (tuned): road clear .544, road flooded .291, bldg flooded .577, bldg dry .500, water .448. PSPNet (1,445 labels): 84.8 on the same 5 classes; we beat ENet on 4/5 classes and DeepLabV3+ on flooded buildings; flooded roads are the gap (29 vs 82). Curve (eval100, stratified, τ 0.5 / tuned): 1 → 5 → 10 → 20 → 50 shots = .176/.264, .320/.353, .329/.383, .357/.422, .457/.492; paired bootstrap: 1→5 and 20→50 real, 5→10 noise, 10→20 borderline. RescueNet: 20-shot eval100 .386/.421, 50-shot .406/.402; zero-label transfer of FloodNet 50 reaches about half of 20 RescueNet labels (super-class mean .32 vs .63). Near-duplicate train/test frames: 14/448 FloodNet (3/100 RescueNet), removing them changes mIoU ≤ .004. Failure analysis: shallow/muddy water read as dry land is the dangerous error; GT ambiguity at bridges.
 
@@ -674,7 +674,7 @@ commands, and Marlen's recording; the data zip per §2.6. Every reported number 
 
 **Key files:** results `results/kaggle_v2/rr/` (preds incl. merged full-test cache, ckpt, decode), routing `results/routing/` (`routing.md`, `gate/`, `gate_rescuenet/`, `physical/ablation.md`, `tiers/`, `sensitivity/`, `full/`; older routers in `results/routing_v1`, `_v2`), report `results/kaggle_v2/report/` (`ci/ci.md`, `dupes/`, `failures/`, `figures/` incl. `calibration_pwet.png`), scenes `app/scenes/`, contact sheets `results/web/`. Data `~/rr_data`, env `~/.venvs/rr` (Gradio 6.29 inside), Node for the JS tests. Scripts added 6 Oct: `export_web_assets.py`, `build_viewer.py`, `gradio_app.py`, `publish_demo.sh`, `tiers.py`, `bootstrap_ci.py`, `dupes.py`, `sensitivity.py`; `route_eval.py --router '<json>' --point_vehicles`. Added 7 Oct: `tta.py`, `rebuild_all.py`, `gate_sweep.py`, `physical_ablation.py`, `cache_pack.py`, `kaggle/build_rr_code.sh`, `kaggle/gradio_live/`.
 
-**Waiting for Marlen's explicit OK:** creating/publishing `MarlenMM/rescue-router-demo` (Batch 12), and the live Gradio run on presentation day (0l, ~3.2 GPU-h). **Next: Batch 12.** Open question for Marlen before Batch 12: the data zip is ≈ 380 MB vs the 300 MB target (§2.6: KLMS limit decides). Test-time flips (Batch 7) were tried and **not adopted** (0m). New chat prompt: `NEW_CHAT_PROMPT.md`.
+**Waiting for Marlen's explicit OK:** the live Gradio run on presentation day (~3 h, now on **Colab**: `kaggle/gradio_live/colab_gradio_live.py`, one cell; Kaggle `run_gradio_live.py` is the fallback) and, before it, a short Colab T4 rehearsal (~40 min: the notebook's Colab path + the live link); both need `20260876_MarlenMelis_data.zip` (and the app zip) dragged into My Drive by Marlen. **Next:** KLMS upload (Marlen), then Thursday. Batch 13 is after the deadline. Test-time flips (Batch 7) were tried and **not adopted** (0m). New chat prompt: `NEW_CHAT_PROMPT.md`.
 
 
 ### Improvement batches (agreed with Marlen 6 Oct ~20:00; one prompt each, in this order)
@@ -689,11 +689,12 @@ commands, and Marlen's recording; the data zip per §2.6. Every reported number 
 9. ~~Final notebook §7 + G3 on a fresh T4~~ (done, see 0o): live recompute of 10 eval100 photos at 50 and 20 shots = cache exactly; 25.8 min.
 10. ~~Write-up~~ (done, see 0p): fix "hours, not weeks" (50 labels ≈ 50 labeller-hours, 3.5 % of 1,445); full-test + CIs lead, far below PSPNet (flooded roads 29 vs 82); labelled-map statuses = our router on human labels + router assumptions; limitations (US vs Korea, single frames, near-duplicates, caveats); one section per graded point; confidence tiers; figures.
 11. ~~Slides~~ (done, see 0q): (title + 6), GIF backup, storyboard/script for Marlen's recording.
-12. **Packaging + release (publishing needs OK):** data zip (with caches) + app zip, one .ipynb; `src/publish_demo.sh --create`; Pages incognito + phone hotspot test.
+12. ~~Packaging + release~~ (done, see 0r): data zip (the G3 bundle, 363 MB: KLMS allows 3 GB) + app zip, one .ipynb; demo public on GitHub Pages; checked at desktop + phone width.
 13. **After the deadline (GPU):** multi-crop supports (now one 384 crop ≈ 33 % of a support image), 100-shot point, seeds, class-balanced supports, 1024-px model, uncertainty-driven choice of photos to label, georeferenced mosaics.
 Ruled out by CPU probes (6 Oct): averaging the 20- and 50-shot models (eval100 mIoU .492 → .408); smoothing the probabilities before decoding (.492 → .491): the errors are semantic (shallow water as land), not noisy edges.
 
 ### Batch 12 hand-off (written 7 Oct 05:28 KST for a new chat)
+*Done 7 Oct 05:46 (see 0r). Kept for the record; the Thursday steps at the end still apply.*
 **Goal:** the KLMS submission `20260876_MarlenMelis_project.zip` by **Thu 8 Oct 12:30 KST** (hard deadline 23:59) and the public demo. Course rules (README_starter.md, local only): ONE `.ipynb` in the whole zip, saved with all outputs; every result from our own code; every pretrained weight listed; data disclosed; Track B app source + README as `_app.zip`.
 
 **Ask Marlen first (one AskUserQuestion):**
@@ -1085,6 +1086,15 @@ Caveats: the paper trains on 10 classes at 713×713 and reports the full 448-ima
      - **GIF backup** `slides/demo_route.gif` (RescueNet 12195 house 8, truck → boat → foot drawn step by step; 63 frames, 0.9 MB).
      - **Recording storyboard** `slides/recording_script.md`: talk timing per slide, a 75-s screen recording shot list with exact viewer links (7301 swipe + house 2, 12195 house 8, 7241 water-probability layer, Gradio upload of 7307) and voice-over, macOS recording steps, the Thursday share-link procedure and fallbacks.
      - **For Marlen:** download the deck as PDF → `slides/20260876_MarlenMelis_slides.pdf` (needed in the submission zip, Batch 12); record `recording.mp4` when convenient.
+   0r. **Batch 12 done (7 Oct 05:46): submission zip + public demo.** Marlen's answers (05:38): KLMS allows **3 GB**, so the data zip ships whole (363 MB); **OK to create and publish** the demo repo; the slides were exported as **PPTX** (`Rescue Router.pptx`, 7 slides with notes; the course accepts PPTX) → `slides/20260876_MarlenMelis_slides.pptx`; no recording yet → the GIF goes in the app zip.
+     - **Checks first:** 40 Python tests, JS router 200/200 bit-exact, `rebuild_all.py --check` all 14 headline numbers as published.
+     - **Public demo:** `bash src/publish_demo.sh --create` → repo https://github.com/MarlenMM/rescue-router-demo (public, only `docs/` + README), Pages built: **https://marlenmm.github.io/rescue-router-demo/**. Checked in the browser pane (fresh profile, no storage): desktop RescueNet 12195 house 8 (truck 20 m → boat 30 m → foot 10 m), 375 px phone width FloodNet 7301/9107 (no horizontal scroll, no console errors). On a phone the photo is ~230 px wide between the title card and the controls sheet (Batch 5 layout, usable; a house card covers its lower part).
+     - **Data zip = the exact bundle G3 ran on** (`~/rr_push/bundle/20260876_NAME_data.zip`, commit e4ec713, md5 9be98ccf…, = Kaggle dataset rr-bundle), renamed; no rebuild because its code (src, splits, supports, demo, kaggle/live, requirements) is unchanged since e4ec713 (the build script checks this) and the notebook finds `20260876_*_data.zip`.
+     - **App zip** (84 MB): `viewer/` (= docs/), `src/` (git HEAD), requirements, `kaggle/gradio_live/` (Colab + Kaggle live-link scripts), `demo/uploads/`, `README_app.md` (`release/README_app.md`: Pages URL, local server, Gradio from the data zip, live command), `demo_route.gif`, and **the 98 RescueNet eval100 photos the data zip leaves out**: tested from a clean unzip, the Gradio app failed on RescueNet 10794 with the data zip alone (FileNotFoundError: the bundle has only the 2 showcase RescueNet photos); with the app zip's `rr_data/` copied in it shows them. FloodNet works from the data zip alone.
+     - **Project zip** `~/rr_push/submission/20260876_MarlenMelis_project.zip` (458 MB, stored, outside iCloud): exactly the 5 course names; recursive check: one `.ipynb` (`20260876_MarlenMelis_code.ipynb` = `notebook/rescue_router_executed.ipynb`, 0 errors), no `__MACOSX`/`._*`/.DS_Store; `unzip -t` clean on all three zips. Builder: `release/build_release.sh` (~1 min).
+     - Slides numbers vs notebook outputs: all present (.472, .759, 98.7 %, .835, .818, .29/.82, .32/.63, +.14/+.10, gate .74 → .84, TTA −.017, 1232 houses, upload 16.1 s; PSPNet as 84.8).
+     - **Thursday live link moved to Colab** (GPU rule): `kaggle/gradio_live/colab_gradio_live.py`, one cell: mounts Drive, finds the data zip (+ app zip) in My Drive and the course `generalist.ckpt`, unpacks the caches, pins gradio 6.29.1, starts `gradio_app.py --live --share` in the background, prints the share link and returns; serves 3 h. **Not run yet** (needs GPU OK + the zips in My Drive; Google Drive for desktop is not installed, so Marlen drags them in at drive.google.com).
+     - README.md: Pages URL, `notebook/ writeup/ slides/ release/` rows, "Submission" section. `.gitignore`: `release/` tracked.
    *Steps 1–5 below are the original product plan of 6 Oct ~16:00; 1–3 are done (0–0c, extended in Batches 1–6), 4 (deploy) is Batch 12, 5 (recording) is Marlen's.*
    1. **Showcase scenes + export (CPU, Mac).** Pick 8 eval100 scenes: 6 FloodNet from the 50-shot model, 2 RescueNet. Cover truck-only, truck + boat, isolated, and one honest failure (a missed water barrier). Use the per-run tuned decode (`results/kaggle_v2/rr/decode/<run>.json`, key `chosen`). For RescueNet, use 20-shot (eval100 tuned .421) rather than 50 (.402), unless the scenes look better with 50; state which. Write `export_web_assets` (in `src/`) to produce, per scene: photo, pred/GT RGBA overlays, cell-grid JSON (classes + wet probability), buildings JSON (id, polygon, centroid, status pred/GT), meta. Local images are 768×576 (`~/rr_data`); §6.4's 2048-px photo would need the original FloodNet/RescueNet files, so use 768 (or 1024 from the r1024 subset tar on Drive) unless the originals are fetched for the 8 scenes only.
    2. **Web viewer** (`app/` source → built into `docs/`): plain HTML/JS + Leaflet 1.9 (`L.CRS.Simple`), no build step. Layer toggles + opacity, prediction/GT swap, swipe slider, building status layer, click a house → **JS port of `src/router.py`** (same costs: λ = 5, boat ×3, launch 40, off-road ×4 **gated at p_wet < .3 on predicted maps** (none on GT maps), no switch back; must reproduce the Python statuses and costs exactly on the exported grids; test that). Overlay colours from `src/viz.py` → animated truck then boat, "Unreachable by road: N / M" counter, "disagreements with GT" toggle, scene picker, legend, attribution (FloodNet CDLA-Permissive; RescueNet licence note). Check it on phone width and in incognito.
