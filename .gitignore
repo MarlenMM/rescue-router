@@ -16,6 +16,7 @@
 !/supports/
 !/demo/
 !/notebook/
+!/release/
 __pycache__/
 *.pyc
 .DS_Store
