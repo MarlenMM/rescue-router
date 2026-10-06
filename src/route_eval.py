@@ -27,10 +27,12 @@ from rr.metrics import decode, gt_classes  # noqa: E402
 SPLIT = {'test': 'test', 'val': 'val'}
 # off-road gate for predicted maps (the GT grid has none): tuned on FloodNet 50-shot val30 (stranded F1
 # .548 -> .971 at 0.3), see PLAN §15 "Off-road gate"; the web viewer's JS router uses the same value
-PRED_OFFROAD_MAXWET = 0.3
-# cautious gate for the confidence tiers (Batch 2): largest gate whose confident-truck houses are >= 99 % truck-
-# reachable on FloodNet 50-shot val30 (src/tiers.py, results/routing/tiers/tiers.md)
-PRED_CAUTIOUS_MAXWET = 0.1
+# per dataset since 6 Oct (Batch 3, option A): RescueNet's gate tuned the same way on RescueNet 20-shot val30
+# (stranded F1 .471 at 0.3 -> .556 at 0.2; results/routing/gate_rescuenet/gate.md)
+PRED_OFFROAD_MAXWET = {'floodnet': 0.3, 'rescuenet': 0.2}
+# cautious gate for the confidence tiers (Batch 2): largest gate below the tuned one whose confident-truck houses are
+# >= 99 % truck-reachable on the dataset's val30 (src/tiers.py, results/routing/tiers/tiers.md)
+PRED_CAUTIOUS_MAXWET = {'floodnet': 0.1, 'rescuenet': 0.15}
 
 
 def main():
@@ -45,8 +47,8 @@ def main():
     ap.add_argument('--decode', default=None, help='JSON with per-channel "tau" (and "bias"), see decode_tune.py')
     ap.add_argument('--lams', default='5,0')
     ap.add_argument('--offroad', type=float, default=R.DEFAULTS['offroad'], help='0 = roads only (strict §6.1)')
-    ap.add_argument('--offroad_maxwet', type=float, default=PRED_OFFROAD_MAXWET,
-                    help='prediction grid only: off-road where p_wet < this (<0 = no gate)')
+    ap.add_argument('--offroad_maxwet', type=float, default=None,
+                    help='prediction grid only: off-road where p_wet < this (<0 = no gate; default: the dataset\'s)')
     ap.add_argument('--foot_cost', type=float, default=R.DEFAULTS['foot_cost'],
                     help='walking cost per cell after a truck or boat (<0 = no walking: the truck/boat router)')
     ap.add_argument('--point_vehicles', action='store_true',
@@ -56,6 +58,8 @@ def main():
     ap.add_argument('--min_area', type=int, default=150)
     ap.add_argument('--out', default=None)
     a = ap.parse_args()
+    if a.offroad_maxwet is None:
+        a.offroad_maxwet = PRED_OFFROAD_MAXWET[a.dataset]
     split = a.split or ('test' if '_test_' in a.split_file else 'val')
     ids = [l.strip() for l in open(os.path.join(a.repo, 'splits', f'{a.split_file}.txt')) if l.strip()]
     root = os.path.join(a.data, f'{a.dataset}_r768', split)

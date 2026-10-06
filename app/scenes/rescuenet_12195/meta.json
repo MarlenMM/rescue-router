@@ -13,7 +13,7 @@
   "bldg_t": 0.4,
   "variant": "tau_bldg"
  },
- "caption": "Hurricane Michael, honest failure: canal houses look reachable by road",
+ "caption": "Hurricane Michael: canal row reachable only on foot (truck, boat, then a walk)",
  "size": [
   768,
   576
@@ -61,9 +61,9 @@
  },
  "n_buildings": 12,
  "status_pred": {
-  "TRUCK": 12,
+  "TRUCK": 8,
   "BOAT": 0,
-  "FOOT": 0,
+  "FOOT": 4,
   "ISOLATED": 0
  },
  "status_gt": {
@@ -74,16 +74,16 @@
  },
  "tiers_pred": {
   "CONFIDENT_TRUCK": 8,
-  "PROBABLE_TRUCK": 4,
+  "PROBABLE_TRUCK": 0,
   "BOAT": 0,
-  "FOOT": 0,
+  "FOOT": 4,
   "ISOLATED": 0
  },
  "tier_stats": {
-  "cautious_gate": 0.1,
-  "tuned_gate": 0.3,
-  "confident": 0.9740740740740741,
-  "probable": 0.3333333333333333
+  "cautious_gate": 0.15,
+  "tuned_gate": 0.2,
+  "confident": 0.9743589743589743,
+  "probable": null
  },
  "m_per_cell": 0.31,
  "scale_source": "dataset value"
