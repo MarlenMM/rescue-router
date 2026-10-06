@@ -18,6 +18,32 @@
 
 export const TRUCK = 0, BOAT = 1, FOOT = 2, ISOLATED = 3;
 export const STATUS = ['TRUCK', 'BOAT', 'FOOT', 'ISOLATED'];
+export const TIERS = ['CONFIDENT_TRUCK', 'PROBABLE_TRUCK', 'BOAT', 'FOOT', 'ISOLATED'];
+
+/** router.tier: truck-reachable with the cautious gate -> CONFIDENT_TRUCK, only with the tuned gate -> PROBABLE_TRUCK */
+export function tier(stTuned, stCautious) {
+  if (stCautious === TRUCK) return 'CONFIDENT_TRUCK';
+  if (stTuned === TRUCK) return 'PROBABLE_TRUCK';
+  return STATUS[stTuned];
+}
+
+/** router.eta: metres per mode and minutes of a route (speeds and handover minutes from grid.json `eta`) */
+export function eta(route, grid, speeds, cellM = null) {
+  cellM = cellM || grid.cellM;
+  const metres = [0, 0, 0];
+  let minutes = 0;
+  const { cells, modes } = route;
+  for (let k = 1; k < cells.length; k++) {
+    const [y0, x0] = cells[k - 1], [y, x] = cells[k], m = modes[k], b = y * grid.w + x;
+    const d = Math.hypot(y - y0, x - x0) * cellM;
+    metres[m] += d;
+    const v = m === TRUCK ? (grid.offroad[b] ? speeds.truck_offroad : speeds.truck)
+      : m === BOAT ? (grid.canopy[b] ? speeds.boat_canopy : speeds.boat) : speeds.foot;
+    minutes += d / (v * 1000 / 60);
+    if (m !== modes[k - 1]) minutes += m === BOAT ? speeds.launch_min : speeds.alight_min;
+  }
+  return { metres, minutes };
+}
 const DIRS = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
 const f32 = Math.fround;
 
@@ -48,17 +74,20 @@ export class Grid {
                  foot_cost: g.params.foot_cost, alight: g.params.alight, canopy_cost: g.params.canopy_cost,
                  corner: g.params.corner, ...opts };
     this.cls = bytes(layer.cls); this.risk = floats(layer.risk); this.pboat = floats(layer.pboat);
+    this.cellM = g.params.cell_m;
     const f = bytes(layer.flags), n = this.n, p = this.par;
     this.foot = p.foot_cost != null;
     this.layers = this.foot ? 3 : 2;
     this.truckOk = new Uint8Array(n); this.boatOk = new Uint8Array(n); this.footOk = new Uint8Array(n);
     this.wall = new Uint8Array(n); this.bldg = new Uint8Array(n);
+    this.offroad = new Uint8Array(n); this.canopy = new Uint8Array(n);
     this.slow = new Float64Array(n); this.slowBoat = new Float64Array(n);
     for (let i = 0; i < n; i++) {
       this.truckOk[i] = f[i] & 1; this.boatOk[i] = (f[i] >> 1) & 1; this.footOk[i] = this.foot && (f[i] >> 2) & 1;
       this.slow[i] = f[i] & 8 ? (p.offroad || 1) : 1;
       this.slowBoat[i] = f[i] & 16 ? p.canopy_cost : 1;
       this.wall[i] = (f[i] >> 5) & 1; this.bldg[i] = (f[i] >> 6) & 1;
+      this.offroad[i] = (f[i] >> 3) & 1; this.canopy[i] = (f[i] >> 4) & 1;
     }
   }
 
@@ -168,8 +197,10 @@ class MinHeap {
   }
 }
 
-/** Both maps of a scene (the prediction with the off-road gate, the labelled map without, as route_eval.py). */
+/** The maps of a scene: the prediction with the off-road gate, the labelled map without (as route_eval.py), and the
+ *  prediction with the cautious gate (confidence tiers; same classes, its own passability flags). */
 export function sceneGrids(gridJson, lam) {
   const o = lam == null ? {} : { lam };
-  return { pred: new Grid(gridJson, gridJson.pred, o), gt: new Grid(gridJson, gridJson.gt, o) };
+  return { pred: new Grid(gridJson, gridJson.pred, o), gt: new Grid(gridJson, gridJson.gt, o),
+           pred_cautious: new Grid(gridJson, { ...gridJson.pred, flags: gridJson.pred_cautious.flags }, o) };
 }

@@ -29,7 +29,7 @@ from skimage import measure
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import router as R  # noqa: E402
-from route_eval import PRED_OFFROAD_MAXWET  # noqa: E402
+from route_eval import PRED_CAUTIOUS_MAXWET, PRED_OFFROAD_MAXWET  # noqa: E402
 from rr.metrics import decode, gt_classes  # noqa: E402
 from viz import COLORS, NAMES, blend, colorize, load_image, load_label  # noqa: E402
 
@@ -100,9 +100,11 @@ def build_scene(dataset, img, probs, dec, gt=None):
 
 
 def make_grids(s, lam=R.DEFAULTS['lam'], boat_cost=R.DEFAULTS['boat_cost']):
-    """Routing grids as route_eval.py builds them: the prediction with the off-road gate, GT without."""
+    """Routing grids as route_eval.py builds them: the prediction with the off-road gate, GT without; plus the
+    prediction with the cautious gate for the confidence tiers (Batch 2)."""
     kw = dict(lam=lam, boat_cost=boat_cost)
-    out = dict(pred=R.Grid(*s['cells']['pred'], s['dataset'], offroad_maxwet=PRED_OFFROAD_MAXWET, **kw))
+    out = dict(pred=R.Grid(*s['cells']['pred'], s['dataset'], offroad_maxwet=PRED_OFFROAD_MAXWET, **kw),
+               pred_cautious=R.Grid(*s['cells']['pred'], s['dataset'], offroad_maxwet=PRED_CAUTIOUS_MAXWET, **kw))
     if s['cells']['gt'] is not None:
         out['gt'] = R.Grid(*s['cells']['gt'], s['dataset'], **kw)
     return out
@@ -123,11 +125,14 @@ def scene(dataset, i, results, data):
                 for r, b in zip(s['buildings'], s['bld']):
                     rt = sol.route(b)
                     r['py'].setdefault(f'lam{lam:g}', {})[name] = dict(
-                        status=R.STATUS[sol.status(b)], cost=None if rt is None else rt['cost'])
+                        status=R.STATUS[sol.status(b)], cost=None if rt is None else rt['cost'],
+                        eta_min=None if rt is None else R.eta(rt, g)['minutes'])
     for r in s['buildings']:
         st = r['py'].get('lam5', {})
         r['status_pred'] = st.get('pred', {}).get('status', 'ISOLATED')
         r['status_gt'] = st.get('gt', {}).get('status', 'ISOLATED')
+        sc = st.get('pred_cautious', {}).get('status', 'ISOLATED')
+        r['tier_pred'] = R.tier(R.STATUS.index(r['status_pred']), R.STATUS.index(sc))
     return s
 
 
@@ -156,7 +161,31 @@ def grid_json(s):
                             offroad_maxwet_pred=PRED_OFFROAD_MAXWET, offroad_maxwet_gt=None),
                 profile={k: list(v) if isinstance(v, tuple) else v for k, v in R.PROFILES[s['dataset']].items()},
                 base=None if s['base'] is None else dict(cells=s['base'][0].tolist(), mode=R.STATUS[s['base'][1]]),
-                pred=one(g5['pred']), gt=one(g5['gt']))
+                pred=one(g5['pred']), gt=one(g5['gt']), pred_cautious=dict(flags=b64(g5['pred_cautious'].flags())),
+                eta=R.ETA)
+
+
+def tier_stats(ds, path=os.path.join(os.path.dirname(HERE), 'results/routing/tiers/tiers.json')):
+    """share of truly truck-reachable houses per tier on eval100 (src/tiers.py), for the route card"""
+    if not os.path.exists(path):
+        return None
+    t = json.load(open(path))
+    run = {'floodnet': 'floodnet', 'rescuenet': 'rescuenet'}[ds]
+    tt = t['tiers'][f'{run}_eval100']
+    return dict(cautious_gate=t['cautious_gate'], tuned_gate=t['tuned_gate'],
+                confident=tt['CONFIDENT_TRUCK']['gt_truck_share'], probable=tt['PROBABLE_TRUCK']['gt_truck_share'])
+
+
+def scene_scale(s, data=os.path.expanduser('~/rr_data')):
+    """ground size of a routing cell for the distances and minutes shown: from this photo's labelled cars (median
+    car 1.8 m wide) when it has >= 2, else the dataset value the router uses (router.PROFILES cell_m)"""
+    vid = {'floodnet': 7, 'rescuenet': 6}[s['dataset']]
+    raw = np.asarray(Image.open(os.path.join(data, f"{s['dataset']}_r768", 'test', 'labels_raw', f"{s['id']}.png")))
+    w = [r.axis_minor_length for r in measure.regionprops(measure.label(raw == vid))
+         if 40 <= r.area <= 3000 and r.eccentricity > 0.8]
+    if len(w) >= 2:
+        return dict(m_per_cell=round(float(R.CELL * 1.8 / np.median(w)), 3), scale_source=f'{len(w)} labelled cars')
+    return dict(m_per_cell=R.PROFILES[s['dataset']]['cell_m'], scale_source='dataset value')
 
 
 def counts(recs, key):
@@ -177,7 +206,9 @@ def export(s, out, caption=''):
                 class_colors=[COLORS[s['dataset']][c] for c in range(5)],
                 iou=dict(zip(NAMES[s['dataset']], iou_per_class(s['pred'], s['gt']))),
                 n_buildings=len(s['buildings']), status_pred=counts(s['buildings'], 'status_pred'),
-                status_gt=counts(s['buildings'], 'status_gt'))
+                status_gt=counts(s['buildings'], 'status_gt'),
+                tiers_pred={t: sum(r['tier_pred'] == t for r in s['buildings']) for t in R.TIERS},
+                tier_stats=tier_stats(s['dataset']), **scene_scale(s))
     json.dump(meta, open(os.path.join(d, 'meta.json'), 'w'), indent=1)
     return meta
 

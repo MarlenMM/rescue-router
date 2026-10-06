@@ -339,3 +339,28 @@ def test_boat_crosses_a_narrow_canopy_strip():
     sol = c.solve(base)
     r = sol.route(blds[0])
     assert sol.status(blds[0]) == R.FOOT and (1, 3) in [cell for cell, md in zip(r['cells'], r['modes']) if md == R.BOAT]
+
+
+# ---------------------------------------------------------------- confidence tiers and travel times (Batch 2)
+def test_tiers_nest_and_name():
+    m = grid_map("""
+        RRR....DDD
+        .......DDD
+        .......DDD""")
+    p = np.stack([(m == c) for c in range(5)]).astype(np.float32)
+    p[4, :, 3:7] = 0.2                                               # the lawn before the house may be wet
+    base, blds = R.base_cells(m), R.buildings_from_gt(m, min_area=1, ring=1, cell=1)
+    st = {g: Grid(m, p, offroad_maxwet=g).solve(base).status(blds[0]) for g in (0.3, 0.1)}
+    assert st == {0.3: R.TRUCK, 0.1: R.ISOLATED}                     # only the tuned gate opens the lawn (walkers too)
+    assert R.tier(st[0.3], st[0.1]) == 'PROBABLE_TRUCK'
+    assert R.tier(R.TRUCK, R.TRUCK) == 'CONFIDENT_TRUCK' and R.tier(R.BOAT, R.BOAT) == 'BOAT'
+
+
+def test_eta_counts_metres_speeds_and_handovers():
+    m = grid_map("RRWW.DDD")
+    g = Grid(m, cell_m=1.0)
+    r = dict(cells=[(0, 0), (0, 1), (0, 2), (0, 3), (0, 4)], modes=[R.TRUCK, R.TRUCK, R.BOAT, R.BOAT, R.FOOT])
+    e = R.eta(r, g)
+    assert e['metres'] == [1.0, 2.0, 1.0]
+    want = 1 / (20 / 0.06) + 2 / (6 / 0.06) + 1 / (3 / 0.06) + 5 + 1   # km/h -> m/min = v * 1000 / 60
+    assert e['minutes'] == pytest.approx(want)

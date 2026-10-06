@@ -71,5 +71,20 @@
   "BOAT": 0,
   "FOOT": 0,
   "ISOLATED": 0
- }
+ },
+ "tiers_pred": {
+  "CONFIDENT_TRUCK": 8,
+  "PROBABLE_TRUCK": 0,
+  "BOAT": 0,
+  "FOOT": 0,
+  "ISOLATED": 0
+ },
+ "tier_stats": {
+  "cautious_gate": 0.1,
+  "tuned_gate": 0.3,
+  "confident": 0.9740740740740741,
+  "probable": 0.3333333333333333
+ },
+ "m_per_cell": 0.344,
+ "scale_source": "3 labelled cars"
 }

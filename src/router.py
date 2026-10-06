@@ -69,6 +69,14 @@ DEFAULTS = dict(lam=5.0, boat_cost=3.0, launch=40.0, boat_p=0.5, offroad=4.0, of
                 truck_halfwidth=1.25, boat_halfwidth=0.8, car_gap=2.0, canopy_gap=3.0, canopy_cost=2.0, corner=True)
 POINT_VEHICLES = dict(truck_halfwidth=None, boat_halfwidth=None, car_gap=None, canopy_gap=None, corner=False)
 
+# confidence tiers of a house on a predicted map (Batch 2, src/tiers.py): truck-reachable even with the cautious
+# off-road gate -> CONFIDENT_TRUCK; only with the tuned gate -> PROBABLE_TRUCK (check first); else its status
+TIERS = ('CONFIDENT_TRUCK', 'PROBABLE_TRUCK', 'BOAT', 'FOOT', 'ISOLATED')
+
+# travel-time estimate for a route (display only; routes are chosen by cost): assumed flood-time speeds in
+# km/h (truck on road 20, off-road 5 = the 4x cost; boat 6, under canopy 3; on foot 3) and handover minutes
+ETA = dict(truck=20.0, truck_offroad=5.0, boat=6.0, boat_canopy=3.0, foot=3.0, launch_min=5.0, alight_min=1.0)
+
 # majority-vote tie-break: on equal pixel counts the less drivable class wins
 # (road_clear < other < water < road_flooded < bldg_dry < bldg_flooded)
 _TIE = np.array([0, 3, 5, 4, 2, 1], np.float64) * 1e-3
@@ -264,6 +272,36 @@ class Solution:
         cells = nodes % n
         return dict(cells=list(zip(*np.divmod(cells, self.grid.w))), modes=(nodes // n).astype(int).tolist(),
                     cost=float(self.dist[j]))
+
+
+def tier(st_tuned, st_cautious):
+    """tier name of a house from its predicted status with the tuned gate and with the cautious gate"""
+    if st_cautious == TRUCK:
+        return 'CONFIDENT_TRUCK'
+    if st_tuned == TRUCK:
+        return 'PROBABLE_TRUCK'
+    return STATUS[st_tuned]
+
+
+def eta(route, grid, cell_m=None):
+    """metres per mode and minutes of a route (ETA speeds; cell_m defaults to the grid's)"""
+    cell_m = cell_m or grid.cell_m
+    metres, minutes = [0.0, 0.0, 0.0], 0.0
+    cells, modes = route['cells'], route['modes']
+    for k in range(1, len(cells)):
+        (y0, x0), (y, x), m = cells[k - 1], cells[k], modes[k]
+        d = np.hypot(y - y0, x - x0) * cell_m
+        metres[m] += d
+        if m == TRUCK:
+            v = ETA['truck_offroad'] if grid.offroad[y, x] else ETA['truck']
+        elif m == BOAT:
+            v = ETA['boat_canopy'] if grid.canopy[y, x] else ETA['boat']
+        else:
+            v = ETA['foot']
+        minutes += d / (v * 1000 / 60)
+        if m != modes[k - 1]:
+            minutes += ETA['launch_min'] if m == BOAT else ETA['alight_min']
+    return dict(metres=metres, minutes=minutes)
 
 
 def base_cells(gt_cls, dataset='floodnet', offroad=True):
