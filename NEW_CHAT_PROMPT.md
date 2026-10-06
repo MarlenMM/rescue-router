@@ -1,17 +1,19 @@
-Continue the Rescue Router project (KAIST AIC200, Chameleon, Track A + B). Read PLAN.md fully first; it is the source of truth. §15 "Status / handoff" says where we are; §5.4 and §6.1 describe the router as built; §6.2–6.4 describe the product. Also check your memory notes (project status, Kaggle operations, overnight permissions).
+Continue the Rescue Router project (KAIST AIC200 mini-project, Chameleon few-shot flood mapping + rescue routing, Track A + B). I am Marlen Melis, 20260876; file names are `20260876_MarlenMelis_*`. Deadline: submit Thu 8 Oct 12:30 KST (KLMS hard deadline 23:59), present 16:00.
 
-Where we are (Tue 6 Oct, ~17:45 KST): all GPU work and all Track A analysis are finished.
-- All 7 runs are done: FloodNet 1/5/10/20/50, RescueNet 20/50. Every run has val30 and eval100 prediction caches, tuned decodes and a routing evaluation.
-- Everything is local: results in `results/kaggle_v2/rr/` (preds, ckpt, metrics, decode, logs), routing in `results/routing/`, data (768×576) in `~/rr_data/`, Python env `~/.venvs/rr`.
-- Headline model: FloodNet 50-shot, eval100 mIoU .457 (τ 0.5) / .492 (tuned); full 448-image test .420 / .472.
-- Track A analysis is done (PLAN §15 "Track A completion"): PSPNet table, zero-label transfer to RescueNet, failure analysis with a gallery, and figures in results/kaggle_v2/report/figures/. Overlay colours are in src/viz.py.
-- The router (`src/router.py`, 16 unit tests) and the routing metrics already work. Off-road truck ×4; on predicted maps, off-road only where p_wet < 0.3 (the gate, tuned on val30; ground-truth maps have no gate). The JS port must match this.
-- Deadline: Thu 8 Oct 12:30 KST (present 16:00).
+Read first, in this order:
+1. PLAN.md §15 "Status / handoff": the "Quick summary (read this first)", then **"Batch 12 hand-off"** (what to ask me, what to build, how to check it), then the "Improvement batches" list. Batches 1–11 are done: product, evaluation, final notebook (G3 passed on a fresh T4), write-up PDF, slides (Claude Slides artifact https://claude.ai/artifact/YYgLzsuLXTeRiQmWUtpyJw).
+2. Your memory notes (project status, workflow, Kaggle operations, "notify after each batch").
+3. The course's rules for the submission: `README_starter.md` ("IMPORTANT NOTES", "What to Submit").
 
-This phase is Track B only: build the product so I can see it. No write-up or slides yet. Good showcase candidates come from the failure analysis (results/kaggle_v2/report/failures/) and the qualitative grid. Follow PLAN §15 "Next" item 5, in this order:
-1. Pick 8 showcase scenes from eval100 (6 FloodNet with the 50-shot model, 2 RescueNet) and write `export_web_assets` in `src/`: photo, pred/GT overlays, cell grid, buildings with predicted and GT status, meta. CPU only, from the caches. Show me the 8 scenes (a contact sheet) before building on them.
-2. The web viewer in `app/`, built into `docs/`: Leaflet, no build step. Click a house → a JavaScript port of `src/router.py` that must reproduce the Python statuses and costs on the exported grids (test it) → animated truck then boat. Layer toggles, swipe, prediction/GT swap, "Unreachable by road" counter, disagreements toggle, legend, attribution. Serve it locally and show it to me in the browser; check phone width too.
-3. The Gradio app (§6.3): showcase scenes from caches on CPU. Live inference on an upload needs a GPU. Prepare it, but ask me before using any Kaggle GPU time.
-4. Deploy: a separate public repo `MarlenMM/rescue-router-demo` holding only the built viewer, on GitHub Pages. The main repo `rescue-router` stays private until grading, then gets merged. Ask for my explicit OK before creating the public repo or publishing anything.
+Batch 12 = packaging + release: the data zip, the app zip, the project zip with exactly one .ipynb, the public demo on GitHub Pages, and the checklist in PLAN §12. Start by asking me (short options, one question set): the data-zip size choice (363 MB vs our 300 MB target), the OK to create and publish `MarlenMM/rescue-router-demo`, and whether the slides PDF and the recording are ready.
 
-Rules: PLAN §0.2 (no repeated runs, no GPU unless a step needs it). Update PLAN.md §15 and your memory notes as things change; commit and push after each step. If a choice is genuinely mine (scene picks, look and feel, anything public), ask me with short options instead of guessing.
+How I work with you:
+- One batch per prompt. Do the whole batch, test it, update PLAN §15 (mark it done, record results and decisions) and your memory, commit and push, give me a short summary in chat, then send me a PushNotification (one line, lead with the result).
+- If a choice is genuinely mine (anything public, GPU time, downloads, look and feel), ask with short options. Explicit OK is still needed for: creating/publishing the public demo repo, and the live Gradio GPU run on Thursday (~3.2 GPU-h).
+- Do not regenerate the final notebook (`notebook/rescue_router_executed.ipynb`) without re-running G3 on a T4: it is the executed copy we submit.
+- Run `date` before writing any time into PLAN or memory.
+- The shell is zsh: `$VAR` holding several arguments is not split (use `${=VAR}` or a small Python driver); avoid backticks inside unquoted heredocs.
+- Checks: `~/.venvs/rr/bin/python -m pytest src/tests -q`, `node --test app/test/router.test.mjs` (bit-exact on 200 scenes), `~/.venvs/rr/bin/python src/rebuild_all.py --check` (headline numbers), `src/build_viewer.py` before publishing `docs/`.
+- Local previews: `.claude/launch.json` has `viewer` (app/, :8765), `viewer-docs` (docs/, :8766), `gradio` (:7860) and `gradio-test` (:7861, CPU test mode). Check the published viewer in the browser pane at desktop and phone width.
+
+Batch 12
