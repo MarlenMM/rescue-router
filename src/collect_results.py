@@ -37,8 +37,10 @@ def collect(res_dir):
         if '_step' in name:                       # per-snapshot val of a --defer_val run (select_ckpt.py)
             continue
         m = json.load(open(f))
-        mo = re.match(r'(floodnet|rescuenet)_(\d+)shot_s(\d+)_(\w+?)(?:_(floodnet|rescuenet)_test_eval100.*)?$', name)
-        if not mo:
+        # only the run's own val30 summary (<run>.json) and its eval100 on the same dataset: not the zero-label transfer
+        # (FloodNet model on RescueNet), the full-test halves or other extra caches' metrics
+        mo = re.match(r'(floodnet|rescuenet)_(\d+)shot_s(\d+)_([a-z]+)(?:_(floodnet|rescuenet)_test_eval100_fp16)?$', name)
+        if not mo or mo.group(5) not in (None, mo.group(1)):
             continue
         ds, shot = mo.group(1), int(mo.group(2))
         run_id = f'{ds}_{shot}shot_s{mo.group(3)}_{mo.group(4)}'

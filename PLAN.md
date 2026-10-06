@@ -5,6 +5,12 @@ Student: 20260876. Presentation: Thu 8 Oct 2026, in class (16:00). KLMS deadline
 
 This file is the single source of truth for the build. When reality differs from the plan, update this file.
 
+**How to read it (cleaned up 7 Oct):** **§15 "Status / handoff" is the live state**: its Quick summary first, then the
+improvement batches (the roadmap), then the chronological log. Parts A and B (§0–§14) are the plan as written on
+5 Oct; they are kept for the record, and where reality went another way the section says so in a *[Superseded]* note
+(main changes: all GPU work on Kaggle T4s with an fp16 recipe instead of Colab A100s; the router grew walking, vehicle
+widths and confidence tiers; the schedule). The repository overview for readers is `README.md`.
+
 ---
 
 ## PART A: Plain-language overview
@@ -47,6 +53,11 @@ On the live web map, click a red house. A truck icon drives along green streets,
 ## PART B: Technical execution plan
 
 ## 0. Compute and workflow (Google Colab)
+
+*[Superseded 6 Oct: Marlen has no Colab subscription, so all GPU work ran on **Kaggle** (2× T4 notebooks driven from
+the Mac with the Kaggle CLI) with recipe v2 (fp16 + gradient checkpointing, cosine lr, best-val30 checkpoint); see §15
+"Compute", "Recipe v2" and "Kaggle setup". Colab was used only for the CPU data preparation. The budget rule §0.2
+still holds.]*
 
 **Setup:** Google Colab is driven from the Mac through both its **MCP** connector and its **CLI**. Per the TA, **any GPU is allowed**.
 
@@ -157,13 +168,35 @@ runs_data/floodnet_s{seed}[_{sel}]/train/{images,labels}/000_<id>.jpg|png …
 runs_data/floodnet_s{seed}/test/{images,labels}/<id>.jpg|png
 ```
 
-### 2.6 Data zip (`20260876_<NAME>_data.zip`, target < 300 MB)
-- Splits + hashes, `stats.csv`, `size_mismatch.csv`.
-- Preprocessed supports (all seeds, deduplicated) + FloodNet eval100 images and labels.
-- RescueNet 50 supports + eval100, with `LICENSES.md` quoting both licences and attribution.
-- `README_data.md` (counts, links, class mapping).
-- Final checkpoints (~20 MB each: FloodNet best, RescueNet best, FloodNet 20-shot s0).
-- Prediction caches `preds/*.npz` (uint8 probabilities) for every curve point.
+### 2.6 Data zip (`20260876_<NAME>_data.zip`, target < 300 MB): contents spec (revised 7 Oct, Batch 8)
+*[Superseded the 5 Oct list: no seeds s1–s2 were trained, and the caches are packed losslessly.]* Built in Batch 12.
+```
+data/
+├── README_data.md        counts, sources/links, class mapping (FloodNet 10 -> 5 slots, RescueNet 11 -> 5 slots),
+│                         how each file was made, how to restore the caches
+├── LICENSES.md           FloodNet CDLA-Permissive-1.0, RescueNet (figshare CC0; GitHub release CC BY-NC-ND 4.0), attribution
+├── splits/  supports/    the repo's split and support lists + SHA256SUMS (also in the code)
+├── images/               the 768x576 photos + labels (channel ids) of every photo a cache covers: FloodNet test
+│                         (448, incl. eval100) + val30 + the 50 supports; RescueNet eval100 + val30 + the 50 supports
+│                         (prep_data.py output, JPEG q95 / PNG)
+├── ckpt/                 the 7 fine-tuned checkpoints (FloodNet 1/5/10/20/50, RescueNet 20/50; ~5 MB each: adapted
+│                         parameters only, the meta-checkpoint is the course's generalist.ckpt)
+├── preds/*.ptar          prediction caches packed by `src/cache_pack.py` (lossless PNG; `unpack` restores the npz
+│                         bit for bit and checks SHA-256): eval100 + val30 of all 7 runs, FloodNet 50 full test,
+│                         FloodNet 50 -> RescueNet eval100 (zero-label transfer)
+├── decode/               the tuned decodes (rr/decode/*.json) and the logs/metrics JSONs of every run
+└── report/               results/ JSON + Markdown tables (no PNG duplicates of the write-up figures)
+```
+Not included (stated in README_data): step snapshots of the 50-shot runs, the full-test halves (merged), the
+test-time-flip caches (not adopted; reproducible with `kaggle/flips`), the 1024-px photos (viewer only; they are in
+the app zip's scenes). **Measured 7 Oct (Batch 8):** caches 497 MB as npz → **264 MB packed** (lossless WebP, all 16 verified bit-exact
+after unpacking); checkpoints 35 MB; labels (all covered photos) ~12 MB; photos of eval100 + val30 (FloodNet + RescueNet)
+~60 MB (the other FloodNet test photos would add ~70 MB; not needed: the scripts read labels and caches, only the viewer
+export and figures need photos, and those cover eval100); report JSON/MD ~10 MB. **Total ≈ 380 MB, above the 300 MB
+target.** Open for Marlen (Batch 12): the KLMS upload limit decides: (a) ship ≈ 380 MB if KLMS allows it; (b) under 300:
+leave the zero-label-transfer cache (31 MB) and the 1/5/10-shot val30 caches (21 MB) out and drop the RescueNet 50-shot
+caches (19 MB), stating that those numbers are reproducible from the checkpoints; (c) host the caches as a public
+Kaggle dataset and put only a link + the 50-shot caches in the zip.
 
 ---
 
@@ -465,6 +498,11 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 ## 10. Schedule (KST)
 
+*[Superseded: what actually happened is in §15. Remaining, from Wed 7 Oct (one batch per prompt, §15 "Improvement
+batches"): Batch 9 final notebook + G3 on a fresh T4 (Wed morning, needs OK), Batch 10 write-up (Wed), Batch 11 slides
++ recording storyboard (Wed evening; Marlen records), Batch 12 packaging + Pages release (Thu morning, publishing needs
+OK), submit by Thu 12:30, live Gradio link pushed ~15:15 for the 16:00 presentation (§15 0l).]*
+
 ### Mon 5 Oct
 - **18:30–19:30:**
   - Colab: pick the strongest GPU, mount Drive, clone the starter, copy the meta-checkpoint, run the starter demo cells.
@@ -539,6 +577,10 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 ├── 20260876_<NAME>_data.zip
 └── 20260876_<NAME>_app.zip         # app/, README.md (live URL + local run), recording.mp4
 ```
+*[7 Oct: the app zip = the built viewer `docs/` (open `index.html` through any static server, or the Pages URL), the
+Gradio app (`src/gradio_app.py` + caches it needs, or the share-link notebook), README with both URLs and the local
+commands, and Marlen's recording; the data zip per §2.6. Every reported number is reproducible with
+`src/rebuild_all.py` (CPU) from the data zip.]*
 - [ ] Only one .ipynb anywhere in the zip
 - [ ] Notebook ran top to bottom on a fresh **T4**
 - [ ] Every number in the slides and write-up appears in a notebook output
@@ -619,10 +661,10 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
 
-## 15. Status / handoff (updated Wed 7 Oct, 02:32 KST)
+## 15. Status / handoff (updated Wed 7 Oct, 03:16 KST)
 
 ### Quick summary (read this first; details below)
-**Deadline:** submit Thu 8 Oct 12:30 KST, present 16:00. **Done:** all GPU training/inference (7 runs), all Track A analysis, the Track B product (scenes, web viewer, Gradio on CPU), improvement Batches 1–7 + the RescueNet gate. **Not started:** final notebook §7 + G3 T4 run, write-up, slides, zips, recording, deploy (Batches 8–12 below).
+**Deadline:** submit Thu 8 Oct 12:30 KST, present 16:00. **Done:** all GPU training/inference (7 runs), all Track A analysis, the Track B product (scenes, web viewer, Gradio on CPU), improvement Batches 1–8 + the RescueNet gate. **Not started:** final notebook §7 + G3 T4 run, write-up, slides, zips, recording, deploy (Batches 9–12 below). **Rebuild everything on CPU:** `python src/rebuild_all.py` (15 min, ends with a headline check).
 
 **Track A (segmentation), headline = FloodNet 50-shot on the full 448-image test:** mIoU .420 [.386, .455] (τ 0.5) / **.472 [.437, .506]** (tuned decode), bootstrap 95 % CI. Per class (tuned): road clear .544, road flooded .291, bldg flooded .577, bldg dry .500, water .448. PSPNet (1,445 labels): 84.8 on the same 5 classes; we beat ENet on 4/5 classes and DeepLabV3+ on flooded buildings; flooded roads are the gap (29 vs 82). Curve (eval100, stratified, τ 0.5 / tuned): 1 → 5 → 10 → 20 → 50 shots = .176/.264, .320/.353, .329/.383, .357/.422, .457/.492; paired bootstrap: 1→5 and 20→50 real, 5→10 noise, 10→20 borderline. RescueNet: 20-shot eval100 .386/.421, 50-shot .406/.402; zero-label transfer of FloodNet 50 reaches about half of 20 RescueNet labels (super-class mean .32 vs .63). Near-duplicate train/test frames: 14/448 FloodNet (3/100 RescueNet), removing them changes mIoU ≤ .004. Failure analysis: shallow/muddy water read as dry land is the dangerous error; GT ambiguity at bridges.
 
@@ -630,10 +672,28 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Product:** web viewer `app/` → `docs/` (`src/build_viewer.py`; Leaflet 1.9.4 vendored in `app/vendor/leaflet/`, no CDN or storage: works offline and in private windows; **all 200 eval100 photos** (100 FloodNet + 100 RescueNet, 1,032 houses), the 8 showcase scenes first: FloodNet 9107/7320/7301/7423/7611/7241, RescueNet 15833/12195; `docs/` 55.7 MB): prediction / labelled map / swipe, status + tier badges, disagreements, user-chosen entry point, risk toggle, animated truck → boat → walk, ≈ minutes/metres, counter; since Batch 4: browse/sort all test photos, water-probability layer, dashed labelled-map route on disagreement, view in the URL (`#s=rescuenet_12195&h=8&m=gt`), 1024-px FloodNet photos, packed `scene.rrb` per scene; since Batch 5: keyboard house list, colour-blind palette toggle (`&cb=1`). Gradio `src/gradio_app.py` (any eval100 photo from the caches; photo-id box; upload warning; `--live` checked on a Kaggle T4 in Batch 7: live = cache bit for bit, ~15 s per photo, public share link + upload end to end 20.6 s; `--fake_live` = CPU test mode). Live hosting for the presentation: `kaggle/gradio_live/` (share link, prepared, not run; see 0l), demo upload photos in `demo/uploads/`. Best handover demo: RescueNet 12195, labelled map, house 8 (truck → boat → foot). Honest failure demo: FloodNet 7241 (all 6 wrongly truck-reachable houses are "check first").
 
-**Key files:** results `results/kaggle_v2/rr/` (preds incl. merged full-test cache, ckpt, decode), routing `results/routing/` (`routing.md`, `gate/`, `gate_rescuenet/`, `physical/ablation.md`, `tiers/`, `sensitivity/`, `full/`; older routers in `results/routing_v1`, `_v2`), report `results/kaggle_v2/report/` (`ci/ci.md`, `dupes/`, `failures/`, `figures/` incl. `calibration_pwet.png`), scenes `app/scenes/`, contact sheets `results/web/`. Data `~/rr_data`, env `~/.venvs/rr` (Gradio 6.29 inside), Node for the JS tests. Scripts added 6 Oct: `export_web_assets.py`, `build_viewer.py`, `gradio_app.py`, `publish_demo.sh`, `tiers.py`, `bootstrap_ci.py`, `dupes.py`, `sensitivity.py`; `route_eval.py --router '<json>' --point_vehicles`.
+**Key files:** results `results/kaggle_v2/rr/` (preds incl. merged full-test cache, ckpt, decode), routing `results/routing/` (`routing.md`, `gate/`, `gate_rescuenet/`, `physical/ablation.md`, `tiers/`, `sensitivity/`, `full/`; older routers in `results/routing_v1`, `_v2`), report `results/kaggle_v2/report/` (`ci/ci.md`, `dupes/`, `failures/`, `figures/` incl. `calibration_pwet.png`), scenes `app/scenes/`, contact sheets `results/web/`. Data `~/rr_data`, env `~/.venvs/rr` (Gradio 6.29 inside), Node for the JS tests. Scripts added 6 Oct: `export_web_assets.py`, `build_viewer.py`, `gradio_app.py`, `publish_demo.sh`, `tiers.py`, `bootstrap_ci.py`, `dupes.py`, `sensitivity.py`; `route_eval.py --router '<json>' --point_vehicles`. Added 7 Oct: `tta.py`, `rebuild_all.py`, `gate_sweep.py`, `physical_ablation.py`, `cache_pack.py`, `kaggle/build_rr_code.sh`, `kaggle/gradio_live/`.
 
-**Waiting for Marlen's explicit OK:** Kaggle GPU live check `kaggle/live` (+ optional test-time flips) (Batch 7), the final T4 notebook run (Batch 9), creating/publishing `MarlenMM/rescue-router-demo` (Batch 12), and the live Gradio run on presentation day (0l, ~3.2 GPU-h). **Next: Batch 8.** Test-time flips (Batch 7) were tried and **not adopted** (0m).
+**Waiting for Marlen's explicit OK:** the final T4 notebook run (Batch 9), creating/publishing `MarlenMM/rescue-router-demo` (Batch 12), and the live Gradio run on presentation day (0l, ~3.2 GPU-h). **Next: Batch 9.** Open question for Marlen before Batch 12: the data zip is ≈ 380 MB vs the 300 MB target (§2.6: KLMS limit decides). Test-time flips (Batch 7) were tried and **not adopted** (0m).
 
+
+### Improvement batches (agreed with Marlen 6 Oct ~20:00; one prompt each, in this order)
+1. ~~Router passability rules~~ (done, router v3): vehicle widths, parked-car gaps, canopy strips, corner rule.
+2. ~~Confidence tiers + readable outputs~~ (done, see 0g): p_wet calibration check; cautious gate chosen on val30; tiers per house (confident truck / probably truck / needs boat or foot; eval100 probe with v2: 288 houses 99 % correct, 235 at 70 %, 217 at 90 %); tier table + tests; tiers in viewer and Gradio; costs → rough minutes / metres (scale per dataset, §6.1 v3).
+3. ~~Honest evaluation package~~ (done, see 0h; follow-up: RescueNet gate tuned on its own val30, see 0i): full 448-test headline; bootstrap 95 % CIs per curve point + paired 20 vs 50; routing on the full test (FN50); near-duplicate train/test frames on FloodNet (7085↔7081, 8462↔8463, …) and RescueNet, results with/without; statement that stranded metrics do not depend on cost values + status sensitivity to gate, cell size, ring, boat threshold; building detection on predicted maps; caveats (val30 reused for checkpoint/decode/gate; 50-shot validated every 500 steps).
+4. ~~Viewer features~~ (done, see 0j): browse all 200 eval100 photos (8 showcase first; 55.7 MB with packing); dashed ghost of the other map's route on disagreement; water-probability layer; scene + house + entry + view in the URL; 1024-px FloodNet photos.
+5. ~~Viewer robustness~~ (done, see 0k): Leaflet vendored; binary grid packing (Batch 4); keyboard house list; colour-blind palette toggle; `clip` → `clip-path`; phone + private-window retest.
+6. ~~Gradio~~ (done, see 0l): upload warning (+ 4:3 crop instead of stretch); photo-id box + Enter; live hosting plan (Kaggle share-link notebook prepared, recording as backup, fallbacks); demo upload photos.
+7. ~~GPU before the deadline~~ (done, see 0m): rebuild `rr-code` (`kaggle/build_rr_code.sh`); live end-to-end check (kaggle/live, ~15 min) + a short `rr-gradio-live` run (share link + upload, Marlen records it); optional test-time flips for FN50 (~1–2 GPU-h eval100, ~4 full test).
+8. ~~Engineering~~ (done, see 0n): one-command CPU rebuild (`src/rebuild_all.py`, verified to reproduce every result file); tests for metrics/decode; own README; data zip contents spec (§2.6, ≈ 380 MB measured); PLAN cleanup.
+9. **Final notebook §7 + G3 on a fresh T4** (live recompute of a 10-image subset vs cache).
+10. **Write-up:** fix "hours, not weeks" (50 labels ≈ 50 labeller-hours, 3.5 % of 1,445); full-test + CIs lead, far below PSPNet (flooded roads 29 vs 82); labelled-map statuses = our router on human labels + router assumptions; limitations (US vs Korea, single frames, near-duplicates, caveats); one section per graded point; confidence tiers; figures.
+11. **Slides** (title + 6), GIF backup, storyboard/script for Marlen's recording.
+12. **Packaging + release (publishing needs OK):** data zip (with caches) + app zip, one .ipynb; `src/publish_demo.sh --create`; Pages incognito + phone hotspot test.
+13. **After the deadline (GPU):** multi-crop supports (now one 384 crop ≈ 33 % of a support image), 100-shot point, seeds, class-balanced supports, 1024-px model, uncertainty-driven choice of photos to label, georeferenced mosaics.
+Ruled out by CPU probes (6 Oct): averaging the 20- and 50-shot models (eval100 mIoU .492 → .408); smoothing the probabilities before decoding (.492 → .491): the errors are semantic (shallow water as land), not noisy edges.
+
+### Log (chronological; later entries supersede earlier ones)
 
 **Done**
 - §13 starter API recorded, including 3 starter bugs and their workarounds.
@@ -986,28 +1046,20 @@ Caveats: the paper trains on 10 classes at 713×713 and reports the full 448-ima
      - **Test-time flips (optional), FloodNet 50-shot:** `predict.py --flip h|v|hv` (flip the photo, flip the probabilities back; the 384/192 tile grid is symmetric at 768×576), 9 caches (val30 + full test, 3 flips; 17 s per photo per view), `src/tta.py` averages them with the unflipped caches into run `floodnet_50shot_s0_stratified_tta4`, `decode_tune.py` re-tunes its decode on val30, `tta.py report` compares (paired bootstrap, B 2000; `results/kaggle_v2/report/tta/tta.md`). Dry run first with copies of the unflipped caches as "flips": reproduces the headline exactly. Each flipped view alone scores like the plain model (eval100 .450–.458 vs .457), so the flips are registered correctly.
        - Results, own decodes: val30 tuned .484 → .498 (+.015 [−.006, +.032]); **full test tuned .472 → .455 (−.017 [−.027, −.007])**, eval100 tuned .492 → .481; at τ 0.5: full .420 → .431 (+.011 [+.003, +.019]). TTA's decode (τ .3/.3/.5/.4/.5 + building vote) lowered the road thresholds: full-test drivable precision .830 → .765. Routing (full test): stranded F1 .759 → .742 (own tuned), .748 → .766 (τ 0.5).
        - **Decision (rule fixed before looking at test): not adopted**; the headline stays the plain model. Post-hoc only (would be test-set selection): TTA probabilities with the plain model's decode give full .485 (+.013 [+.006, +.020]), eval100 .501, drivable precision .829. For the write-up: averaging views helps slightly at a fixed decode; tuning a decode on 30 images undid it; 4× inference cost.
+   0n. **Batch 8 done (7 Oct 03:16): engineering.**
+     - **One-command CPU rebuild** `src/rebuild_all.py` (`-j` parallel steps with dependencies, `--only`, `--list`, `--check`; logs in `results/rebuild_logs/`): 21 steps from the caches: results tables + curve, decode tuning + `report/decode.md`, baselines, transfer, labelled-map routing stats, eval100 routing (gated and gate-free), full-test routing, gate sweeps, physical-rule ablation, tiers, sensitivity, near-duplicates, bootstrap CIs, failures, figures, test-time-flip report (+ its routing), 200 viewer scenes, `docs/`, Python + JS tests; then a check of 14 headline numbers. **Full run 14.9 min, all headline numbers as published.** Verified harder: every JSON/MD result file and every scene file was snapshotted before and compared after (timing fields ignored): 907 / 916 identical; the rest explained and fixed: `results.md/json` was being corrupted by `collect_results.py` (it took the zero-label-transfer and full-test-half metrics as runs; fixed: only a run's own val30 summary and same-dataset eval100 count) and `dupes.json` lost its hand-recorded `manual` list (now written by the script); both identical after the fix. Remaining intended differences: the TTA report (now fully script-made: post-hoc, routing, decision), `gate.md` layout (one format for both datasets, same numbers), `gt_rescuenet_*` (recorded gate 0.3 → 0.2, unused for labelled maps; results identical).
+     - **New scripts for steps that had been one-off commands:** `src/gate_sweep.py` (both gate sweeps; P/R/F1 identical to the published tables), `src/physical_ablation.py` (identical table and parameters), `decode_tune.py --table` (`decode.md` byte-identical). Bug fixed in `route_eval.py`: `--point_vehicles` together with `--router` crashed when recording the parameters (the routing itself was right). `route_report.py` skips the TTA run.
+     - **Tests:** `src/tests/test_metrics.py` (12: scalar and per-channel τ, building vote, wet-context rule, ctx over vote, label mapping, confusion, `summarize` on a hand-computed case and a perfect one, bootstrap point/CI/seeding, TTA averaging) and `test_cache_pack.py`; **40 Python tests** + JS parity on 200 scenes.
+     - **README.md** (own, for readers: what, headline numbers, layout, setup, reproduce, run, licences) and `requirements.txt` (pinned CPU env). The course starter's README is kept locally as `README_starter.md` (untracked). `.gitignore` allowlist: + README.md, requirements.txt.
+     - **Data zip spec** (§2.6 rewritten) + **`src/cache_pack.py`**: lossless packing of the 16 needed caches as WebP inside a tar with a SHA-256 manifest; `unpack` restores bit-identical npz (all 16 verified): 497 → 264 MB. Measured total ≈ 380 MB > 300 MB target: options (a)–(c) in §2.6, Marlen to decide with the KLMS limit.
+     - **PLAN cleanup:** a "how to read" note at the top; *[Superseded]* notes on §0 (Colab → Kaggle), §2.6, §10 (with the remaining schedule) and §12; §15 reordered (Quick summary → improvement batches → chronological log); the stale "waiting for OK" items removed.
+   *Steps 1–5 below are the original product plan of 6 Oct ~16:00; 1–3 are done (0–0c, extended in Batches 1–6), 4 (deploy) is Batch 12, 5 (recording) is Marlen's.*
    1. **Showcase scenes + export (CPU, Mac).** Pick 8 eval100 scenes: 6 FloodNet from the 50-shot model, 2 RescueNet. Cover truck-only, truck + boat, isolated, and one honest failure (a missed water barrier). Use the per-run tuned decode (`results/kaggle_v2/rr/decode/<run>.json`, key `chosen`). For RescueNet, use 20-shot (eval100 tuned .421) rather than 50 (.402), unless the scenes look better with 50; state which. Write `export_web_assets` (in `src/`) to produce, per scene: photo, pred/GT RGBA overlays, cell-grid JSON (classes + wet probability), buildings JSON (id, polygon, centroid, status pred/GT), meta. Local images are 768×576 (`~/rr_data`); §6.4's 2048-px photo would need the original FloodNet/RescueNet files, so use 768 (or 1024 from the r1024 subset tar on Drive) unless the originals are fetched for the 8 scenes only.
    2. **Web viewer** (`app/` source → built into `docs/`): plain HTML/JS + Leaflet 1.9 (`L.CRS.Simple`), no build step. Layer toggles + opacity, prediction/GT swap, swipe slider, building status layer, click a house → **JS port of `src/router.py`** (same costs: λ = 5, boat ×3, launch 40, off-road ×4 **gated at p_wet < .3 on predicted maps** (none on GT maps), no switch back; must reproduce the Python statuses and costs exactly on the exported grids; test that). Overlay colours from `src/viz.py` → animated truck then boat, "Unreachable by road: N / M" counter, "disagreements with GT" toggle, scene picker, legend, attribution (FloodNet CDLA-Permissive; RescueNet licence note). Check it on phone width and in incognito.
    3. **Gradio app** (§6.3): showcase scenes from the caches (CPU), upload → live inference (GPU; test on Kaggle later, or leave it as a notebook cell). Risk-aware toggle, boat-speed slider, click → route + summary.
    4. **Deploy:** a separate **public** repo `MarlenMM/rescue-router-demo` holding only the built `docs/` viewer (decision 6 Oct 15:40: keep `rescue-router` private until grading, then fold everything into it: clean PLAN/history, make it public, Pages from `docs/`, retire the demo repo with a redirect). `gh` CLI is logged in as MarlenMM. **Creating the repo and publishing need Marlen's explicit OK at that moment.** Script the export (private `docs/` → demo repo) as one command.
    5. Screen recording (60–90 s) later, by Marlen.
 6. ~~Failure analysis, PSPNet table, cross-disaster transfer, full-448 test, figures~~ (done 17:45; see "Track A completion"). After the product: write-up, slides, final notebook (§7), G3 T4 check.
-
-### Improvement batches (agreed with Marlen 6 Oct ~20:00; one prompt each, in this order)
-1. ~~Router passability rules~~ (done, router v3): vehicle widths, parked-car gaps, canopy strips, corner rule.
-2. ~~Confidence tiers + readable outputs~~ (done, see 0g): p_wet calibration check; cautious gate chosen on val30; tiers per house (confident truck / probably truck / needs boat or foot; eval100 probe with v2: 288 houses 99 % correct, 235 at 70 %, 217 at 90 %); tier table + tests; tiers in viewer and Gradio; costs → rough minutes / metres (scale per dataset, §6.1 v3).
-3. ~~Honest evaluation package~~ (done, see 0h; follow-up: RescueNet gate tuned on its own val30, see 0i): full 448-test headline; bootstrap 95 % CIs per curve point + paired 20 vs 50; routing on the full test (FN50); near-duplicate train/test frames on FloodNet (7085↔7081, 8462↔8463, …) and RescueNet, results with/without; statement that stranded metrics do not depend on cost values + status sensitivity to gate, cell size, ring, boat threshold; building detection on predicted maps; caveats (val30 reused for checkpoint/decode/gate; 50-shot validated every 500 steps).
-4. ~~Viewer features~~ (done, see 0j): browse all 200 eval100 photos (8 showcase first; 55.7 MB with packing); dashed ghost of the other map's route on disagreement; water-probability layer; scene + house + entry + view in the URL; 1024-px FloodNet photos.
-5. ~~Viewer robustness~~ (done, see 0k): Leaflet vendored; binary grid packing (Batch 4); keyboard house list; colour-blind palette toggle; `clip` → `clip-path`; phone + private-window retest.
-6. ~~Gradio~~ (done, see 0l): upload warning (+ 4:3 crop instead of stretch); photo-id box + Enter; live hosting plan (Kaggle share-link notebook prepared, recording as backup, fallbacks); demo upload photos.
-7. ~~GPU before the deadline~~ (done, see 0m): rebuild `rr-code` (`kaggle/build_rr_code.sh`); live end-to-end check (kaggle/live, ~15 min) + a short `rr-gradio-live` run (share link + upload, Marlen records it); optional test-time flips for FN50 (~1–2 GPU-h eval100, ~4 full test).
-8. **Engineering:** one-command CPU rebuild; tests for metrics/decode; own README; data zip contents spec; PLAN cleanup.
-9. **Final notebook §7 + G3 on a fresh T4** (live recompute of a 10-image subset vs cache).
-10. **Write-up:** fix "hours, not weeks" (50 labels ≈ 50 labeller-hours, 3.5 % of 1,445); full-test + CIs lead, far below PSPNet (flooded roads 29 vs 82); labelled-map statuses = our router on human labels + router assumptions; limitations (US vs Korea, single frames, near-duplicates, caveats); one section per graded point; confidence tiers; figures.
-11. **Slides** (title + 6), GIF backup, storyboard/script for Marlen's recording.
-12. **Packaging + release (publishing needs OK):** data zip (with caches) + app zip, one .ipynb; `src/publish_demo.sh --create`; Pages incognito + phone hotspot test.
-13. **After the deadline (GPU):** multi-crop supports (now one 384 crop ≈ 33 % of a support image), 100-shot point, seeds, class-balanced supports, 1024-px model, uncertainty-driven choice of photos to label, georeferenced mosaics.
-Ruled out by CPU probes (6 Oct): averaging the 20- and 50-shot models (eval100 mIoU .492 → .408); smoothing the probabilities before decoding (.492 → .491): the errors are semantic (shallow water as land), not noisy edges.
 
 ## 14. Sources
 - FloodNet: https://github.com/BinaLab/FloodNet-Supervised_v1.0 · paper https://arxiv.org/abs/2012.02951

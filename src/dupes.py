@@ -115,6 +115,7 @@ def main():
         print(ds, {k: len(v) for k, v in res.items()}, 'of', len(test), flush=True)
         for c in sorted(hit, key=lambda c: -c['inliers'])[:12]:
             print('   ', c)
+    out['manual'] = [dict(dataset=d, test=t, support=s, overlap=v) for (d, t, s), v in MANUAL.items()]
     json.dump(out, open(os.path.join(a.out, 'dupes.json'), 'w'), indent=1)
 
 

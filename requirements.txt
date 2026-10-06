@@ -1,0 +1,11 @@
+# CPU environment for everything in src/ except the GPU scripts (finetune, predict, select_ckpt, probe), the
+# Gradio --live path and kaggle/ (those run on Kaggle/Colab with the starter's PyTorch stack, PLAN §13/§15).
+# Tested with Python 3.12 on macOS; Node.js >= 20 for the JS router parity test (node --test).
+numpy==2.5.3
+scipy==1.18.1
+scikit-image==0.26.0
+matplotlib==3.11.2
+pillow==12.3.0
+pytest==9.1.1
+gradio==6.29.1
+gradio_client==2.7.2

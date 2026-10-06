@@ -13,6 +13,8 @@ For every run with a val30 cache (preds/<run>_<ds>_val_tune30.npz) it tunes, on 
        (the model's own p_dry carries no flooded/dry signal at >= 5 shots: per-building AUC ~0.5).
 Then it applies default (tau 0.5), tau-only, tau + vote and tau + wet context unchanged to eval100
 (preds/<run>_<ds>_test_eval100_fp16.npz) and writes decode/<run>.json (params + all metrics).
+--table <md>: (re)write the summary table of all runs from decode/*.json (default and chosen decode, val30 and
+eval100; test-time-flip runs '_tta' excluded, they have their own report) and stop; --runs none skips the tuning.
 """
 
 import argparse
@@ -81,12 +83,40 @@ def tune(probs, gts, ds):
                 val_miou_tau_bldg=best_b, val_miou_tau_ctx=best_c)
 
 
+LABEL = {'default': 'τ=0.5', 'tau': 'tuned τ', 'tau_bldg': 'tuned τ + vote', 'tau_ctx': 'tuned τ + wet ctx'}
+
+
+def write_table(results, path):
+    """results/kaggle_v2/report/decode.md: per run, split and decode (default, chosen) the per-channel IoU and summary"""
+    runs = sorted((json.load(open(f)) for f in glob.glob(os.path.join(results, 'decode', '*.json'))
+                   if '_tta' not in os.path.basename(f)), key=lambda d: (d['dataset'], int(d['run'].split('_')[1][:-4])))
+    lines = ['| run | split | decode | ch0 | ch1 | ch2 | ch3 | ch4 | mIoU | drv P | drv R | wet IoU |', '|' + '---|' * 12]
+    for d in runs:
+        names = NAMES[d['dataset']]
+        for split in ('val30', 'eval100'):
+            for v in ('default', d['chosen']['variant']):
+                r = d[split][v]
+                lines.append(f"| {d['run'].replace('_s0_stratified', '')} | {split} | {LABEL[v]} | "
+                             + ' | '.join(f"{r[f'iou_{n}']:.3f}" for n in names)
+                             + f" | **{r['miou']:.3f}** | {r['drivable_precision']:.3f} | {r['drivable_recall']:.3f} | {r['wet_iou']:.3f} |")
+    lines.append('')
+    for d in runs:
+        p = d['params']
+        lines.append(f"- {d['run']}: τ = {p['tau']}, vote = {p['bldg_t']}, wet ctx (d px, f) = "
+                     f"{list(p['ctx']) if p['ctx'] else None}, chosen = {p['chosen']}")
+    open(path, 'w').write('\n'.join(lines) + '\n')
+    print('wrote', path)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--results', default='results/kaggle_v2/rr')
     ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
     ap.add_argument('--runs', default=None)
+    ap.add_argument('--table', default=None, help='write the summary table (markdown) of all decode/*.json and stop')
     a = ap.parse_args()
+    if a.table:
+        return write_table(a.results, a.table)
     out_dir = os.path.join(a.results, 'decode')
     os.makedirs(out_dir, exist_ok=True)
     vals = sorted(glob.glob(os.path.join(a.results, 'preds', '*_val_tune30.npz')))
