@@ -1,7 +1,11 @@
 """Rescue Router GPU queue on Kaggle (2x T4): setup, then one run_queue.py per GPU (PLAN §15).
 Inputs: dataset marlenmelis/rr-code (src + splits + supports), notebook output marlenmelis/rr-fetch-data
-(data tars, meta-checkpoint, rescuenet_val_tune30.txt). Outputs: /kaggle/working/rr/{ckpt,metrics,logs,preds}."""
+(data tars, meta-checkpoint, rescuenet_val_tune30.txt). Outputs: /kaggle/working/rr/{ckpt,metrics,logs,preds}.
+QUEUE picks the job lists: 'core' = the first queue (notebook rr-gpu-queue, 6 Oct 02:40 KST);
+'rerun50' = the two 50-shot runs again with deferred validation (notebook rr-gpu-queue50), because
+in-process 50-shot val30 hit CUDA OOM at step 500 in the core queue."""
 import glob, json, os, shutil, subprocess, sys, tarfile, time
+QUEUE = 'rerun50'
 
 T0 = time.time()
 def sh(cmd):
@@ -52,19 +56,24 @@ sh('ls /content/rr_data /content/rr_data/*; python -c "import torch; print(torch
 print(f'setup done in {(time.time() - T0) / 60:.1f} min', flush=True)
 
 # queues (recipe: fp16 + grad ckpt, cosine lr, best-val checkpoint; PLAN §15)
-def ft(ds, shot, steps, val_every, chunk):
+def ft(ds, shot, steps, val_every, chunk, defer=False):
     return ['finetune', ['--dataset', ds, '--shot', shot, '--seed', 0, '--n_steps', steps, '--amp', 'fp16', '--grad_ckpt',
-                         '--val_every', val_every, '--chunk', chunk, '--channel_chunk', 1]]
+                         '--val_every', val_every, '--chunk', chunk, '--channel_chunk', 1] + (['--defer_val'] if defer else [])]
+def sel(ds, shot):
+    return ['select_ckpt', ['--dataset', ds, '--shot', shot]]
 def pr(ds, shot, chunk):
     return ['predict', ['--ckpt', f'{OUT}/ckpt/{ds}_{shot}shot_s0_stratified.ckpt', '--dataset', ds,
                         '--split_file', f'{ds}_test_eval100', '--split', 'test', '--amp', 'fp16', '--chunk', chunk, '--channel_chunk', 1]]
-Q = {0: [ft('floodnet', 1, 1000, 250, 6), pr('floodnet', 1, 6),
+Q_CORE = {0: [ft('floodnet', 1, 1000, 250, 6), pr('floodnet', 1, 6),
          ft('floodnet', 50, 2000, 500, 1), pr('floodnet', 50, 1),
          ft('floodnet', 20, 2000, 250, 6), pr('floodnet', 20, 6),
          ft('floodnet', 10, 1000, 250, 6), pr('floodnet', 10, 6)],
      1: [ft('rescuenet', 20, 2000, 250, 6), pr('rescuenet', 20, 6),
          ft('floodnet', 5, 1000, 250, 6), pr('floodnet', 5, 6),
          ft('rescuenet', 50, 2000, 500, 1), pr('rescuenet', 50, 1)]}
+Q_RERUN50 = {0: [ft('floodnet', 50, 2000, 500, 1, defer=True), sel('floodnet', 50), pr('floodnet', 50, 1)],
+             1: [ft('rescuenet', 50, 2000, 500, 1, defer=True), sel('rescuenet', 50), pr('rescuenet', 50, 1)]}
+Q = {'core': Q_CORE, 'rerun50': Q_RERUN50}[QUEUE]
 procs = {}
 for g, jobs in Q.items():
     json.dump(jobs, open(f'{OUT}/logs/queue_gpu{g}.json', 'w'), indent=1)
@@ -80,7 +89,7 @@ while any(p.poll() is None for p in procs.values()):
     print(f'===== {(time.time() - T0) / 3600:.2f} h', flush=True)
     for g in procs:
         lines = [l for l in open(f'{OUT}/logs/queue_gpu{g}.out').read().splitlines()
-                 if any(k in l for k in ('START', 'OK', 'FAILED', 'VAL', 'best', 'step', 'Error', 'DONE'))]
+                 if any(k in l for k in ('START', 'OK', 'FAILED', 'VAL', 'best', 'step', 'Error', 'DONE', 'snapshot'))]
         print(f'--- gpu{g}:\n' + '\n'.join(lines[-4:]), flush=True)
     sh('nvidia-smi --query-gpu=index,memory.used,utilization.gpu --format=csv,noheader')
 for g in procs:

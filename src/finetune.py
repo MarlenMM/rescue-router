@@ -8,6 +8,11 @@ logs/<run_id>.json (config, GPU, timings, loss every 50 steps, val history), pre
 (uint8 val probabilities + confusion of the best step).
 A run whose .ckpt and metrics .json both exist is skipped. Interrupted runs resume from _last.pt.
 
+--defer_val (50 shots on a T4): no in-process validation, because 50-shot inference (12 GB) does not
+fit next to the training state (both 50-shot runs of the first Kaggle queue hit OOM at step 500). At
+every val step it saves a snapshot ckpt/<run_id>_step<N>.ckpt instead; select_ckpt.py then
+evaluates the snapshots on val30 in fresh processes and keeps the best (same rule as in-process).
+
 --amp fp16: forward + loss under fp16 autocast with a GradScaler (trainable params stay fp32; the
 scaler state is part of _last.pt), and the val inference runs in fp16 too (rr.infer).
 """
@@ -53,6 +58,7 @@ def parse():
     ap.add_argument('--val_split', default=None, help='split file for validation (default: <dataset>_val_tune30)')
     ap.add_argument('--chunk', type=int, default=6, help='query tiles per forward at eval')
     ap.add_argument('--channel_chunk', type=int, default=5)
+    ap.add_argument('--defer_val', action='store_true', help='save snapshots at val steps; select_ckpt.py validates')
     ap.add_argument('--stop_after', type=int, default=0, help='exit after this many steps (timing test)')
     ap.add_argument('--data', default='/content/rr_data')
     ap.add_argument('--runs', default='/content/runs_data')
@@ -116,6 +122,10 @@ def main():
     f_log = os.path.join(a.drive, 'logs', f'{run_id}.json')
     if os.path.exists(f_ckpt) and os.path.exists(f_metrics) and not a.stop_after:
         print(f'[{run_id}] done already, skipping')
+        return
+    f_snap = lambda step: os.path.join(a.drive, 'ckpt', f'{run_id}_step{step}.ckpt')
+    if a.defer_val and os.path.exists(f_snap(a.n_steps)) and not os.path.exists(f_last):
+        print(f'[{run_id}] training done already (snapshots exist), skipping')
         return
 
     data_root = os.path.join(a.data, f'{a.dataset}_{a.res}')
@@ -214,7 +224,13 @@ def main():
             write_log()
             return
         last = done == a.n_steps
-        if val_ids and (done % a.val_every == 0 or last):
+        if a.defer_val and (done % a.val_every == 0 or last):
+            su.save_finetuned(model, f_snap(done))
+            log.setdefault('snapshots', []).append(done)
+            print(f'[{run_id}] snapshot at step {done}', flush=True)
+            write_log()
+            t_win = time.time()
+        elif val_ids and (done % a.val_every == 0 or last):
             res, cm, probs = evaluate(model, data_root, val_split, val_ids, NAMES[a.dataset], WET[a.dataset],
                                       amp=a.amp)
             res['step'] = done
@@ -237,8 +253,9 @@ def main():
     if not val_ids:
         su.save_finetuned(model, f_ckpt)
     best = log.get('best', {})
-    json.dump(dict(run_id=run_id, split=val_file, tau=0.5, best_step=best.get('step'), **best,
-                   final=log['val'][-1] if log['val'] else {}), open(f_metrics, 'w'), indent=1)
+    if not a.defer_val:                        # deferred runs get their metrics from select_ckpt.py
+        json.dump(dict(run_id=run_id, split=val_file, tau=0.5, best_step=best.get('step'), **best,
+                       final=log['val'][-1] if log['val'] else {}), open(f_metrics, 'w'), indent=1)
     log['finished'] = time.strftime('%Y-%m-%d %H:%M:%S')
     write_log()
     if os.path.exists(f_last):
