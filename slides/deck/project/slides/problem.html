@@ -1,0 +1,30 @@
+<section id="problem" data-transition="fade" style="background:#F6F4EF;color:#1F2A3A;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<h2 style="font-family:'Rubik', Arial, sans-serif;font-size:64px;font-weight:600;line-height:1.1">Which houses can a truck still reach?</h2>
+<div style="display:flex;flex-direction:row;gap:72px;flex:1">
+<div style="flex:1;display:flex;flex-direction:column;gap:28px">
+<p style="font-size:32px;line-height:1.4;color:#4A5568"><b style="color:#1F2A3A">Seoul, Aug 2022:</b> 141.5 mm of rain in one hour, the most since 1907. Streets in Gangnam became rivers.</p>
+<p style="font-size:32px;line-height:1.4;color:#4A5568"><b style="color:#1F2A3A">Osong, Jul 2023:</b> an underpass flooded in minutes; 17 vehicles trapped, 14 people died.</p>
+<p style="font-size:32px;line-height:1.4;color:#4A5568">Drone photos arrive within the hour. Turning them into a map is the slow part: <b style="color:#1F2A3A">about one hour of labelling per photo</b>, and a standard model wants 1,445 labelled photos.</p>
+<p style="font-size:32px;line-height:1.4;color:#1F6FB2;font-weight:600">My question: how far do 50 labelled photos get us, and can the map route rescue teams?</p>
+</div>
+<div style="width:700px;display:flex;flex-direction:column;gap:24px">
+<div style="background:#FFFFFF;border:1px solid #E3E1DA;border-radius:16px;padding:22px 32px;display:flex;flex-direction:column;gap:6px">
+<p style="font-family:'Rubik', Arial, sans-serif;font-size:72px;font-weight:600;color:#1F6FB2;line-height:1">.472 mIoU</p>
+<p style="font-size:28px;color:#4A5568">flood map on all 448 FloodNet test photos, from 50 labelled photos (PSPNet with 1,445: .848)</p>
+</div>
+<div style="background:#FFFFFF;border:1px solid #E3E1DA;border-radius:16px;padding:22px 32px;display:flex;flex-direction:column;gap:6px">
+<p style="font-family:'Rubik', Arial, sans-serif;font-size:72px;font-weight:600;color:#1F6FB2;line-height:1">.759 F1</p>
+<p style="font-size:28px;color:#4A5568">finding the houses cut off by road</p>
+</div>
+<div style="background:#FFFFFF;border:1px solid #E3E1DA;border-radius:16px;padding:22px 32px;display:flex;flex-direction:column;gap:6px">
+<p style="font-family:'Rubik', Arial, sans-serif;font-size:72px;font-weight:600;color:#B85A12;line-height:1">98.7 %</p>
+<p style="font-size:28px;color:#4A5568">of houses marked “confident: truck” were truly reachable by truck</p>
+</div>
+</div>
+</div>
+<div style="position:absolute;left:128px;right:128px;bottom:64px;display:flex;flex-direction:row;justify-content:space-between">
+<p style="font-size:24px;color:#6A7179">Rescue Router · Marlen Melis · 20260876</p>
+<p style="font-size:24px;color:#6A7179">1 / 6</p>
+</div>
+<aside>In August 2022 Seoul had 141.5 millimetres of rain in one hour, the most since 1907, and Gangnam's streets became rivers. In July 2023 the Osong underpass flooded in minutes and 14 people died. In the first hours, rescue coordinators need one answer per street and per house: can a truck get there, does it need a boat, or is it cut off? Drones deliver photos fast, but labelling one photo takes about an hour, and a normal segmentation model needs over a thousand labelled photos. So my question was: how far do 50 labelled photos get us, and is that map good enough to route rescue teams? The short answer is on the right: .472 mIoU on the whole FloodNet test set, a router that finds cut-off houses with F1 .759, and when the system says "confident: truck", it is right 98.7 percent of the time. Fully supervised PSPNet gets .848, so this is a fast first map, not a replacement.</aside>
+</section>

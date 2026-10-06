@@ -1,0 +1,31 @@
+<section id="formulation" data-transition="fade" style="background:#F6F4EF;color:#1F2A3A;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-family:'Rubik', Arial, sans-serif;font-size:64px;font-weight:600;line-height:1.1">One photo in, five dense channels out</h2>
+<div style="display:flex;flex-direction:row;gap:48px;align-items:start">
+<div style="display:flex;flex-direction:column;gap:12px">
+<img src="/_blob/428d6dbb0eab86d6cf5147d364a69326" alt="Drone photo, FloodNet test photo 7301: a flooded residential street" style="width:440px;height:330px;object-fit:cover;border-radius:12px">
+<p style="font-size:24px;color:#6A7179">drone photo (768×576)</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px">
+<img src="/_blob/df1bf5f9e4773b48b4b57f0d81354a7c" alt="The same photo with its five-class label overlaid: blue flooded road, red flooded buildings, amber dry buildings, navy water" style="width:440px;height:330px;object-fit:cover;border-radius:12px">
+<p style="font-size:24px;color:#6A7179">label: 5 channels, the rest is “other”</p>
+</div>
+<table style="font-size:26px;width:660px;color:#1F2A3A">
+<tr><th style="width:10%">ch</th><th style="width:48%">class</th><th style="width:42%">for the router</th></tr>
+<tr><td>0</td><td>road clear</td><td>truck</td></tr>
+<tr><td>1</td><td>road flooded</td><td>boat only</td></tr>
+<tr><td>2</td><td>building flooded</td><td>target</td></tr>
+<tr><td>3</td><td>building dry</td><td>target</td></tr>
+<tr><td>4</td><td>water</td><td>boat</td></tr>
+</table>
+</div>
+<div style="display:flex;flex-direction:row;gap:48px">
+<p style="flex:1;font-size:28px;line-height:1.4;color:#4A5568"><b style="color:#1F2A3A">Output:</b> one sigmoid map per channel, decoded with a threshold per channel tuned on 30 validation photos. 384-px tiles, 6 per photo, blended.</p>
+<p style="flex:1;font-size:28px;line-height:1.4;color:#4A5568"><b style="color:#1F2A3A">Then a router</b> on 4×4-px cells: truck on clear road, boat on water, the last stretch on foot. Its labels: cut off by road or not.</p>
+<p style="flex:1;font-size:28px;line-height:1.4;color:#4A5568"><b style="color:#1F2A3A">Rejected:</b> all 10 classes (wastes 50 shots), one “passable” channel (no boat leg), a cost map (no labels), trees as obstacles.</p>
+</div>
+<div style="position:absolute;left:128px;right:128px;bottom:64px;display:flex;flex-direction:row;justify-content:space-between">
+<p style="font-size:24px;color:#6A7179">Rescue Router · Marlen Melis · 20260876</p>
+<p style="font-size:24px;color:#6A7179">2 / 6</p>
+</div>
+<aside>How I encoded it. Every pixel of a 768 by 576 drone photo gets a five-channel label: clear road, flooded road, flooded building, dry building and water. Everything else — trees, grass, cars — is "other". Chameleon predicts one probability map per channel, and I decode it with a per-channel threshold tuned on 30 validation photos. Inference cuts the photo into six overlapping 384-pixel tiles. I chose the channels for the consumer: a router that works on 4-by-4 pixel cells, sends a truck on clear roads, a boat on water, and walks the last stretch. Things I rejected: all ten FloodNet classes, which spends the few labels on trees; a single "passable" channel, which can't plan a boat; and a cost map, for which no labels exist.</aside>
+</section>

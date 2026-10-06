@@ -1,0 +1,27 @@
+<section id="data" data-transition="fade" style="background:#F6F4EF;color:#1F2A3A;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<h2 style="font-family:'Rubik', Arial, sans-serif;font-size:64px;font-weight:600;line-height:1.1">Data, weights and training</h2>
+<div style="display:flex;flex-direction:row;gap:32px;flex:1">
+<div style="flex:1;background:#FFFFFF;border:1px solid #E3E1DA;border-radius:16px;padding:32px;display:flex;flex-direction:column;gap:20px">
+<h3 style="font-family:'Rubik', Arial, sans-serif;font-size:44px;font-weight:600;color:#1F6FB2">Data</h3>
+<p style="font-size:28px;line-height:1.4;color:#4A5568"><b style="color:#1F2A3A">FloodNet</b> (Hurricane Harvey, 2017): 1, 5, 10, 20 or 50 labelled photos to adapt; 30 to tune; 448 to test.</p>
+<p style="font-size:28px;line-height:1.4;color:#4A5568"><b style="color:#1F2A3A">RescueNet</b> (Hurricane Michael, 2018): a second disaster, 20 or 50 photos.</p>
+<p style="font-size:28px;line-height:1.4;color:#4A5568">I labelled nothing: all labels are the datasets’.</p>
+</div>
+<div style="flex:1;background:#FFFFFF;border:1px solid #E3E1DA;border-radius:16px;padding:32px;display:flex;flex-direction:column;gap:20px">
+<h3 style="font-family:'Rubik', Arial, sans-serif;font-size:44px;font-weight:600;color:#1F6FB2">Weights</h3>
+<p style="font-size:28px;line-height:1.4;color:#4A5568">The course’s <b style="color:#1F2A3A">Chameleon</b> meta-trained checkpoint (Kim et al., ECCV 2024), with its BEiT-v2-Large image encoder.</p>
+<p style="font-size:28px;line-height:1.4;color:#4A5568">Fine-tuned: biases, matching temperature, one LayerNorm: 5 MB per model. No other pretrained model.</p>
+</div>
+<div style="flex:1;background:#FFFFFF;border:1px solid #E3E1DA;border-radius:16px;padding:32px;display:flex;flex-direction:column;gap:20px">
+<h3 style="font-family:'Rubik', Arial, sans-serif;font-size:44px;font-weight:600;color:#1F6FB2">Training</h3>
+<p style="font-size:28px;line-height:1.4;color:#4A5568">384-px crops, batch 2, Adam, lr 10⁻³ with cosine decay, fp16; 1,000–2,000 steps; best step on the 30 tuning photos.</p>
+<p style="font-size:28px;line-height:1.4;color:#4A5568">7 runs on free Kaggle T4 GPUs, about 17 GPU-hours.</p>
+</div>
+</div>
+<p style="font-size:32px;line-height:1.4;color:#1F2A3A">The notebook reruns everything on a fresh T4 in 26 minutes, and its live 50-shot predictions match the stored ones <b>bit for bit</b>.</p>
+<div style="position:absolute;left:128px;right:128px;bottom:64px;display:flex;flex-direction:row;justify-content:space-between">
+<p style="font-size:24px;color:#6A7179">Rescue Router · Marlen Melis · 20260876</p>
+<p style="font-size:24px;color:#6A7179">3 / 6</p>
+</div>
+<aside>Data: FloodNet, from Hurricane Harvey, for the main experiments — I adapt on 1, 5, 10, 20 or 50 labelled photos, tune on 30, and test on all 448 test photos. RescueNet, from Hurricane Michael, is the second disaster. I did not label anything myself; every label is the dataset's own. The only pretrained weights are the course's Chameleon checkpoint; fine-tuning only touches the biases, the matching temperature and one LayerNorm, so each model is five megabytes. Same recipe for every run, sized to fit a free 16-gigabyte T4: 384-pixel crops, batch 2, Adam with a cosine schedule, half precision. Seven runs, about 17 GPU-hours on Kaggle. And the final notebook reruns on a fresh T4 in 26 minutes, with live predictions identical to the stored ones.</aside>
+</section>

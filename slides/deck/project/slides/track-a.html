@@ -1,0 +1,17 @@
+<section id="track-a" data-transition="fade" style="background:#F6F4EF;color:#1F2A3A;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<h2 style="font-family:'Rubik', Arial, sans-serif;font-size:64px;font-weight:600;line-height:1.1">Track A: 50 labels get about halfway</h2>
+<div style="display:flex;flex-direction:row;gap:56px;align-items:start">
+<img src="/_blob/fe2a2d49b5e7dbf30fb6f47119f9197b" alt="Learning curve: mIoU on 100 test photos rises from 0.26 with 1 labelled photo to 0.49 with 50 (tuned decode), with 95 percent intervals; full test 0.472; PSPNet with 1,445 labels at 0.848" style="width:960px;height:634px;object-fit:contain">
+<div style="flex:1;display:flex;flex-direction:column;gap:28px">
+<p style="font-size:30px;line-height:1.35;color:#4A5568"><b style="color:#1F2A3A">1 → 5 photos: +.14</b>, a real gain (95 % interval above 0).</p>
+<p style="font-size:30px;line-height:1.35;color:#4A5568"><b style="color:#1F2A3A">5 → 10: no measurable gain;</b> 20 → 50: +.10 again.</p>
+<p style="font-size:30px;line-height:1.35;color:#4A5568"><b style="color:#B85A12">Flooded roads are the gap:</b> IoU .29 vs .82 for PSPNet. Water and dry roads look alike from above.</p>
+<p style="font-size:30px;line-height:1.35;color:#4A5568"><b style="color:#1F2A3A">A new hurricane needs its own labels:</b> the FloodNet model on RescueNet with 0 labels reaches .32; with 20 RescueNet labels, .63.</p>
+</div>
+</div>
+<div style="position:absolute;left:128px;right:128px;bottom:64px;display:flex;flex-direction:row;justify-content:space-between">
+<p style="font-size:24px;color:#6A7179">Rescue Router · Marlen Melis · 20260876</p>
+<p style="font-size:24px;color:#6A7179">4 / 6</p>
+</div>
+<aside>Track A results. The curve shows mIoU against the number of labelled photos, with 95 percent bootstrap intervals. From one to five photos the gain is real, plus .14. Between five and ten I could not measure any gain, and from 20 to 50 it jumps again by .10. On the full test set the 50-shot model reaches .472. The dashed line is PSPNet, trained on all 1,445 labelled photos: .848. Most of the gap is flooded roads: .29 against .82 — shallow brown water and a dry road look very similar from above. And transfer: the FloodNet model applied to a different hurricane with zero new labels gets .32 on roads, buildings and water; with just 20 labels from the new disaster it gets .63. So every new disaster needs a few of its own labels — which is exactly the few-shot setting.</aside>
+</section>
