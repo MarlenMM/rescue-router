@@ -78,7 +78,7 @@ def sh(cmd, cwd=None, tail=40, check=True, env=None):
 
 IN_COLAB = 'google.colab' in sys.modules
 ON_KAGGLE = os.path.isdir('/kaggle/input')
-BASE = '/kaggle/working' if ON_KAGGLE else '/content' if IN_COLAB else os.path.abspath('nb_work')
+BASE = '/tmp/rr_nb' if ON_KAGGLE else '/content' if IN_COLAB else os.path.abspath('nb_work')   # Kaggle: keep outputs small
 RR = os.path.join(BASE, 'rr')                      # the unpacked data bundle = the repository layout
 os.makedirs(BASE, exist_ok=True)
 print('environment:', 'Kaggle' if ON_KAGGLE else 'Colab' if IN_COLAB else 'local', '| python', platform.python_version())
@@ -90,24 +90,31 @@ tic('setup')
 if IN_COLAB:
     from google.colab import drive
     drive.mount('/content/drive')
-def find(pattern, roots):
-    for r in roots:
-        hits = sorted(glob.glob(os.path.join(r, '**', pattern), recursive=True))
+def find(*patterns):
+    """first existing file among glob patterns (no walk over a whole Drive: that can take minutes on Colab)"""
+    for p in patterns:
+        hits = sorted(glob.glob(p, recursive=True))
         if hits:
             return hits[0]
-SEARCH = ['/kaggle/input', '/content/drive/MyDrive', '/content', os.path.expanduser('~')]
-META_CKPT = os.environ.get('RR_META_CKPT') or find('generalist.ckpt', SEARCH)
+MYDRIVE = '/content/drive/MyDrive'
+META_CKPT = os.environ.get('RR_META_CKPT') or find(
+    '/kaggle/input/**/generalist.ckpt',                                               # Kaggle: notebook input
+    f'{MYDRIVE}/AIC200-StructuredPrediction/checkpoints/**/generalist*.ckpt',          # Colab: course folder shortcut
+    f'{MYDRIVE}/*/checkpoints/**/generalist*.ckpt', '/content/generalist.ckpt', os.path.expanduser('~/generalist.ckpt'))
 assert META_CKPT, 'generalist.ckpt not found: add the course folder shortcut to your Drive (see the starter notebook)'
 print('meta-trained checkpoint:', META_CKPT, f'({os.path.getsize(META_CKPT) / 1e9:.2f} GB)')
 
 # ---- our data bundle (20260876_<NAME>_data.zip, or an already unpacked copy) --------------------------------------
 if not os.path.exists(os.path.join(RR, 'BUNDLE.json')):
-    unpacked = find('BUNDLE.json', ['/kaggle/input'] if ON_KAGGLE else [])
+    unpacked = find('/kaggle/input/**/BUNDLE.json') if ON_KAGGLE else None
     if unpacked:
         shutil.copytree(os.path.dirname(unpacked), RR)
     else:
-        z = os.environ.get('RR_DATA_ZIP') or find('20260876_*_data.zip', SEARCH) or find('*rescue*router*.zip', SEARCH)
-        assert z, 'data bundle not found: upload 20260876_<NAME>_data.zip to /content or your Drive'
+        z = os.environ.get('RR_DATA_ZIP') or find('/content/20260876_*_data.zip', f'{MYDRIVE}/20260876_*_data.zip',
+                                                  f'{MYDRIVE}/AIC200-my_work/**/20260876_*_data.zip', '/kaggle/input/**/20260876_*_data.zip',
+                                                  os.path.expanduser('~/20260876_*_data.zip'))
+        assert z, ('data bundle not found: put 20260876_<NAME>_data.zip in /content (upload) or in My Drive, '
+                   'or set RR_DATA_ZIP to its path')
         print('unzipping', z); sh(f'unzip -q -o "{z}" -d "{RR}"')
 os.chdir(RR); sys.path.insert(0, os.path.join(RR, 'src'))
 BUNDLE = json.load(open('BUNDLE.json')); COMMIT = open('VERSION').read().strip()
@@ -242,7 +249,7 @@ for f in sorted(glob.glob('results/kaggle_v2/rr/logs/*_s0_stratified.json')):
         ax[1].plot([v['step'] for v in g['val']], [v['miou'] for v in g['val']], 'o-', label=run)
     t = g.get('timing', {})
     print(f"{run:18s} GPU {g.get('gpu')}, {t.get('train_s_per_50_steps', 0) / 50:.2f} s/step, peak {t.get('train_peak_gb')} GB,"
-          (f" best val30 mIoU {g['best']['miou']:.3f} at step {g['best']['step']}" if g.get('best') else ''))
+          + (f" best val30 mIoU {g['best']['miou']:.3f} at step {g['best']['step']}" if g.get('best') else ''))
 ax[0].set(title='training loss', xlabel='step', yscale='log'); ax[1].set(title='val30 mIoU (τ 0.5)', xlabel='step')
 ax[0].legend(fontsize=8); ax[1].legend(fontsize=8); plt.tight_layout(); plt.show()
 ''')
@@ -455,10 +462,11 @@ code(r'''
 tic('app')
 if RUN_LIVE and torch.cuda.is_available() and GPU_GB >= 14:
     la = types.SimpleNamespace(ckpt=f'{WORK}/ckpt/floodnet_50shot_s0_stratified.ckpt', mt_ckpt=META_CKPT, chameleon=CHAMELEON,
-                               data=DATA, runs=f'{BASE}/runs', support_file='supports/floodnet_stratified_s0.txt',
+                               data=DATA, runs=f'{BASE}/runs', support_file=os.path.join(RR, 'supports/floodnet_stratified_s0.txt'),
                                amp='fp16', chunk=1, channel_chunk=1, results=a.results)
     live = G.LiveModel(la)
-    photo_file = 'demo/uploads/floodnet_7307.jpg'          # a FloodNet test photo outside eval100
+    os.chdir(RR)                                           # loading Chameleon in-process changes the working directory
+    photo_file = os.path.join(RR, 'demo/uploads/floodnet_7307.jpg')   # a FloodNet test photo outside eval100
     t = time.time(); notes = []
     photo = G.prep_upload(np.asarray(Image.open(photo_file).convert('RGB')), notes)
     s = G.build_scene('floodnet', photo, live(photo), DEC['floodnet_50shot_s0_stratified'], gt=None)
