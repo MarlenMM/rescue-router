@@ -67,8 +67,8 @@
  },
  "status_gt": {
   "TRUCK": 13,
-  "BOAT": 0,
-  "FOOT": 3,
+  "BOAT": 1,
+  "FOOT": 2,
   "ISOLATED": 0
  }
 }

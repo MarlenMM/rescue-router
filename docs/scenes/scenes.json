@@ -33,8 +33,8 @@
    },
    "status_gt": {
     "TRUCK": 13,
-    "BOAT": 0,
-    "FOOT": 3,
+    "BOAT": 1,
+    "FOOT": 2,
     "ISOLATED": 0
    }
   },
@@ -46,14 +46,14 @@
    "n_buildings": 25,
    "status_pred": {
     "TRUCK": 10,
-    "BOAT": 6,
-    "FOOT": 9,
+    "BOAT": 9,
+    "FOOT": 6,
     "ISOLATED": 0
    },
    "status_gt": {
     "TRUCK": 11,
-    "BOAT": 5,
-    "FOOT": 9,
+    "BOAT": 6,
+    "FOOT": 8,
     "ISOLATED": 0
    }
   },
@@ -65,14 +65,14 @@
    "n_buildings": 25,
    "status_pred": {
     "TRUCK": 12,
-    "BOAT": 7,
-    "FOOT": 6,
+    "BOAT": 9,
+    "FOOT": 4,
     "ISOLATED": 0
    },
    "status_gt": {
     "TRUCK": 16,
-    "BOAT": 5,
-    "FOOT": 4,
+    "BOAT": 6,
+    "FOOT": 3,
     "ISOLATED": 0
    }
   },
@@ -102,16 +102,16 @@
    "caption": "Honest failure: shallow water read as dry land",
    "n_buildings": 14,
    "status_pred": {
-    "TRUCK": 14,
+    "TRUCK": 6,
     "BOAT": 0,
-    "FOOT": 0,
+    "FOOT": 8,
     "ISOLATED": 0
    },
    "status_gt": {
     "TRUCK": 0,
-    "BOAT": 14,
-    "FOOT": 0,
-    "ISOLATED": 0
+    "BOAT": 6,
+    "FOOT": 3,
+    "ISOLATED": 5
    }
   },
   {
@@ -146,8 +146,8 @@
     "ISOLATED": 0
    },
    "status_gt": {
-    "TRUCK": 6,
-    "BOAT": 2,
+    "TRUCK": 8,
+    "BOAT": 0,
     "FOOT": 4,
     "ISOLATED": 0
    }

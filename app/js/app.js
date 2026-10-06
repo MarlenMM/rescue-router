@@ -84,7 +84,8 @@ async function loadScene(key) {
   const dir = `scenes/${sc.key}/`;
   const [meta, grid, blds] = await Promise.all(['meta', 'grid', 'buildings'].map(f => fetch(dir + f + '.json').then(r => r.json())));
   for (const k of ['pred', 'gt']) {                                   // decode once; Grid accepts typed arrays
-    grid[k] = { cls: b64ToBytes(grid[k].cls), risk: b64ToFloat32(grid[k].risk), pboat: b64ToFloat32(grid[k].pboat) };
+    grid[k] = { cls: b64ToBytes(grid[k].cls), risk: b64ToFloat32(grid[k].risk), pboat: b64ToFloat32(grid[k].pboat),
+                flags: b64ToBytes(grid[k].flags) };
   }
   stopAnim();
   state.key = sc.key;
@@ -133,7 +134,7 @@ function solve() {
   const s = state.s;
   s.grids = sceneGrids(s.grid, state.lam);
   s.sol = { pred: s.grids.pred.solve(base()), gt: s.grids.gt.solve(base()) };
-  s.status = { pred: s.blds.map(b => s.sol.pred.status(b.ring)), gt: s.blds.map(b => s.sol.gt.status(b.ring)) };
+  s.status = { pred: s.blds.map(b => s.sol.pred.status(b.goals)), gt: s.blds.map(b => s.sol.gt.status(b.goals)) };
   drawHouses();
   drawBase();
   drawCounter();
@@ -238,7 +239,7 @@ function select(i, side, animate = true) {
   groups.route.clearLayers();
   drawHouses();
   const st = s.status[side][i];
-  const r = s.sol[side].route(b.ring);                              // ends in the mode of the status, as router.py
+  const r = s.sol[side].route(b.goals);                              // ends in the mode of the status, as router.py
   const other = side === 'pred' ? 'gt' : 'pred', stO = s.status[other][i];
   L.polygon(b.polygon.map(([x, y]) => ll(x, y)), { renderer: rend.route, interactive: false, color: getVar('--accent'),
     weight: 3, fill: false }).addTo(groups.route);

@@ -26,6 +26,17 @@ Graph: states (cell, mode), mode in {TRUCK, BOAT, FOOT}, 8-connected, step lengt
   alight TRUCK or BOAT -> FOOT into a neighbouring foot cell, extra cost `alight`
          modes only go forward (truck -> boat -> foot): no switch back to a vehicle
   walls  buildings are never entered (RescueNet road_blocked: by truck and boat only)
+Physical rules (6 Oct, Batch 1; sizes in metres, converted with the dataset's cell size `cell_m`):
+  width   a truck (half-width 1.25 m) and a boat (0.8 m) keep their body clear of walls: a cell is open to
+          them only if its centre is >= half-width + half a cell from every wall cell (distance transform)
+  cars    gaps of up to `car_gap` m in the road are closed (PLAN §3.1: parked cars and their shadows split
+          decoded roads); only dry land becomes road, so the off-road gate still holds
+  canopy  a boat may cross strips of non-building, non-road land up to `canopy_gap` m wide between water
+          (tree crowns over floodwater, which the 5-class task decodes as 'other'), at canopy_cost x
+  corners no diagonal step squeezes between two obstacle cells that touch at a corner
+  goal    a vehicle reaches a house when its body edge is within the house's ring: its ring is the
+          building dilated by ceil(clearance) + ring cells (people on foot keep the plain ring)
+POINT_VEHICLES switches all of them off (the router before Batch 1).
 Status of a building: TRUCK if a truck reaches its ring, else BOAT if a boat does, else FOOT if people
 on foot do (after a truck or a boat), else ISOLATED (no route: air team).
 One multi-source Dijkstra (scipy.sparse.csgraph) from the base gives every building's status.
@@ -43,18 +54,32 @@ STATUS = ('TRUCK', 'BOAT', 'FOOT', 'ISOLATED')
 
 # truck: drivable classes; boat: navigable classes; wall: never entered; risk: channels in the
 # risk-aware truck cost; hazard: GT classes a truck must never drive on (route safety, §5.4);
-# walk: classes people can cross on foot besides dry land (RescueNet debris)
+# walk: classes people can cross on foot besides dry land (RescueNet debris); cell_m: ground size of a
+# 4-px cell at 768x576, from the labelled cars (median car 1.8 m wide): RescueNet 7.7 cm/px -> 0.31 m;
+# FloodNet flies at two heights (ids 7000-7999: 16.6 cm/px, most others ~8.5) -> the larger cell, 0.66 m,
+# so clearances in cells are never too large (scale errors can only under-block, never close a real gap)
 PROFILES = {
-    'floodnet': dict(truck=(0,), boat=(1, 4), wall=(2, 3), risk=(1, 4), bldg=(2, 3), hazard=(1, 4), walk=()),
-    'rescuenet': dict(truck=(0,), boat=(4,), wall=(1, 2, 3), risk=(1, 4), bldg=(2, 3), hazard=(1, 4), walk=(1,)),
+    'floodnet': dict(truck=(0,), boat=(1, 4), wall=(2, 3), risk=(1, 4), bldg=(2, 3), hazard=(1, 4), walk=(),
+                     cell_m=0.66),
+    'rescuenet': dict(truck=(0,), boat=(4,), wall=(1, 2, 3), risk=(1, 4), bldg=(2, 3), hazard=(1, 4), walk=(1,),
+                      cell_m=0.31),
 }
 DEFAULTS = dict(lam=5.0, boat_cost=3.0, launch=40.0, boat_p=0.5, offroad=4.0, offroad_maxwet=None,
-                foot_cost=8.0, alight=10.0)
+                foot_cost=8.0, alight=10.0, cell_m=None,
+                truck_halfwidth=1.25, boat_halfwidth=0.8, car_gap=2.0, canopy_gap=3.0, canopy_cost=2.0, corner=True)
+POINT_VEHICLES = dict(truck_halfwidth=None, boat_halfwidth=None, car_gap=None, canopy_gap=None, corner=False)
 
 # majority-vote tie-break: on equal pixel counts the less drivable class wins
 # (road_clear < other < water < road_flooded < bldg_dry < bldg_flooded)
 _TIE = np.array([0, 3, 5, 4, 2, 1], np.float64) * 1e-3
 _DIRS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+
+
+def _disk(r):
+    """disk structuring element of radius r cells (at least the 3x3 cross)"""
+    k = max(int(np.ceil(r)), 1)
+    y, x = np.mgrid[-k:k + 1, -k:k + 1]
+    return x * x + y * y <= max(r, 1) ** 2
 
 
 def _blocks(a, cell):
@@ -104,22 +129,69 @@ class Grid:
         if probs is None:
             probs = np.stack([(self.cls == c) for c in range(N_CH)]).astype(np.float32)
         self.probs = np.asarray(probs, np.float32)
-        pr = self.prof
+        pr, p = self.prof, self.par
+        self.cell_m = p['cell_m'] or pr['cell_m']
         self.wall = np.isin(self.cls, pr['wall'])
+        self.bldg = np.isin(self.cls, pr['bldg'])
         self.risk = self.probs[list(pr['risk'])].sum(0)
         land = self.cls == OTHER
-        if self.par['offroad_maxwet'] is not None:
-            land &= self.risk < self.par['offroad_maxwet']
-        self.offroad = land if self.par['offroad'] else np.zeros_like(self.wall)
-        self.truck_ok = (np.isin(self.cls, pr['truck']) | self.offroad) & ~self.wall
-        self.boat_ok = (np.isin(self.cls, pr['boat']) | (self.probs[list(pr['boat'])].sum(0) >= self.par['boat_p'])) \
-            & ~self.wall
-        self.foot = self.par['foot_cost'] is not None
-        self.foot_ok = (np.isin(self.cls, pr['truck'] + pr['walk']) | land) & ~np.isin(self.cls, pr['bldg']) \
+        if p['offroad_maxwet'] is not None:
+            land &= self.risk < p['offroad_maxwet']
+        road = np.isin(self.cls, pr['truck'])
+        if p['car_gap']:                                           # parked cars: close small gaps in the road
+            road |= ndimage.binary_closing(road, _disk(p['car_gap'] / 2 / self.cell_m)) & land
+        self.road = road
+        self.offroad = land & ~road if p['offroad'] else np.zeros_like(self.wall)
+        self.room_truck = self._room(p['truck_halfwidth'])
+        self.room_boat = self._room(p['boat_halfwidth'])
+        self.truck_ok = (road | self.offroad) & ~self.wall & self.room_truck
+        boat = np.isin(self.cls, pr['boat']) | (self.probs[list(pr['boat'])].sum(0) >= p['boat_p'])
+        self.canopy = np.zeros_like(self.wall)
+        if p['canopy_gap']:                                        # narrow land strips between water
+            self.canopy = ndimage.binary_closing(boat, _disk(p['canopy_gap'] / 2 / self.cell_m)) & ~boat \
+                & (self.cls == OTHER)
+        self.boat_ok = (boat | self.canopy) & ~self.wall & self.room_boat
+        self.foot = p['foot_cost'] is not None
+        self.foot_ok = (np.isin(self.cls, pr['truck'] + pr['walk']) | land) & ~self.bldg \
             if self.foot else np.zeros_like(self.wall)
         self.layers = 3 if self.foot else 2
-        self.risk = self.probs[list(pr['risk'])].sum(0)
+        self.slow = np.where(self.offroad, p['offroad'] or 1.0, 1.0)            # truck step factor
+        self.slow_boat = np.where(self.canopy, p['canopy_cost'], 1.0)           # boat step factor
+        self._goals = {}
         self.graph = self._build()
+
+    def _room(self, halfwidth):
+        """cells whose centre is >= halfwidth + half a cell from every wall cell (None = a point vehicle)"""
+        if halfwidth is None or not self.wall.any():
+            return np.ones_like(self.wall)
+        return ndimage.distance_transform_edt(~self.wall) >= self.clearance(halfwidth)
+
+    def clearance(self, halfwidth):
+        return halfwidth / self.cell_m + 0.5
+
+    def goal(self, bld, layer):
+        """Goal cells of a building for one mode: its ring; for a vehicle with a width, the building dilated
+        by ceil(clearance) + ring cells (the vehicle's edge within the ring)."""
+        half = {TRUCK: self.par['truck_halfwidth'], BOAT: self.par['boat_halfwidth']}.get(layer)
+        if half is None or 'cells' not in bld:
+            return bld['ring']
+        key = (id(bld), layer)
+        if key not in self._goals:
+            m = np.zeros(self.n, bool)
+            m[bld['cells']] = True
+            m = m.reshape(self.h, self.w)
+            k = int(np.ceil(self.clearance(half))) + bld.get('ring_k', 2)
+            self._goals[key] = np.flatnonzero(ndimage.binary_dilation(m, np.ones((3, 3)), iterations=k) & ~m)
+        return self._goals[key]
+
+    def flags(self):
+        """Per-cell bit flags for the web viewer: 1 truck, 2 boat, 4 foot, 8 off-road (truck slow), 16 canopy
+        (boat slow), 32 wall, 64 building. The JS router reads these instead of re-deriving the rules."""
+        f = np.zeros((self.h, self.w), np.uint8)
+        for bit, m in ((1, self.truck_ok), (2, self.boat_ok), (4, self.foot_ok), (8, self.offroad),
+                       (16, self.canopy), (32, self.wall), (64, self.bldg)):
+            f |= np.where(m, bit, 0).astype(np.uint8)
+        return f
 
     def _build(self):
         h, w, n, p = self.h, self.w, self.n, self.par
@@ -130,16 +202,20 @@ class Grid:
             ys, yd = slice(max(-dy, 0), h - max(dy, 0)), slice(max(dy, 0), h - max(-dy, 0))
             xs, xd = slice(max(-dx, 0), w - max(dx, 0)), slice(max(dx, 0), w - max(-dx, 0))
             a, b = idx[ys, xs].ravel(), idx[yd, xd].ravel()
-            t, bo = self.truck_ok[yd, xd].ravel(), self.boat_ok[yd, xd].ravel()
+            ok_v = ok_f = np.ones(a.size, bool)
+            if dy and dx and p['corner']:                          # no squeeze between two touching corners
+                ok_v = ~(self.wall[yd, xs] & self.wall[ys, xd]).ravel()
+                ok_f = ~(self.bldg[yd, xs] & self.bldg[ys, xd]).ravel()
+            t, bo = self.truck_ok[yd, xd].ravel() & ok_v, self.boat_ok[yd, xd].ravel() & ok_v
             risk = self.risk[yd, xd].ravel()
-            slow = np.where(self.offroad[yd, xd].ravel(), self.par['offroad'] or 1.0, 1.0)
+            slow, slow_b = self.slow[yd, xd].ravel(), self.slow_boat[yd, xd].ravel()
             rows += [a[t], n + a[bo], a[bo]]                       # truck->truck, boat->boat, launch
             cols += [b[t], n + b[bo], n + b[bo]]
             vals += [L * (1 + p['lam'] * risk[t]) * slow[t],
-                     np.full(bo.sum(), L * p['boat_cost']),
-                     np.full(bo.sum(), L * p['boat_cost'] + p['launch'])]
+                     L * p['boat_cost'] * slow_b[bo],
+                     L * p['boat_cost'] * slow_b[bo] + p['launch']]
             if self.foot:                                          # foot->foot, truck->foot, boat->foot
-                f = self.foot_ok[yd, xd].ravel()
+                f = self.foot_ok[yd, xd].ravel() & ok_f
                 rows += [2 * n + a[f], a[f], n + a[f]]
                 cols += [2 * n + b[f]] * 3
                 vals += [np.full(f.sum(), L * p['foot_cost'])] + [np.full(f.sum(), L * p['foot_cost'] + p['alight'])] * 2
@@ -160,8 +236,9 @@ class Solution:
         self.grid, self.dist, self.pred = grid, dist, pred
 
     def status(self, bld):
-        n, r = self.grid.n, bld['ring']
+        n = self.grid.n
         for layer in range(self.grid.layers):                   # TRUCK, BOAT, FOOT
+            r = self.grid.goal(bld, layer)
             if len(r) and np.isfinite(self.dist[layer * n + r]).any():
                 return layer
         return ISOLATED
@@ -169,11 +246,12 @@ class Solution:
     def route(self, bld, layer=None):
         """Cheapest route to the building's ring that ends in `layer` (default: the layer of its status, so a
         TRUCK house gets its road route, a BOAT house its boat route): dict(cells=[(y, x)], modes, cost) or None."""
-        n, r = self.grid.n, bld['ring']
-        if not len(r):
-            return None
+        n = self.grid.n
         layer = self.status(bld) if layer is None else layer
         if layer == ISOLATED:
+            return None
+        r = self.grid.goal(bld, layer)
+        if not len(r):
             return None
         cand = layer * n + r
         j = cand[np.argmin(self.dist[cand])]
@@ -232,7 +310,7 @@ def buildings_from_gt(gt_map, dataset='floodnet', min_area=150, ring=2, cell=CEL
         rg = ndimage.binary_dilation(cells, structure=np.ones((3, 3)), iterations=ring) & ~cells
         sub = np.bincount(gt_map[m], minlength=N_CH + 1)
         ys, xs = np.nonzero(m)
-        out.append(dict(id=len(out), area_px=area, cells=np.flatnonzero(cells), ring=np.flatnonzero(rg),
+        out.append(dict(id=len(out), area_px=area, cells=np.flatnonzero(cells), ring=np.flatnonzero(rg), ring_k=ring,
                         cls=int(pr['bldg'][int(np.argmax(sub[list(pr['bldg'])]))]),
                         centroid=(float(ys.mean()), float(xs.mean())), shape=(h, w)))
     return out
@@ -261,15 +339,16 @@ def eval_route_on_gt(route, gt_grid):
         if m == FOOT:
             feasible &= bool(np.isin(g.cls[y, x], g.prof['truck'] + g.prof['walk'] + (OTHER,))
                              and not np.isin(g.cls[y, x], g.prof['bldg']))
-        elif g.wall[y, x] or (m == TRUCK and (haz[y, x] or not (g.truck_ok[y, x] or bad_truck[y, x]))):
+        elif g.wall[y, x] or (m == TRUCK and (haz[y, x] or not (g.truck_ok[y, x] or bad_truck[y, x]))) \
+                or (m == BOAT and not g.room_boat[y, x]):
             feasible = False
         (y0, x0), m0 = cells[k - 1], modes[k - 1]
         L = np.hypot(y - y0, x - x0)
-        slow = p['offroad'] if (p['offroad'] and g.cls[y, x] == OTHER) else 1.0
+        slow = g.slow[y, x] if g.truck_ok[y, x] else (p['offroad'] if (p['offroad'] and g.cls[y, x] == OTHER) else 1.0)
         if m == TRUCK:
             cost += L * (1 + p['lam'] * g.risk[y, x]) * slow
         elif m == BOAT:
-            cost += L * p['boat_cost'] + p['launch'] * (m0 == TRUCK)
+            cost += L * p['boat_cost'] * g.slow_boat[y, x] + p['launch'] * (m0 == TRUCK)
         else:
             cost += L * (p['foot_cost'] or 0.0) + p['alight'] * (m0 != FOOT)
     return dict(cost_gt=cost, feasible=feasible, unsafe=unsafe,

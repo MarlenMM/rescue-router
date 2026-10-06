@@ -61,14 +61,14 @@
  "n_buildings": 25,
  "status_pred": {
   "TRUCK": 12,
-  "BOAT": 7,
-  "FOOT": 6,
+  "BOAT": 9,
+  "FOOT": 4,
   "ISOLATED": 0
  },
  "status_gt": {
   "TRUCK": 16,
-  "BOAT": 5,
-  "FOOT": 4,
+  "BOAT": 6,
+  "FOOT": 3,
   "ISOLATED": 0
  }
 }
