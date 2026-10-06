@@ -597,7 +597,7 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
 
-## 15. Status / handoff (updated Tue 6 Oct, 10:15 KST)
+## 15. Status / handoff (updated Tue 6 Oct, 09:35 KST)
 
 **Done**
 - §13 starter API recorded, including 3 starter bugs and their workarounds.
@@ -671,7 +671,7 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 - **Dry buildings collapse** (IoU ≤ .10 from 5 shots on). At 1 shot, both building classes sit at ~.24: the 1-shot image has dry and flooded buildings in similar amounts.
 - Water rises steadily with shots (.005 → .34).
 
-**Decode tuning (6 Oct 10:10; `src/decode_tune.py`, results `results/kaggle_v2/rr/decode/<run>.json`, table `results/kaggle_v2/report/decode.md`).** Everything is tuned on val30 only and applied unchanged to eval100.
+**Decode tuning (6 Oct 09:35; `src/decode_tune.py`, results `results/kaggle_v2/rr/decode/<run>.json`, table `results/kaggle_v2/report/decode.md`).** Everything is tuned on val30 only and applied unchanged to eval100.
 - **Per-channel τ** (`rr.metrics.decode`: channel c is a candidate if p_c ≥ τ_c; the winner is the largest p_c/τ_c). Coordinate ascent on val30 mIoU, with the constraint that **val30 drivable precision may not drop** below the τ = 0.5 decode. Without that constraint, the 10-shot tuning cut eval100 drivable precision from .671 to .534.
 - **Dry-building diagnosis.** From 5 shots on, the model hardly predicts dry buildings (20-shot: 8 k predicted dry px against 1.3 M GT dry px). GT dry pixels go to flooded (69 %) or other (30 %). Per GT building, the share p_dry/(p_dry + p_flooded) does **not** separate dry from flooded buildings (AUC .52 / .48 / .53 on eval100 at 5 / 10 / 20 shots). So no threshold, bias or per-building vote on the building channels can fix it, and the vote (`bldg_t`) gains nothing on FloodNet.
 - **The fix that works: the wet-context rule** (`ctx = (d, f)`): a predicted building is flooded iff ≥ f of the pixels within d px of it (Voronoi-split between buildings) are decoded wet (road_flooded or water). This follows FloodNet's own definition (water around the house), and the model's wet channels are decent. The decoded-wet ring alone gives AUC .63–.75 (d 32–48) for flooded vs dry; the GT wet ring gives .66–.73, so the GT flooded/dry label is itself partly ambiguous.
@@ -741,8 +741,8 @@ Rehearse 3× on Thursday morning; stay under 4:50.
 
 **Next (in order):**
 1. ~~Track B router + unit tests + routing metrics on GT maps~~ (done 04:10).
-2. ~~Download, check logs, tables + curve~~ (done 09:40 for 5 runs). When `rr-gpu-queue50` completes: `~/.venvs/kaggle/bin/python kaggle/fetch_output.py marlenmelis/rr-gpu-queue50 results/kaggle_v2`, which merges into the same `rr/` folders. Then rerun `src/collect_results.py`, `src/decode_tune.py --runs <the two 50-shot runs>`. Originally this step said: fill the data-efficiency curve (val30 + eval100) and the per-class table vs PSPNet (§5.2).
-3. ~~Decode tuning on val30 from the caches~~ (done 10:10 for 5 runs; the two 50-shot runs follow after the rerun). See "Decode tuning" below.
+2. ~~Download, check logs, tables + curve~~ (done 09:30 for 5 runs). When `rr-gpu-queue50` completes: `~/.venvs/kaggle/bin/python kaggle/fetch_output.py marlenmelis/rr-gpu-queue50 results/kaggle_v2`, which merges into the same `rr/` folders. Then rerun `src/collect_results.py`, `src/decode_tune.py --runs <the two 50-shot runs>`. Originally this step said: fill the data-efficiency curve (val30 + eval100) and the per-class table vs PSPNet (§5.2).
+3. ~~Decode tuning on val30 from the caches~~ (done 09:35 for 5 runs; the two 50-shot runs follow after the rerun). See "Decode tuning" below.
 4. Optional, if time and quota allow (latest start Wed afternoon): one ablation run of FloodNet 50-shot with dry buildings up-weighted in the loss, reported next to (not instead of) the main 50-shot model.
 5. Then §10 Tue/Wed: Gradio app, web viewer (`app/` → `docs/`), routing evaluation on predictions, failure analysis, figures, write-up, slides; G3 notebook check on a fresh T4 (Colab free tier is enough for inference, or Kaggle).
 
