@@ -72,9 +72,16 @@ GRASS = """
 
 
 def test_isolated_in_grass_roads_only():
-    m, g, base, blds = setup(GRASS, offroad=None)                   # strict PLAN §6.1: roads only
+    m, g, base, blds = setup(GRASS, offroad=None, foot_cost=None)   # strict PLAN §6.1: roads only, no walking
     sol = g.solve(base)
     assert sol.status(blds[0]) == R.ISOLATED and sol.route(blds[0]) is None
+
+
+def test_roads_only_truck_then_walk_across_the_yard():
+    m, g, base, blds = setup(GRASS, offroad=None)                   # truck stays on the road, people walk
+    r = g.solve(base).route(blds[0])
+    assert g.solve(base).status(blds[0]) == R.FOOT
+    assert r['modes'] == [R.TRUCK, R.FOOT, R.FOOT] and r['cost'] == pytest.approx(2 * 8 + 10)
 
 
 def test_offroad_across_the_yard():
@@ -104,9 +111,38 @@ def test_no_switch_back_to_truck():
         ....WWRRRRR.
         ........DDD.
         ........DDD.
-        ........DDD.""", offroad=None)
+        ........DDD.""", offroad=None, foot_cost=None)
     assert base[1] == R.TRUCK and set(base[0]) == {0, 1, 2, 3}
     assert g.solve(base).status(blds[0]) == R.ISOLATED
+
+
+def test_boat_then_foot_never_back_to_a_vehicle():
+    # a full-height water channel: truck to the bank, boat across, walk to the house; nobody drives after the boat
+    m, g, base, blds = setup("""
+        RRRRRWW.RRR..
+        .....WW......
+        .....WW..DDD.
+        .....WW..DDD.
+        .....WW..DDD.""", offroad=None)
+    sol = g.solve(base)
+    r = sol.route(blds[0])
+    assert sol.status(blds[0]) == R.FOOT
+    assert r['modes'] == sorted(r['modes']) and r['modes'][-1] == R.FOOT and R.BOAT in r['modes']
+
+
+def test_walls_stop_walkers_and_water_stops_walkers():
+    m, g, base, blds = setup("""
+        RRRR......
+        WWWWWWWWWW
+        ..........
+        ....DDD...
+        ....DDD...
+        ....DDD...""")
+    assert g.solve(base).status(blds[0]) == R.FOOT                 # truck -> boat across row 1 -> walk
+    g2 = R.Grid(m, None, 'floodnet', foot_cost=8.0)
+    g2.boat_ok[:] = False                                            # no boats: walkers cannot cross water
+    g2.graph = g2._build()
+    assert g2.solve(base).status(blds[0]) == R.ISOLATED
 
 
 def test_buildings_are_walls():
@@ -150,7 +186,9 @@ def test_rescuenet_blocked_road_is_a_wall():
     m = grid_map("RRRFRRR")
     base, target = (np.array([0]), R.TRUCK), dict(ring=np.array([3]))
     assert R.Grid(m, None, 'floodnet').solve(base).status(target) == R.BOAT      # flooded road: boat
-    assert R.Grid(m, None, 'rescuenet').solve(base).status(target) == R.ISOLATED  # blocked: nobody
+    assert R.Grid(m, None, 'rescuenet', foot_cost=None).solve(base).status(target) == R.ISOLATED  # no vehicle
+    sol = R.Grid(m, None, 'rescuenet').solve(base)                                # debris: walkable
+    assert sol.status(target) == R.FOOT and sol.route(target)['modes'][-1] == R.FOOT
 
 
 def test_base_fallbacks():

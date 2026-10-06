@@ -1,13 +1,19 @@
 // Rescue Router web viewer (PLAN §6.4). Plain ES module + Leaflet 1.9 (global L), no build step.
 // Scenes come from src/export_web_assets.py; routing runs in the browser with js/router.js.
 
-import { sceneGrids, b64ToBytes, b64ToFloat32, STATUS, TRUCK, BOAT, ISOLATED } from './router.js';
+import { sceneGrids, b64ToBytes, b64ToFloat32, TRUCK, BOAT, FOOT, ISOLATED } from './router.js';
 
 const CELL = 4;
-const KIND = ['truck', 'boat', 'isolated'];
+const KIND = ['truck', 'boat', 'foot', 'isolated'];
+const WORD = ['truck', 'boat', 'on foot', 'no route'];
+const TITLE = ['Truck can reach it', 'Boat needed', 'Last stretch on foot', 'No route: send an air team'];
+const LEG = [{ name: 'truck', icon: '🚚', color: '#ffffff' }, { name: 'boat', icon: '🚤', color: 'var(--accent)' },
+             { name: 'on foot', icon: '🚶', color: 'var(--foot)', dash: '1 9' }];
+const SIDE = { pred: 'Prediction', gt: 'Labelled map' };
 const SVG = {
   truck: '<svg viewBox="0 0 24 24" fill="#fff"><path d="M2 6h11v9H2zM14 9h4l3 3v3h-7z"/><circle cx="6" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>',
   boat: '<svg viewBox="0 0 24 24" fill="#fff"><path d="M3 14h18l-3 5H6zM11 4v9H6zM13 7l5 6h-5z"/></svg>',
+  foot: '<svg viewBox="0 0 24 24" fill="#fff"><circle cx="13" cy="4" r="2.4"/><path d="M11 7.5l-3 4 1.8 1.2 2-2.4 1 4-3.3 6.4 2 1 3-5.8 2.2 5.8 2-.8-2.6-7.4-.9-3.6 2 1.4 2.4-.4-.3-2-2-.3z"/></svg>',
   isolated: '<svg viewBox="0 0 24 24" stroke="#fff" stroke-width="3.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
 };
 const CLASS_LABEL = {
@@ -23,7 +29,7 @@ const DATASET = {
 const MODEL_ATTRIB = '<a href="https://github.com/GitGyun/chameleon">Chameleon</a> (Kim et al., ECCV 2024)';
 
 const $ = (id) => document.getElementById(id);
-const state = { index: null, key: null, s: null, src: 'pred', lam: 5, swipe: 0.5, sel: null, anim: null };
+const state = { index: null, key: null, s: null, src: 'pred', lam: 5, swipe: 0.5, sel: null, anim: null, entry: null, picking: false };
 
 // ---------- map and panes ----------
 const map = L.map('map', { crs: L.CRS.Simple, zoomSnap: 0.25, zoomDelta: 0.5, minZoom: -4, maxZoom: 4,
@@ -83,6 +89,8 @@ async function loadScene(key) {
   stopAnim();
   state.key = sc.key;
   state.sel = null;
+  state.entry = null;
+  setPicking(false);
   const [W, H] = meta.size;
   state.s = { sc, dir, meta, grid, blds, W, H, ds: meta.dataset };
   document.querySelectorAll('#scenes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.key === sc.key)));
@@ -101,7 +109,6 @@ async function loadScene(key) {
   map.attributionControl._attributions = {};
   map.attributionControl.addAttribution(`${DATASET[meta.dataset].attrib} · ${MODEL_ATTRIB}`);
   drawLegend();
-  drawBase();
   $('routeCard').hidden = true;
   solve();
   fit();
@@ -125,11 +132,40 @@ function fit() {
 function solve() {
   const s = state.s;
   s.grids = sceneGrids(s.grid, state.lam);
-  s.sol = { pred: s.grids.pred.solve(s.grid.base), gt: s.grids.gt.solve(s.grid.base) };
+  s.sol = { pred: s.grids.pred.solve(base()), gt: s.grids.gt.solve(base()) };
   s.status = { pred: s.blds.map(b => s.sol.pred.status(b.ring)), gt: s.blds.map(b => s.sol.gt.status(b.ring)) };
   drawHouses();
+  drawBase();
   drawCounter();
   if (state.sel) select(state.sel.i, state.sel.side, false);
+  else { groups.route.clearLayers(); $('routeCard').hidden = true; }
+}
+
+const base = () => state.entry || state.s.grid.base;
+
+// ---------- entry point chosen by the user ----------
+function setPicking(on) {
+  state.picking = on;
+  $('map').classList.toggle('picking', on);
+  $('entryPick').setAttribute('aria-pressed', String(on));
+  if (state.s) drawCounter();
+}
+
+function setEntry(x, y) {
+  const s = state.s, g = s.grids.gt, w = s.grid.w, h = s.grid.h;
+  const cx = Math.min(w - 1, Math.max(0, Math.floor(x / CELL))), cy = Math.min(h - 1, Math.max(0, Math.floor(y / CELL)));
+  const c = cy * w + cx;
+  if (g.wall[c] && !g.boatOk[c]) { state.entryMsg = 'That is a building: tap a road, a yard or water.'; drawCounter(); return; }
+  const mode = g.truckOk[c] ? 'TRUCK' : g.boatOk[c] ? 'BOAT' : 'TRUCK';
+  const cells = [];
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {      // a 3x3-cell staging area
+    const yy = cy + dy, xx = cx + dx, k = yy * w + xx;
+    if (yy >= 0 && yy < h && xx >= 0 && xx < w && !(mode === 'TRUCK' ? !g.truckOk[k] && k !== c : !g.boatOk[k])) cells.push(k);
+  }
+  state.entry = { cells, mode, at: [x, y] };
+  state.entryMsg = null;
+  setPicking(false);
+  solve();
 }
 
 function drawHouses() {
@@ -161,11 +197,16 @@ function drawHouses() {
 }
 
 function drawBase() {
-  const s = state.s, base = s.grid.base;
+  const s = state.s, b = base();
   groups.base.clearLayers();
-  if (!base || !$('tBase').checked) return;
-  const color = base.mode === 'BOAT' ? getVar('--accent') : '#ffffff';
-  for (const c of base.cells) {
+  $('entryMode').textContent = state.entry ? `chosen (${b.mode === 'BOAT' ? 'boat' : 'truck'})` : 'auto: largest road or dry land at the edge';
+  if (!b || !$('tBase').checked) return;
+  const color = b.mode === 'BOAT' ? getVar('--accent') : '#ffffff';
+  if (state.entry) {
+    L.marker(ll(...state.entry.at), { pane: 'route', interactive: false, keyboard: false,
+      icon: L.divIcon({ className: 'vehicle', html: '🚩', iconSize: [24, 24], iconAnchor: [5, 22] }) }).addTo(groups.base);
+  }
+  for (const c of b.cells) {
     const cy = Math.floor(c / s.grid.w), cx = c % s.grid.w;
     L.rectangle([ll(cx * CELL, cy * CELL + CELL), ll(cx * CELL + CELL, cy * CELL)],
       { renderer: baseRend, interactive: false, stroke: false, fillColor: color, fillOpacity: 0.95 }).addTo(groups.base);
@@ -175,16 +216,19 @@ function drawBase() {
 function drawCounter() {
   const s = state.s, M = s.blds.length;
   const block = (side, label) => {
-    const st = s.status[side];
-    const road = st.filter(v => v !== TRUCK).length, boat = st.filter(v => v === BOAT).length;
-    return `<div>${label ? `<div class="side">${label}</div>` : ''}<div class="big">${road} <small>/ ${M} houses</small></div>` +
-      `<div class="split"><span><b>${boat}</b> by boat</span><span><b>${road - boat}</b> isolated</span></div></div>`;
+    const st = s.status[side], n = (k) => st.filter(v => v === k).length;
+    const none = n(ISOLATED);
+    return `<div>${label ? `<div class="side">${label}</div>` : ''}<div class="big">${M - n(TRUCK)} <small>/ ${M} houses</small></div>` +
+      `<div class="split"><span><b>${n(BOAT)}</b> by boat</span><span><b>${n(FOOT)}</b> on foot</span>` +
+      `${none ? `<span><b>${none}</b> no route</span>` : ''}</div></div>`;
   };
-  const hint = state.sel ? '' : '<p class="hint">Tap a house to send a rescue team.</p>';
-  $('counter').innerHTML = !s.grid.base ? '<div class="lbl">No entry point in this photo</div>'
+  const hint = state.picking ? '<p class="hint pick">Tap where the rescue team enters (road, yard or water).</p>'
+    : state.entryMsg ? `<p class="hint pick">${state.entryMsg}</p>`
+      : state.sel ? '' : '<p class="hint">Tap a house to send a rescue team.</p>';
+  $('counter').innerHTML = !base() ? '<div class="lbl">No entry point in this photo: choose one</div>' + hint
     : '<div class="lbl">Unreachable by road</div>' + (state.src === 'swipe'
-      ? `<div class="duo">${block('pred', 'Prediction')}${block('gt', 'Ground truth')}</div>`
-      : block(state.src, state.src === 'gt' ? 'Ground truth' : '')) + hint;
+      ? `<div class="duo">${block('pred', 'Prediction')}${block('gt', 'Labelled map')}</div>`
+      : block(state.src, state.src === 'gt' ? 'Labelled map' : '')) + hint;
 }
 
 function select(i, side, animate = true) {
@@ -194,26 +238,25 @@ function select(i, side, animate = true) {
   groups.route.clearLayers();
   drawHouses();
   const st = s.status[side][i];
-  const r = s.sol[side].route(b.ring, st === TRUCK);                // a TRUCK house is shown with its road route
+  const r = s.sol[side].route(b.ring);                              // ends in the mode of the status, as router.py
   const other = side === 'pred' ? 'gt' : 'pred', stO = s.status[other][i];
   L.polygon(b.polygon.map(([x, y]) => ll(x, y)), { renderer: rend.route, interactive: false, color: getVar('--accent'),
     weight: 3, fill: false }).addTo(groups.route);
   const card = $('routeCard');
-  const who = side === 'pred' ? 'Prediction' : 'Ground truth', whoO = side === 'pred' ? 'Ground truth' : 'Prediction';
-  const title = st === TRUCK ? 'Truck can reach it' : st === BOAT ? 'Truck, then boat' : 'Isolated: send a foot or air team';
   let body = '';
   if (r) {
-    const k = r.modes.indexOf(BOAT);
-    const nT = k < 0 ? r.cells.length - 1 : Math.max(k - 1, 0), nB = k < 0 ? 0 : r.cells.length - k;
-    body += `<p>${nT ? `Truck <b>${nT}</b> cells` : 'Boat launched at the image edge'}${nB ? `${nT ? ' → boat' : ':'} <b>${nB}</b> cells` : ''} · cost <b>${r.cost.toFixed(0)}</b></p>`;
-    body += `<div class="legs"><span style="flex:${nT};background:#fff"></span><span style="flex:${nB};background:var(--accent)"></span></div>`;
+    const steps = [0, 0, 0];
+    for (let k = 1; k < r.modes.length; k++) steps[r.modes[k]]++;
+    const parts = steps.map((n, m) => (n ? `${LEG[m].name} <b>${n}</b>` : null)).filter(Boolean);
+    body += `<p>${parts.length ? parts.join(' → ') + ' cells' : 'The house is at the entry point'} · cost <b>${r.cost.toFixed(0)}</b></p>`;
+    body += `<div class="legs">${steps.map((n, m) => `<span style="flex:${n};background:${LEG[m].color}"></span>`).join('')}</div>`;
   } else {
-    body += '<p>No truck or boat route from the image edge on this map.</p>';
+    body += '<p>No truck, boat or walking route from the entry point on this map.</p>';
   }
   const agree = st === stO;
-  body += `<p class="${agree ? 'gtline' : 'mismatch'}">${whoO}: ${STATUS[stO].toLowerCase()}${agree ? ' ✓' : ` (${who.toLowerCase()} says ${STATUS[st].toLowerCase()})`}</p>`;
-  body += `<p class="gtline">Labelled ${CLASS_LABEL[s.ds][b.cls]} · ${who} map${state.lam ? ', risk-aware truck' : ', shortest truck'}</p>`;
-  card.innerHTML = `<h3><span class="st ${KIND[st]}" style="width:20px;height:20px">${SVG[KIND[st]]}</span>${title}</h3>${body}`;
+  body += `<p class="${agree ? 'gtline' : 'mismatch'}">${SIDE[other]}: ${WORD[stO]}${agree ? ' ✓' : ` (${SIDE[side].toLowerCase()} says ${WORD[st]})`}</p>`;
+  body += `<p class="gtline">Label: ${CLASS_LABEL[s.ds][b.cls]} · ${SIDE[side]}${state.lam ? ', risk-aware truck' : ', shortest truck'}</p>`;
+  card.innerHTML = `<h3><span class="st ${KIND[st]}" style="width:20px;height:20px">${SVG[KIND[st]]}</span>${TITLE[st]}</h3>${body}`;
   card.hidden = false;
   drawCounter();
   if (r && r.cells.length > 1) drawRoute(r, animate);
@@ -221,13 +264,18 @@ function select(i, side, animate = true) {
 
 function drawRoute(r, animate) {
   const pts = r.cells.map(cellLL);
-  const k = r.modes.indexOf(BOAT);
-  const truck = k < 0 ? pts : pts.slice(0, Math.max(k, 1));
-  const boat = k < 0 ? [] : pts.slice(Math.max(k - 1, 0));
-  const mk = (color, w, op = 1) => L.polyline([], { renderer: rend.route, color, weight: w, opacity: op, interactive: false,
-    lineCap: 'round', lineJoin: 'round' }).addTo(groups.route);
-  const legs = [{ pts: truck, lines: [mk('#000', 8, 0.45), mk('#fff', 4)], icon: '🚚' },
-                { pts: boat, lines: [mk('#000', 8, 0.45), mk(getVar('--accent'), 4)], icon: '🚤' }].filter(l => l.pts.length > 1);
+  const mk = (color, w, op = 1, dash = null) => L.polyline([], { renderer: rend.route, color, weight: w, opacity: op,
+    interactive: false, lineCap: 'round', lineJoin: 'round', dashArray: dash }).addTo(groups.route);
+  const legs = [];
+  for (let m = 0; m < 3; m++) {                                    // one leg per mode, joined at the switch cell
+    const first = r.modes.indexOf(m), last = r.modes.lastIndexOf(m);
+    if (first < 0) continue;
+    const seg = pts.slice(Math.max(first - 1, 0), last + 1);
+    if (seg.length < 2) continue;
+    const color = LEG[m].color.startsWith('var') ? getVar(LEG[m].color.slice(4, -1)) : LEG[m].color;
+    legs.push({ pts: seg, icon: LEG[m].icon, lines: [mk('#000', 8, 0.45), mk(color, LEG[m].dash ? 5 : 4, 1, LEG[m].dash)] });
+  }
+  if (!legs.length) return;
   L.circleMarker(pts[0], { renderer: rend.route, radius: 6, color: '#000', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false })
     .addTo(groups.route);
   if (!animate || matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -270,8 +318,10 @@ function stopAnim() { if (state.anim) cancelAnimationFrame(state.anim); state.an
 
 map.on('click', (e) => {
   const s = state.s;
-  if (!s || !s.grid.base) return;
+  if (!s) return;
   const p = [e.latlng.lng, s.H - e.latlng.lat];
+  if (state.picking) { setEntry(...p); return; }
+  if (!base()) return;
   let hit = s.blds.findIndex(b => pointInPoly(p, b.polygon));
   if (hit < 0) {                                                   // forgiving tap: nearest badge within 22 px
     let best = 22;
@@ -347,6 +397,8 @@ $('tStatus').addEventListener('change', drawHouses);
 $('tDisagree').addEventListener('change', drawHouses);
 $('tBase').addEventListener('change', drawBase);
 $('tRisk').addEventListener('change', () => { state.lam = $('tRisk').checked ? 5 : 0; solve(); });
+$('entryPick').addEventListener('click', () => setPicking(!state.picking));
+$('entryAuto').addEventListener('click', () => { state.entry = null; state.entryMsg = null; setPicking(false); solve(); });
 $('sheetToggle').addEventListener('click', () => {
   const p = $('panel'), c = p.classList.toggle('collapsed');
   $('sheetToggle').setAttribute('aria-expanded', String(!c));

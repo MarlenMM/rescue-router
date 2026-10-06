@@ -8,9 +8,9 @@ class ids of `rr.metrics` (0-4 = task channels, 5 = other, 255 = ignore).
     base = base_cells(cell_classes(gt_map), 'floodnet') # same base for prediction and GT
     blds = buildings_from_gt(gt_map, 'floodnet')
     sol = grid.solve(base)
-    sol.status(b), sol.route(b)                         # TRUCK / BOAT / ISOLATED, cell path + modes
+    sol.status(b), sol.route(b)                         # TRUCK / BOAT / FOOT / ISOLATED, cell path + modes
 
-Graph: states (cell, mode), mode in {TRUCK, BOAT}, 8-connected, step length 1 or sqrt(2).
+Graph: states (cell, mode), mode in {TRUCK, BOAT, FOOT}, 8-connected, step length 1 or sqrt(2).
   TRUCK  enters a road_clear cell, cost len * (1 + lam * (p1 + p4))   (risk-aware; lam = 0 = plain),
          or dry 'other' land (lawn, trees, background) at `offroad` x that cost (None = roads only,
          the strict PLAN §6.1 rule; on GT maps it leaves ~75 % of FloodNet houses ISOLATED behind
@@ -19,8 +19,15 @@ Graph: states (cell, mode), mode in {TRUCK, BOAT}, 8-connected, step length 1 or
          predicted 'other' land, median p_wet .21; tuned on val30, see PLAN §15)
   BOAT   enters a boat cell (FloodNet road_flooded or water; RescueNet water) or a cell with
          p_boat >= 0.5, cost len * boat_cost
-  launch TRUCK -> BOAT into a neighbouring boat cell, extra cost `launch`; no switch back
-  walls  buildings (and RescueNet road_blocked) are never entered
+  FOOT   enters dry land (road_clear or 'other', with the same off-road gate) or, RescueNet only,
+         blocked road (debris: walkable, not drivable), cost len * foot_cost (default 8: walking is the
+         slowest mode); foot_cost=None = no foot layer (the 6 Oct truck/boat router)
+  launch TRUCK -> BOAT into a neighbouring boat cell, extra cost `launch`
+  alight TRUCK or BOAT -> FOOT into a neighbouring foot cell, extra cost `alight`
+         modes only go forward (truck -> boat -> foot): no switch back to a vehicle
+  walls  buildings are never entered (RescueNet road_blocked: by truck and boat only)
+Status of a building: TRUCK if a truck reaches its ring, else BOAT if a boat does, else FOOT if people
+on foot do (after a truck or a boat), else ISOLATED (no route: air team).
 One multi-source Dijkstra (scipy.sparse.csgraph) from the base gives every building's status.
 """
 
@@ -31,16 +38,18 @@ from scipy.sparse.csgraph import dijkstra
 
 CELL = 4
 N_CH, OTHER, IGNORE = 5, 5, 255
-TRUCK, BOAT, ISOLATED = 0, 1, 2
-STATUS = ('TRUCK', 'BOAT', 'ISOLATED')
+TRUCK, BOAT, FOOT, ISOLATED = 0, 1, 2, 3
+STATUS = ('TRUCK', 'BOAT', 'FOOT', 'ISOLATED')
 
 # truck: drivable classes; boat: navigable classes; wall: never entered; risk: channels in the
-# risk-aware truck cost; hazard: GT classes a truck must never drive on (route safety, §5.4)
+# risk-aware truck cost; hazard: GT classes a truck must never drive on (route safety, §5.4);
+# walk: classes people can cross on foot besides dry land (RescueNet debris)
 PROFILES = {
-    'floodnet': dict(truck=(0,), boat=(1, 4), wall=(2, 3), risk=(1, 4), bldg=(2, 3), hazard=(1, 4)),
-    'rescuenet': dict(truck=(0,), boat=(4,), wall=(1, 2, 3), risk=(1, 4), bldg=(2, 3), hazard=(1, 4)),
+    'floodnet': dict(truck=(0,), boat=(1, 4), wall=(2, 3), risk=(1, 4), bldg=(2, 3), hazard=(1, 4), walk=()),
+    'rescuenet': dict(truck=(0,), boat=(4,), wall=(1, 2, 3), risk=(1, 4), bldg=(2, 3), hazard=(1, 4), walk=(1,)),
 }
-DEFAULTS = dict(lam=5.0, boat_cost=3.0, launch=40.0, boat_p=0.5, offroad=4.0, offroad_maxwet=None)
+DEFAULTS = dict(lam=5.0, boat_cost=3.0, launch=40.0, boat_p=0.5, offroad=4.0, offroad_maxwet=None,
+                foot_cost=8.0, alight=10.0)
 
 # majority-vote tie-break: on equal pixel counts the less drivable class wins
 # (road_clear < other < water < road_flooded < bldg_dry < bldg_flooded)
@@ -98,12 +107,17 @@ class Grid:
         pr = self.prof
         self.wall = np.isin(self.cls, pr['wall'])
         self.risk = self.probs[list(pr['risk'])].sum(0)
-        self.offroad = (self.cls == OTHER) if self.par['offroad'] else np.zeros_like(self.wall)
+        land = self.cls == OTHER
         if self.par['offroad_maxwet'] is not None:
-            self.offroad &= self.risk < self.par['offroad_maxwet']
+            land &= self.risk < self.par['offroad_maxwet']
+        self.offroad = land if self.par['offroad'] else np.zeros_like(self.wall)
         self.truck_ok = (np.isin(self.cls, pr['truck']) | self.offroad) & ~self.wall
         self.boat_ok = (np.isin(self.cls, pr['boat']) | (self.probs[list(pr['boat'])].sum(0) >= self.par['boat_p'])) \
             & ~self.wall
+        self.foot = self.par['foot_cost'] is not None
+        self.foot_ok = (np.isin(self.cls, pr['truck'] + pr['walk']) | land) & ~np.isin(self.cls, pr['bldg']) \
+            if self.foot else np.zeros_like(self.wall)
+        self.layers = 3 if self.foot else 2
         self.risk = self.probs[list(pr['risk'])].sum(0)
         self.graph = self._build()
 
@@ -124,7 +138,13 @@ class Grid:
             vals += [L * (1 + p['lam'] * risk[t]) * slow[t],
                      np.full(bo.sum(), L * p['boat_cost']),
                      np.full(bo.sum(), L * p['boat_cost'] + p['launch'])]
-        return csr_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(2 * n, 2 * n))
+            if self.foot:                                          # foot->foot, truck->foot, boat->foot
+                f = self.foot_ok[yd, xd].ravel()
+                rows += [2 * n + a[f], a[f], n + a[f]]
+                cols += [2 * n + b[f]] * 3
+                vals += [np.full(f.sum(), L * p['foot_cost'])] + [np.full(f.sum(), L * p['foot_cost'] + p['alight'])] * 2
+        m = self.layers * n
+        return csr_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(m, m))
 
     def solve(self, base):
         """Multi-source Dijkstra from base = (flat cell indices, mode). The vehicle enters the image at
@@ -141,18 +161,21 @@ class Solution:
 
     def status(self, bld):
         n, r = self.grid.n, bld['ring']
-        if len(r) and np.isfinite(self.dist[r]).any():
-            return TRUCK
-        if len(r) and np.isfinite(self.dist[n + r]).any():
-            return BOAT
+        for layer in range(self.grid.layers):                   # TRUCK, BOAT, FOOT
+            if len(r) and np.isfinite(self.dist[layer * n + r]).any():
+                return layer
         return ISOLATED
 
-    def route(self, bld):
-        """Cheapest route to the building's ring: dict(cells=[(y, x)], modes=[TRUCK|BOAT], cost) or None."""
+    def route(self, bld, layer=None):
+        """Cheapest route to the building's ring that ends in `layer` (default: the layer of its status, so a
+        TRUCK house gets its road route, a BOAT house its boat route): dict(cells=[(y, x)], modes, cost) or None."""
         n, r = self.grid.n, bld['ring']
         if not len(r):
             return None
-        cand = np.concatenate([r, n + r])
+        layer = self.status(bld) if layer is None else layer
+        if layer == ISOLATED:
+            return None
+        cand = layer * n + r
         j = cand[np.argmin(self.dist[cand])]
         if not np.isfinite(self.dist[j]):
             return None
@@ -161,7 +184,7 @@ class Solution:
             nodes.append(self.pred[nodes[-1]])
         nodes = np.array(nodes[::-1])
         cells = nodes % n
-        return dict(cells=list(zip(*np.divmod(cells, self.grid.w))), modes=(nodes >= n).astype(int).tolist(),
+        return dict(cells=list(zip(*np.divmod(cells, self.grid.w))), modes=(nodes // n).astype(int).tolist(),
                     cost=float(self.dist[j]))
 
 
@@ -219,7 +242,8 @@ def eval_route_on_gt(route, gt_grid):
     """Score a route found on one map against the GT grid: cost under GT costs, feasibility, RSV.
     Infeasible = it drives a truck onto GT water/flooded/blocked road or enters a GT wall
     (a boat over dry ground is charged boat cost but not flagged; a truck on GT dry 'other' land
-    pays the off-road cost, or is infeasible if the GT grid is roads-only). RSV = share of truck-leg cells
+    pays the off-road cost, or is infeasible if the GT grid is roads-only; a walk is infeasible on GT
+    water, flooded road or a building, gate or not). RSV = share of truck-leg cells
     that are GT hazard or building. unsafe = a truck leg crosses >= 3 consecutive GT hazard cells."""
     g, p = gt_grid, gt_grid.par
     haz = np.isin(g.cls, g.prof['hazard'])
@@ -234,12 +258,20 @@ def eval_route_on_gt(route, gt_grid):
             unsafe |= run >= 3
         if k == 0:
             continue                                   # entry cell: no step cost
-        if g.wall[y, x] or (m == TRUCK and (haz[y, x] or not (g.truck_ok[y, x] or bad_truck[y, x]))):
+        if m == FOOT:
+            feasible &= bool(np.isin(g.cls[y, x], g.prof['truck'] + g.prof['walk'] + (OTHER,))
+                             and not np.isin(g.cls[y, x], g.prof['bldg']))
+        elif g.wall[y, x] or (m == TRUCK and (haz[y, x] or not (g.truck_ok[y, x] or bad_truck[y, x]))):
             feasible = False
         (y0, x0), m0 = cells[k - 1], modes[k - 1]
         L = np.hypot(y - y0, x - x0)
         slow = p['offroad'] if (p['offroad'] and g.cls[y, x] == OTHER) else 1.0
-        cost += L * (1 + p['lam'] * g.risk[y, x]) * slow if m == TRUCK else L * p['boat_cost'] + p['launch'] * (m0 == TRUCK)
+        if m == TRUCK:
+            cost += L * (1 + p['lam'] * g.risk[y, x]) * slow
+        elif m == BOAT:
+            cost += L * p['boat_cost'] + p['launch'] * (m0 == TRUCK)
+        else:
+            cost += L * (p['foot_cost'] or 0.0) + p['alight'] * (m0 != FOOT)
     return dict(cost_gt=cost, feasible=feasible, unsafe=unsafe,
                 rsv=truck_bad / truck_cells if truck_cells else None)
 
@@ -247,7 +279,7 @@ def eval_route_on_gt(route, gt_grid):
 def route_metrics(pred_grid, gt_grid, base, blds):
     """Per-image routing comparison (PLAN §5.4) of a predicted map against the GT map, same base and
     GT buildings. Returns the 3x3 status confusion (rows GT, cols pred) and per-building records."""
-    cm = np.zeros((3, 3), np.int64)
+    cm = np.zeros((len(STATUS), len(STATUS)), np.int64)
     recs = []
     if base is None:
         return cm, recs

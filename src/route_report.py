@@ -22,6 +22,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--results', default='results/kaggle_v2/rr')
     ap.add_argument('--out', default='results/routing')
+    ap.add_argument('--table', default='routing.md')
+    ap.add_argument('--extra', default='', help='extra route_eval.py arguments, e.g. "--offroad_maxwet -1"')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     runs = sorted((json.load(open(f)) for f in glob.glob(os.path.join(a.results, 'decode', '*.json'))),
@@ -36,7 +38,7 @@ def main():
         for name, extra in (('default', []), ('tuned', ['--decode', dec])):
             out = os.path.join(a.out, f'pred_{run}_{name}.json')
             subprocess.run([sys.executable, os.path.join(HERE, 'route_eval.py'), '--dataset', ds, '--split_file',
-                            f'{ds}_test_eval100', '--preds', preds, '--out', out, *extra], check=True,
+                            f'{ds}_test_eval100', '--preds', preds, '--out', out, *extra, *a.extra.split()], check=True,
                            stdout=subprocess.DEVNULL)
             r = json.load(open(out))['routing']
             for lam, lab in (('lam5', 'risk-aware λ=5'), ('lam0', 'plain λ=0')):
@@ -44,7 +46,7 @@ def main():
                 lines.append(f'| {run.replace("_s0_stratified", "")} | {"τ=0.5" if name == "default" else d["chosen"]["variant"]} '
                              f'| {lab} | ' + ' | '.join('–' if x is None else f'{x:.3f}' for x in v) + ' |')
         print('done', run, flush=True)
-    open(os.path.join(a.out, 'routing.md'), 'w').write('\n'.join(lines) + '\n')
+    open(os.path.join(a.out, a.table), 'w').write('\n'.join(lines) + '\n')
     print('\n'.join(lines))
 
 

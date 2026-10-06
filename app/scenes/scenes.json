@@ -9,11 +9,13 @@
    "status_pred": {
     "TRUCK": 6,
     "BOAT": 0,
+    "FOOT": 0,
     "ISOLATED": 0
    },
    "status_gt": {
     "TRUCK": 6,
     "BOAT": 0,
+    "FOOT": 0,
     "ISOLATED": 0
    }
   },
@@ -21,34 +23,38 @@
    "key": "floodnet_7320",
    "dataset": "floodnet",
    "id": "7320",
-   "caption": "Flooded street: trucks reach most houses, some are cut off",
+   "caption": "Flooded street: trucks reach most houses, three need a boat and a walk",
    "n_buildings": 16,
    "status_pred": {
     "TRUCK": 13,
     "BOAT": 0,
-    "ISOLATED": 3
+    "FOOT": 3,
+    "ISOLATED": 0
    },
    "status_gt": {
     "TRUCK": 13,
     "BOAT": 0,
-    "ISOLATED": 3
+    "FOOT": 3,
+    "ISOLATED": 0
    }
   },
   {
    "key": "floodnet_7301",
    "dataset": "floodnet",
    "id": "7301",
-   "caption": "Truck, boat and isolated houses in one scene",
+   "caption": "Truck, boat and on-foot rescues in one scene",
    "n_buildings": 25,
    "status_pred": {
     "TRUCK": 10,
     "BOAT": 6,
-    "ISOLATED": 9
+    "FOOT": 9,
+    "ISOLATED": 0
    },
    "status_gt": {
     "TRUCK": 11,
     "BOAT": 5,
-    "ISOLATED": 9
+    "FOOT": 9,
+    "ISOLATED": 0
    }
   },
   {
@@ -60,29 +66,33 @@
    "status_pred": {
     "TRUCK": 12,
     "BOAT": 7,
-    "ISOLATED": 6
+    "FOOT": 6,
+    "ISOLATED": 0
    },
    "status_gt": {
     "TRUCK": 16,
     "BOAT": 5,
-    "ISOLATED": 4
+    "FOOT": 4,
+    "ISOLATED": 0
    }
   },
   {
    "key": "floodnet_7611",
    "dataset": "floodnet",
    "id": "7611",
-   "caption": "Mostly isolated: no dry way in",
+   "caption": "Cut off by water: most houses need a boat, then a walk",
    "n_buildings": 15,
    "status_pred": {
     "TRUCK": 4,
     "BOAT": 0,
-    "ISOLATED": 11
+    "FOOT": 11,
+    "ISOLATED": 0
    },
    "status_gt": {
     "TRUCK": 4,
     "BOAT": 0,
-    "ISOLATED": 11
+    "FOOT": 11,
+    "ISOLATED": 0
    }
   },
   {
@@ -94,11 +104,13 @@
    "status_pred": {
     "TRUCK": 14,
     "BOAT": 0,
+    "FOOT": 0,
     "ISOLATED": 0
    },
    "status_gt": {
     "TRUCK": 0,
     "BOAT": 14,
+    "FOOT": 0,
     "ISOLATED": 0
    }
   },
@@ -111,11 +123,13 @@
    "status_pred": {
     "TRUCK": 8,
     "BOAT": 0,
+    "FOOT": 0,
     "ISOLATED": 0
    },
    "status_gt": {
     "TRUCK": 8,
     "BOAT": 0,
+    "FOOT": 0,
     "ISOLATED": 0
    }
   },
@@ -128,12 +142,14 @@
    "status_pred": {
     "TRUCK": 12,
     "BOAT": 0,
+    "FOOT": 0,
     "ISOLATED": 0
    },
    "status_gt": {
     "TRUCK": 6,
     "BOAT": 2,
-    "ISOLATED": 4
+    "FOOT": 4,
+    "ISOLATED": 0
    }
   }
  ],

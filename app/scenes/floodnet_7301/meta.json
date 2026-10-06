@@ -12,7 +12,7 @@
   ],
   "variant": "tau"
  },
- "caption": "Truck, boat and isolated houses in one scene",
+ "caption": "Truck, boat and on-foot rescues in one scene",
  "size": [
   768,
   576
@@ -62,11 +62,13 @@
  "status_pred": {
   "TRUCK": 10,
   "BOAT": 6,
-  "ISOLATED": 9
+  "FOOT": 9,
+  "ISOLATED": 0
  },
  "status_gt": {
   "TRUCK": 11,
   "BOAT": 5,
-  "ISOLATED": 9
+  "FOOT": 9,
+  "ISOLATED": 0
  }
 }

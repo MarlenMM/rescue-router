@@ -12,7 +12,7 @@
   ],
   "variant": "tau"
  },
- "caption": "Mostly isolated: no dry way in",
+ "caption": "Cut off by water: most houses need a boat, then a walk",
  "size": [
   768,
   576
@@ -62,11 +62,13 @@
  "status_pred": {
   "TRUCK": 4,
   "BOAT": 0,
-  "ISOLATED": 11
+  "FOOT": 11,
+  "ISOLATED": 0
  },
  "status_gt": {
   "TRUCK": 4,
   "BOAT": 0,
-  "ISOLATED": 11
+  "FOOT": 11,
+  "ISOLATED": 0
  }
 }
