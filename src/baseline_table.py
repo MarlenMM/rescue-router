@@ -17,6 +17,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from rr.metrics import WET, confusion, decode, gt_classes, summarize  # noqa: E402
+from rr.final_decode import decode_photo, photo  # noqa: E402
 from viz import load_label  # noqa: E402
 
 CLS = ['road_clear', 'road_flooded', 'bldg_flooded', 'bldg_dry', 'water']
@@ -38,7 +39,9 @@ def full_test(res_dir, data, dec):
         for p in parts:
             z = np.load(p)
             for i, P in zip(z['ids'], z['probs']):
-                cm += confusion(decode(P.astype(np.float32) / 255, **d), gt_classes(load_label(data, 'floodnet', 'test', str(i))))
+                cm += confusion(decode_photo(P.astype(np.float32) / 255, d, img=photo(data, 'floodnet', 'test', str(i)),
+                                             split_file='floodnet_test_full', photo_id=str(i)),
+                                gt_classes(load_label(data, 'floodnet', 'test', str(i))))
         out[name] = summarize(cm, CLS, WET['floodnet'])
         out[name]['n_images'] = sum(len(np.load(p)['ids']) for p in parts)
     return out

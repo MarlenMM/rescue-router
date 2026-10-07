@@ -13,6 +13,8 @@ For every run with a val30 cache (preds/<run>_<ds>_val_tune30.npz) it tunes, on 
        (the model's own p_dry carries no flooded/dry signal at >= 5 shots: per-building AUC ~0.5).
 Then it applies default (tau 0.5), tau-only, tau + vote and tau + wet context unchanged to eval100
 (preds/<run>_<ds>_test_eval100_fp16.npz) and writes decode/<run>.json (params + all metrics).
+A decode JSON with "frozen": true (the Batch 13 headline: guided filter -> tau -> clean-up -> SAM, chosen on val30 by
+src/decode_ctl_check.py / sam_refine.py) is kept as is.
 --table <md>: (re)write the summary table of all runs from decode/*.json (default and chosen decode, val30 and
 eval100; test-time-flip runs '_tta' excluded, they have their own report) and stop; --runs none skips the tuning.
 """
@@ -123,6 +125,10 @@ def main():
     for v in vals:
         run = os.path.basename(v).split('_floodnet_val')[0].split('_rescuenet_val')[0]
         if a.runs and run not in a.runs.split(','):
+            continue
+        f_dec = os.path.join(out_dir, f'{run}.json')
+        if os.path.exists(f_dec) and json.load(open(f_dec)).get('frozen'):
+            print(run, 'decode frozen (Batch 13 chain chosen on val30 by b13 scripts), kept as is', flush=True)
             continue
         ds = run.split('_')[0]
         root = os.path.join(a.data, f'{ds}_r768')

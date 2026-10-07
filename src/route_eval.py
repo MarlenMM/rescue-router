@@ -23,6 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import router as R  # noqa: E402
 from rr.metrics import decode, gt_classes  # noqa: E402
+from rr.final_decode import decode_photo, photo  # noqa: E402
 
 SPLIT = {'test': 'test', 'val': 'val'}
 # off-road gate for predicted maps (the GT grid has none): tuned on FloodNet 50-shot val30 (stranded F1
@@ -99,7 +100,8 @@ def main():
         cm_gt += cm
         if P is not None:
             probs = P[i]
-            pred = decode(probs.astype(np.float32) / 255, **dec)
+            pred = decode_photo(probs.astype(np.float32) / 255, dec, img=photo(a.data, a.dataset, split, i),
+                                split_file=a.split_file, photo_id=i, root=a.repo)
             pc, pp = R.cell_classes(pred), R.cell_probs(probs)
             for lam in lams:
                 cm, recs = R.route_metrics(R.Grid(pc, pp, a.dataset, lam=lam, offroad=a.offroad or None, foot_cost=foot, **phys,

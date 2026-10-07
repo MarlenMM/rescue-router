@@ -18,6 +18,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from rr.metrics import decode, gt_classes  # noqa: E402
+from rr.final_decode import decode_photo, photo  # noqa: E402
 from viz import load_label  # noqa: E402
 
 SUPER = {'road': (0, 1), 'building': (2, 3), 'water': (4,)}
@@ -36,7 +37,8 @@ def score(npz, dec, data):
     cm = np.zeros((4, 4), np.int64)
     for i, P in zip(z['ids'], z['probs']):
         g = super_map(gt_classes(load_label(data, 'rescuenet', 'test', str(i))))
-        p = super_map(decode(P.astype(np.float32) / 255, **dec))
+        p = super_map(decode_photo(P.astype(np.float32) / 255, dec, img=photo(data, 'rescuenet', 'test', str(i)),
+                                   split_file='rescuenet_test_eval100', photo_id=str(i)))
         v = g != 255
         cm += np.bincount(g[v].astype(np.int64) * 4 + p[v], minlength=16).reshape(4, 4)
     tp = np.diag(cm).astype(float)

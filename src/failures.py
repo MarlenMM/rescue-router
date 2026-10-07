@@ -23,6 +23,7 @@ from scipy import ndimage
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from rr.metrics import decode, gt_classes  # noqa: E402
+from rr.final_decode import decode_photo  # noqa: E402
 from viz import blend, load_image, load_label  # noqa: E402
 
 WET = (1, 4)
@@ -33,8 +34,8 @@ def iou(p, g):
     return float((p & g).sum() / u) if u else None
 
 
-def per_image(i, P, gt, dec):
-    pred = decode(P.astype(np.float32) / 255, **dec)
+def per_image(i, P, gt, dec, img=None, split_file='floodnet_test_eval100'):
+    pred = decode_photo(P.astype(np.float32) / 255, dec, img=img, split_file=split_file, photo_id=i)
     r = dict(id=i)
     present = []
     for c, n in ((0, 'road_clear'), (1, 'road_flooded')):
@@ -78,7 +79,7 @@ def main():
     rows, preds = [], {}
     for i, P in zip([str(x) for x in z['ids']], z['probs']):
         gt = gt_classes(load_label(a.data, ds, 'test', i))
-        r, preds[i] = per_image(i, P, gt, dec)
+        r, preds[i] = per_image(i, P, gt, dec, load_image(a.data, ds, 'test', i), f'{ds}_test_eval100')
         cm = np.array(rt[i].get('status_confusion', np.zeros((4, 4))))
         r.update(n_buildings=rt[i]['n_buildings'], stranded_missed=int(cm[1:, 0].sum()),
                  n_unsafe_routes=rt[i].get('n_unsafe_routes', 0), base=rt[i]['base'])
