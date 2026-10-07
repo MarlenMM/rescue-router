@@ -57,7 +57,7 @@ Without a GPU, `--fake_live` is a test mode: an uploaded eval100 FloodNet photo 
 
 ## Live inference on an uploaded photo (GPU)
 
-Uploads run the FloodNet 50-shot model live (~20 s per photo on a T4, SAM included). It needs the course's meta-trained
+Uploads run the FloodNet 50-shot model live (16–17 s per photo on a T4, SAM included; measured 8 Oct). It needs the course's meta-trained
 checkpoint `generalist.ckpt` (course Drive), the starter repository (Chameleon code) and, for the final decode, SAM
 ViT-B (`pip install segment-anything`; weights `sam_vit_b_01ec64.pth` from
 <https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth>, path in `RR_SAM_WEIGHTS`):
