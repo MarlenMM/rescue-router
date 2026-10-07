@@ -86,3 +86,78 @@ def tiled_predict(model, X, tile=384, stride=192, batch=6, amp='none'):
         out[:, y:y + tile, x:x + tile] += p * w
         wsum[:, y:y + tile, x:x + tile] += w
     return (out / wsum).cpu()
+
+
+# ----------------------------------------------------------------------------- Batch 13 prediction options
+def predict_multiscale(model, X, scales=(1.0,), stride=192, amp='none'):
+    """I24/I25: tiled prediction at every scale (bilinear resize of the photo, probabilities resized back) and the
+    mean. scales == (1.0,) is exactly tiled_predict(model, X, stride=stride)."""
+    import torch.nn.functional as F
+    if tuple(scales) == (1.0,):
+        return tiled_predict(model, X, stride=stride, amp=amp)
+    _, H, W = X.shape
+    acc = None
+    for s in scales:
+        if s == 1.0:
+            P = tiled_predict(model, X, stride=stride, amp=amp)
+        else:
+            hs, ws = int(round(H * s)), int(round(W * s))
+            Xs = F.interpolate(X[None], (hs, ws), mode='bilinear', align_corners=False, antialias=s < 1)[0]
+            P = tiled_predict(model, Xs, stride=stride, amp=amp)
+            P = F.interpolate(P[None], (H, W), mode='bilinear', align_corners=False, antialias=s > 1)[0]
+        acc = P if acc is None else acc + P
+    return acc / len(scales)
+
+
+def set_support_crop(view=0, weights=None):
+    """I1/I2: which support crop the next encode_support() builds (rr.data.FloodDataset class options)."""
+    from rr.data import FloodDataset
+    FloodDataset.support_view = view
+    FloodDataset.crop_weights = None if weights is None else torch.tensor(weights, dtype=torch.float32)
+
+
+def compile_encoder(model):
+    """I36: torch.compile every image-encoder block's forward (module objects and state-dict keys unchanged)."""
+    n = 0
+    for blk in model.model.image_encoder.backbone.blocks:
+        blk.forward = torch.compile(blk.forward, dynamic=False)
+        n += 1
+    return n
+
+
+def load_finetuned_weights(model, ckpt):
+    """Swap in another fine-tuned checkpoint of the same architecture (snapshots, weight averages) without
+    rebuilding the 3 GB model (I33). Returns the number of tensors loaded."""
+    sd = torch.load(ckpt, map_location='cpu', weights_only=False)['state_dict']
+    own = model.state_dict()
+    bad = [k for k in sd if k not in own or own[k].shape != sd[k].shape]
+    assert not bad, f'{ckpt}: {len(bad)} tensors do not fit, e.g. {bad[:3]}'
+    model.load_state_dict(sd, strict=False)
+    model.model.reset_support()
+    return len(sd)
+
+
+def predict_views(model, load, ids, views=1, crop_weights=None, scales=(1.0,), stride=192, amp='none',
+                  flip_dims=(), chunk=60):
+    """Probabilities (float32 (C, H, W) per id, in order) averaged over `views` support crops (I1), `scales` (I25)
+    and the tile stride (I24). load(i) -> (X, label). Images go in chunks so every view's support set is
+    encoded once per chunk. Returns (probs list, labels list, support-encode seconds)."""
+    out, labs, t_sup = {}, {}, 0.0
+    for c0 in range(0, len(ids), chunk):
+        part = ids[c0:c0 + chunk]
+        for v in range(views):
+            set_support_crop(v, crop_weights)
+            t_sup += encode_support(model, amp=amp)
+            for i in part:
+                X, lab = load(i)
+                if flip_dims:
+                    X = torch.flip(X, flip_dims)
+                P = predict_multiscale(model, X, scales, stride, amp)
+                if flip_dims:
+                    P = torch.flip(P, flip_dims)
+                out[i] = P if v == 0 else out[i] + P
+                labs[i] = lab
+        for i in part:
+            out[i] = (out[i] / views).numpy()
+    set_support_crop(0, None)
+    return [out[i] for i in ids], [labs[i] for i in ids], t_sup

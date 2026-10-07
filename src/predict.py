@@ -12,6 +12,10 @@ other dataset; its metrics JSON is over FloodNet channel names, so score super-c
 --flip h|v|hv: test-time flip (Batch 7): the query is flipped horizontally / vertically / both before tiling and
 the probabilities are flipped back, so the cache (suffix _flip<f>) is aligned with the photo; src/tta.py averages
 these with the unflipped cache. The 384/192 tile grid is symmetric at 768x576, so the tiling itself is mirrored.
+Batch 13 options (defaults = the published predictions bit for bit; any non-default adds _<tag> to the cache name,
+--tag sets it): --views K support-view ensemble (I1: K different support crops per labelled photo, probabilities
+averaged), --crop_weights w0,..,w4 (I2: support-crop channel weights), --stride 128 (I24: denser tiles),
+--scales 1,1.25 (I25: multi-scale), --compile (I36: torch.compile of the encoder blocks).
 """
 
 import argparse
@@ -46,6 +50,12 @@ def main():
     ap.add_argument('--channel_chunk', type=int, default=5)
     ap.add_argument('--amp', default='none', choices=['none', 'fp16'])
     ap.add_argument('--flip', default='none', choices=['none', 'h', 'v', 'hv'])
+    ap.add_argument('--views', type=int, default=1, help='I1: support views averaged')
+    ap.add_argument('--crop_weights', default='', help='I2: support-crop channel weights, e.g. 1,3,3,3,1')
+    ap.add_argument('--stride', type=int, default=192, help='I24: tile stride')
+    ap.add_argument('--scales', default='1', help='I25: comma list of query scales, e.g. 1,1.25')
+    ap.add_argument('--compile', action='store_true', help='I36: torch.compile the image-encoder blocks')
+    ap.add_argument('--tag', default='', help='suffix of the cache name for non-default options')
     ap.add_argument('--data', default='/content/rr_data')
     ap.add_argument('--runs', default='/content/runs_data')
     ap.add_argument('--drive', default='/content/drive/MyDrive/AIC200-my_work/rescue_router')
@@ -54,7 +64,7 @@ def main():
     a = ap.parse_args()
     sys.path.insert(0, a.chameleon)
     from rr.data import build_run_folder, load_query, read_ids
-    from rr.infer import encode_support, tiled_predict
+    from rr.infer import compile_encoder, encode_support, predict_multiscale, predict_views, set_support_crop
     from rr.metrics import WET, confusion, decode, gt_classes, summarize
 
     ck = torch.load(a.ckpt, map_location='cpu', weights_only=False)['hyper_parameters']['config']
@@ -62,6 +72,15 @@ def main():
     run_id = os.path.splitext(os.path.basename(a.ckpt))[0]
     tag = f'{run_id}_{a.split_file}' + ('' if shot == ck.shot else f'_es{shot}') + (f'_n{a.limit}' if a.limit else '') \
         + ('' if a.amp == 'none' else f'_{a.amp}') + ('' if a.flip == 'none' else f'_flip{a.flip}')
+    scales = tuple(float(x) for x in a.scales.split(','))
+    crop_w = [float(x) for x in a.crop_weights.split(',')] if a.crop_weights else None
+    nondefault = a.views != 1 or crop_w or a.stride != 192 or scales != (1.0,) or a.compile
+    if nondefault or a.tag:
+        tag += '_' + (a.tag or '_'.join(filter(None, [f'v{a.views}' if a.views != 1 else '',
+                                                        'cw' + ''.join(f'{w:g}' for w in crop_w) if crop_w else '',
+                                                        f'st{a.stride}' if a.stride != 192 else '',
+                                                        'sc' + '-'.join(f'{x:g}' for x in scales) if scales != (1.0,) else '',
+                                                        'comp' if a.compile else ''])))
     if not (a.no_save or a.force) and os.path.exists(os.path.join(a.drive, 'preds', f'{tag}.npz')):
         print(f'[{tag}] cached already, skipping')
         return
@@ -83,23 +102,36 @@ def main():
     ids = read_ids(os.path.join(a.drive, 'splits', f'{a.split_file}.txt'))
     if a.limit:
         ids = ids[:a.limit]
+    if a.compile:
+        print(f'compiled {compile_encoder(model)} encoder blocks', flush=True)
     torch.cuda.reset_peak_memory_stats()
-    t_sup = encode_support(model, amp=a.amp)
-    sup_peak = torch.cuda.max_memory_allocated() / 1024 ** 3
-    cm, probs, t0 = np.zeros((6, 6), np.int64), [], time.time()
     dims = {'none': [], 'h': [-1], 'v': [-2], 'hv': [-2, -1]}[a.flip]
-    for i in ids:
-        X, lab = load_query(query_root, a.split, i)
-        if dims:
-            X = torch.flip(X, dims)
-        P = tiled_predict(model, X, amp=a.amp)
-        P = (torch.flip(P, dims) if dims else P).numpy()
-        cm += confusion(decode(P, a.tau), gt_classes(lab))
-        probs.append(np.round(P * 255).astype(np.uint8))
+    cm, probs = np.zeros((6, 6), np.int64), []
+    if a.views == 1:
+        set_support_crop(0, crop_w)
+        t_sup = encode_support(model, amp=a.amp)
+        sup_peak = torch.cuda.max_memory_allocated() / 1024 ** 3
+        t0 = time.time()
+        for i in ids:
+            X, lab = load_query(query_root, a.split, i)
+            if dims:
+                X = torch.flip(X, dims)
+            P = predict_multiscale(model, X, scales, a.stride, a.amp)
+            P = (torch.flip(P, dims) if dims else P).numpy()
+            cm += confusion(decode(P, a.tau), gt_classes(lab))
+            probs.append(np.round(P * 255).astype(np.uint8))
+    else:
+        t0 = time.time()
+        Ps, labs, t_sup = predict_views(model, lambda i: load_query(query_root, a.split, i), ids, a.views, crop_w,
+                                        scales, a.stride, a.amp, dims)
+        sup_peak = torch.cuda.max_memory_allocated() / 1024 ** 3
+        for P, lab in zip(Ps, labs):
+            cm += confusion(decode(P, a.tau), gt_classes(lab))
+            probs.append(np.round(P * 255).astype(np.uint8))
     torch.cuda.synchronize()
     res = summarize(cm, NAMES[a.dataset], WET[a.dataset])
     res.update(run_id=run_id, split=a.split_file, query_dataset=a.query_dataset or a.dataset, eval_shot=shot, tau=a.tau, n_images=len(ids), amp=a.amp,
-               flip=a.flip,
+               flip=a.flip, views=a.views, crop_weights=crop_w, stride=a.stride, scales=list(scales), compiled=a.compile,
                support_encode_s=round(t_sup, 2), s_per_image=round((time.time() - t0) / max(len(ids), 1), 2),
                support_peak_gb=round(sup_peak, 2),
                infer_peak_gb=round(torch.cuda.max_memory_allocated() / 1024 ** 3, 2),
