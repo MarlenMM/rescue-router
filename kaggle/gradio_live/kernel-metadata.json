@@ -8,8 +8,12 @@
  "enable_gpu": true,
  "enable_internet": true,
  "machine_shape": "NvidiaTeslaT4",
- "dataset_sources": ["marlenmelis/rr-code"],
+ "dataset_sources": [
+  "marlenmelis/rr-bundle-b13"
+ ],
  "competition_sources": [],
- "kernel_sources": ["marlenmelis/rr-fetch-data", "marlenmelis/rr-gpu-select50", "marlenmelis/rr-gpu-queue"],
+ "kernel_sources": [
+  "marlenmelis/rr-fetch-data"
+ ],
  "model_sources": []
 }

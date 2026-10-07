@@ -59,7 +59,12 @@ if not os.path.isdir('/content/starter'):
     sh('git clone -q --depth 1 https://github.com/GitGyun/AIC200-Project-StructuredPrediction.git /content/starter')
 import numpy                                                           # noqa: E402
 sh(f'{sys.executable} -m pip install -q pytorch_lightning==2.4.0 timm==0.6.13 easydict einops scikit-image pycocotools '
-   f'fastremap numba flow_vis "{GRADIO}" "numpy=={numpy.__version__}"', tail=400)
+   f'fastremap numba flow_vis segment-anything "{GRADIO}" "numpy=={numpy.__version__}"', tail=400)
+SAM = '/content/sam_vit_b_01ec64.pth'                                  # Batch 13: SAM ViT-B redraws building outlines
+if not os.path.exists(SAM):
+    import urllib.request                                              # noqa: E402
+    urllib.request.urlretrieve('https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth', SAM)
+os.environ['RR_SAM_WEIGHTS'] = SAM
 print(f'setup done in {(time.time() - T0) / 60:.1f} min', flush=True)
 
 cmd = [sys.executable, '-u', APP, '--live', '--share',
