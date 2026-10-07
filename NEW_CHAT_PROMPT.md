@@ -12,7 +12,7 @@ Batch 13 = improve the FloodNet 50-shot model before the deadline: try every ide
 GPU: Kaggle ~12–13 h left this week (check the quota first), Colab ~1 h today. You never need to ask me before a GPU run; just stay within that budget. Still ask before publishing anything public (Pages republish) and before replacing the submission zip. For Colab I switch the runtime to T4 and approve the Drive popup when you ask. Colab's MCP tools drop their connection and time out on cells over ~30 min: run long work as background processes in the kernel and poll with short cells.
 
 How I work with you:
-- For each batch: do it whole, test it, update PLAN §15 (mark it done, record results and decisions, log every variant with its val30 numbers) and your memory, commit and push, give me a short summary in chat, then send me a PushNotification (one line, lead with the result).
+- For each batch: do it whole, test it, update PLAN §15 (mark it done, record results and decisions, log every variant with its val30 numbers) and your memory, commit and push, give me a short summary in chat. PushNotification (one line, lead with the result) only when blocked on me or when 13.5 is done (not after every overnight batch).
 - If a choice is genuinely mine (anything public, look and feel, replacing the zip), ask with short options.
 - Do not regenerate the final notebook (`notebook/rescue_router_executed.ipynb`) without re-running it on a T4.
 - Run `date` before writing any time into PLAN or memory.
