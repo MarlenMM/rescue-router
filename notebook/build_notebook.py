@@ -280,7 +280,9 @@ md(r'''
 
 The prediction caches were made on Kaggle T4s by `src/predict.py`. Here the same script runs the FloodNet 50-shot
 (headline) and 20-shot models again on the first test photos of eval100, and the result is compared with the cache:
-the probabilities should be identical (same code, same fp16 inference, same GPU type).
+on Kaggle, where the caches were made, the probabilities are identical (maximum difference 0 in the submitted run).
+On Colab's T4 the GPU libraries differ slightly: measured 7 Oct, at most 3/255 (50-shot) and 14/255 (20-shot)
+apart, with 99.99 % and 99.95 % of pixels decoding to the same class. Every number below comes from the caches.
 ''')
 code(r'''
 tic('live')
