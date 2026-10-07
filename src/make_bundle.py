@@ -10,7 +10,7 @@ The bundle mirrors the repository, so every script runs from its root with the d
   rr_data/floodnet_r768/test/{labels,labels_raw}         all 448 test labels; images: eval100 only
   rr_data/rescuenet_r768/{val,test}/{labels,labels_raw}  RescueNet val30 + eval100 labels (photos: the 2 showcase scenes)
   results/kaggle_v2/rr/{ckpt,decode,metrics,logs}        the 7 fine-tuned checkpoints, decodes, metrics, training logs
-  results/kaggle_v2/rr_packed/preds/*.ptar               the 16 prediction caches, packed losslessly (src/cache_pack.py;
+  results/kaggle_v2/rr_packed/preds/*.ptar               the prediction caches (19 since Batch 13), packed losslessly (src/cache_pack.py;
                                                          `python src/cache_pack.py unpack --src results/kaggle_v2/rr_packed`)
   results/kaggle_v2/report/, results/routing/            every report (JSON, Markdown, figures) as published
   BUNDLE.json, README_data.md, LICENSES.md
@@ -137,7 +137,7 @@ def main():
         p = os.path.join(out, p)
         return sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(p) for f in fs) if os.path.isdir(p) \
             else os.path.getsize(p)
-    sizes = {'results/kaggle_v2/rr_packed/': ('16 prediction caches (lossless)', size('results/kaggle_v2/rr_packed')),
+    sizes = {'results/kaggle_v2/rr_packed/': (f'{len(cache_pack.PACK)} prediction caches (lossless)', size('results/kaggle_v2/rr_packed')),
              'results/kaggle_v2/rr/ckpt/': ('7 fine-tuned checkpoints', size('results/kaggle_v2/rr/ckpt')),
              'rr_data/': ('photos (supports, val30, FloodNet eval100) + labels', size('rr_data')),
              'results/ (reports)': ('report and routing JSON/Markdown/figures',
