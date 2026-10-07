@@ -90,14 +90,24 @@ def decode_photo(probs, dec, img=None, split_file=None, photo_id=None, root='.')
         assert img is not None, 'SAM refinement needs the photo'
         import torch
         from sam_refine import refine
-        pred, dev = sam_predictor()
-        with torch.no_grad():
-            pred.set_image(img)
 
-            def masks_for(boxes):
-                tb = pred.transform.apply_boxes_torch(torch.as_tensor(boxes, device=dev), img.shape[:2])
-                m, _, _ = pred.predict_torch(point_coords=None, point_labels=None, boxes=tb, multimask_output=False)
-                return list(m[:, 0].cpu().numpy())
-            cls = refine(cls, np.asarray(probs, np.float32), masks_for, dec['sam'].get('mode', 'grow'),
-                         dec['sam'].get('min_area', 50), dec.get('tau'))
+        def run():
+            pred, dev = sam_predictor()
+            with torch.no_grad():
+                pred.set_image(img)
+
+                def masks_for(boxes):
+                    tb = pred.transform.apply_boxes_torch(torch.as_tensor(boxes, device=dev), img.shape[:2])
+                    m, _, _ = pred.predict_torch(point_coords=None, point_labels=None, boxes=tb, multimask_output=False)
+                    return list(m[:, 0].cpu().numpy())
+                return refine(cls, np.asarray(probs, np.float32), masks_for, dec['sam'].get('mode', 'grow'),
+                              dec['sam'].get('min_area', 50), dec.get('tau'))
+        try:
+            cls = run()
+        except torch.OutOfMemoryError:            # next to the 12-GB Chameleon model on a T4: SAM falls back to the CPU
+            pred, _ = _SAM['p']
+            pred.model.to('cpu')
+            _SAM['p'] = (pred, 'cpu')
+            torch.cuda.empty_cache()
+            cls = run()
     return cls
