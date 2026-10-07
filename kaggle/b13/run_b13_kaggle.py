@@ -64,10 +64,15 @@ def pair(tag, extra=(), **kw):
 FN50 = f'{OUT}/ckpt/floodnet_50shot_s0_stratified.ckpt'
 def sweep(variants, split_file='floodnet_val_tune30', split='val'):
     return ['infer_sweep', ['--ckpt', FN50, '--split_file', split_file, '--split', split, '--variants', json.dumps(variants)]]
-if SESSION == 'r1b':                    # the published checkpoint from the rr-gpu-select50 output
-    hits = glob.glob('/kaggle/input/**/rr/ckpt/floodnet_50shot_s0_stratified.ckpt', recursive=True)
-    assert hits, 'floodnet_50shot_s0_stratified.ckpt not found in the inputs'
+hits = glob.glob('/kaggle/input/**/rr/ckpt/floodnet_50shot_s0_stratified.ckpt', recursive=True)
+if hits:                                # the published checkpoint (rr-gpu-select50 output), when attached
     shutil.copy(hits[0], FN50)
+for f in glob.glob('/kaggle/input/**/rr/ckpt/*_b13*.ckpt', recursive=True):   # earlier Batch 13 rounds' checkpoints
+    if not os.path.exists(f'{OUT}/ckpt/{os.path.basename(f)}'):
+        shutil.copy(f, f'{OUT}/ckpt/')
+for f in glob.glob(f'{OUT}/supports/*.txt'):                                 # support lists usable as split files too
+    shutil.copy(f, f'{OUT}/splits/')
+sh(f'ls {OUT}/ckpt | head -40')
 
 PLANS = {
     # round 1, session a: the I34 control (plain recipe, 1000 steps), I5, the rare-class bundle, the regulariser bundle,
@@ -96,7 +101,8 @@ def lane(g, pairs):
             log.write(f'START_LIMIT reached, skipping {jobs[0][0]} {jobs[0][1][-1][:60]}\n'); log.flush()
             continue
         for script, args in jobs:
-            cmd = [sys.executable, f'/content/rr/src/{script}.py', *map(str, args), *common]
+            cmd = [sys.executable, f'/content/rr/src/{script}.py', *map(str, args),
+                   *(common if script in ('finetune', 'select_ckpt', 'predict', 'infer_sweep') else [])]
             log.write(f'{time.strftime("%H:%M:%S")} START {" ".join(map(str, args))}\n'); log.flush()
             t = time.time()
             rc = subprocess.run(cmd, cwd='/content/rr/src', env=env, stdout=log, stderr=subprocess.STDOUT).returncode
