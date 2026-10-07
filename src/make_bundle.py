@@ -120,7 +120,9 @@ def main():
         shutil.copytree(os.path.join(a.results, sub), os.path.join(rr, sub))
     for f in glob.glob(os.path.join(rr, 'decode', '*_tta4.json')):          # TTA not adopted: its report has it
         os.remove(f)
-    shutil.copytree(os.path.join(ROOT, 'results/kaggle_v2/report'), os.path.join(out, 'results/kaggle_v2/report'))
+    # no .ipynb anywhere in the bundle: the submission may hold exactly one notebook (report/g3 keeps a Colab run's copy)
+    shutil.copytree(os.path.join(ROOT, 'results/kaggle_v2/report'), os.path.join(out, 'results/kaggle_v2/report'),
+                    ignore=shutil.ignore_patterns('*.ipynb'))
     shutil.copytree(os.path.join(ROOT, 'results/routing'), os.path.join(out, 'results/routing'))
     os.makedirs(os.path.join(out, 'results/kaggle_v2/rr_packed/preds'))
     t = time.time()
