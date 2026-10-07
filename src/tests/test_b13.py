@@ -165,3 +165,20 @@ def test_lora_starts_as_identity_and_trains_only_adapters():
     m.lora_B.data.normal_()
     torch.nn.functional.linear(x, m.weight).sum().backward()
     assert m.lora_A.grad is not None and m.lora_B.grad is not None
+
+
+def test_final_decode_defaults_and_chain(tmp_path):
+    from rr.final_decode import decode_photo
+    from rr.metrics import decode
+    import postproc_sweep as PS
+    rng = np.random.default_rng(1)
+    P = rng.random((5, 60, 80)).astype(np.float32)
+    img = (rng.random((60, 80, 3)) * 255).astype(np.uint8)
+    dec = {'tau': [0.4, 0.35, 0.45, 0.35, 0.45], 'variant': 'tau'}
+    assert np.array_equal(decode_photo(P, dec), decode(P, tau=dec['tau']))
+    dec2 = dict(dec, gf=[2, 1e-3], clean=[50, 1])
+    ref = PS.cleanup(decode(PS.guided_filter(img.mean(2).astype(np.float32) / 255, P, 2, 1e-3), tau=dec['tau']), 50, 1)
+    assert np.array_equal(decode_photo(P, dec2, img=img), ref)
+    np.savez(tmp_path / 'm.npz', ids=np.array(['7']), maps=ref[None])
+    dec3 = dict(dec2, classmaps={'s': str(tmp_path / 'm.npz')})
+    assert np.array_equal(decode_photo(P * 0, dec3, split_file='s', photo_id='7'), ref)
