@@ -26,16 +26,22 @@ def curve():
     shots = [1, 5, 10, 20, 50]
     plt.rcParams.update({'font.size': 9, 'axes.spines.top': False, 'axes.spines.right': False})
     fig, ax = plt.subplots(figsize=(3.0, 2.3))
-    for dec, col, lab, dx in (('tau0.5', '#7a8699', 'τ = 0.5', 0.96), ('tuned', '#1f5fbf', 'decode tuned on val30', 1.04)):
-        m = [CI[f'floodnet/{s}/floodnet_test_eval100/{dec}']['miou'] for s in shots]
+    # τ 0.5 only up to 20 shots: the final 50-shot model (Batch 13: shorter schedule) is calibrated differently and is
+    # always used with its val30-tuned decode; the first 50-shot model is shown as open markers
+    for dec, col, lab, dx, sh in (('tau0.5', '#7a8699', 'τ = 0.5', 0.96, shots[:4]), ('tuned', '#1f5fbf', 'decode tuned on val30', 1.04, shots)):
+        m = [CI[f'floodnet/{s}/floodnet_test_eval100/{dec}']['miou'] for s in sh]
         y = np.array([v['value'] for v in m])
         err = np.array([[v['value'] - v['lo'] for v in m], [v['hi'] - v['value'] for v in m]])
-        ax.errorbar(np.array(shots) * dx, y, yerr=err, marker='o', ms=3.5, lw=1.4, capsize=2, color=col, label=f'FloodNet eval100, {lab}')
-    for dec, col in (('tau0.5', '#7a8699'), ('tuned', '#1f5fbf')):
-        v = CI[f'floodnet/50/floodnet_test_full/{dec}']['miou']
-        ax.errorbar([50 * 1.25], [v['value']], yerr=[[v['value'] - v['lo']], [v['hi'] - v['value']]], marker='D', ms=4,
-                    color=col, mfc='white', capsize=2, lw=1.2)
-    ax.annotate('full test\n(448 photos)', (70, .372), fontsize=7, color='#333', ha='center', va='top')
+        ax.errorbar(np.array(sh) * dx, y, yerr=err, marker='o', ms=3.5, lw=1.4, capsize=2, color=col, label=f'FloodNet eval100, {lab}')
+    first = json.load(open(os.path.join(ROOT, 'results/kaggle_v2/rr/decode/floodnet_50shot_s0_stratified_pub.json')))
+    first_full = json.load(open(os.path.join(ROOT, 'results/kaggle_v2/report/b13/b13.json')))['full test (448)/new_sam']['miou']['old']
+    ax.plot([50 * 1.04], [first['eval100'][first['chosen']['variant']]['miou']], marker='o', ms=4, mfc='white', color='#1f5fbf',
+            ls='none', label='first 50-shot model (eval100, full test)')
+    ax.plot([50 * 1.25], [first_full], marker='D', ms=4, mfc='white', color='#1f5fbf', ls='none')
+    v = CI['floodnet/50/floodnet_test_full/tuned']['miou']
+    ax.errorbar([50 * 1.25], [v['value']], yerr=[[v['value'] - v['lo']], [v['hi'] - v['value']]], marker='D', ms=4,
+                color='#1f5fbf', capsize=2, lw=1.2)
+    ax.annotate('full test\n(448 photos)', (70, .40), fontsize=7, color='#333', ha='center', va='top')
     for s, mk in ((20, 's'), (50, 's')):
         v = CI[f'rescuenet/{s}/rescuenet_test_eval100/tuned']['miou']
         ax.errorbar([s * 0.9], [v['value']], yerr=[[v['value'] - v['lo']], [v['hi'] - v['value']]], marker=mk, ms=3.5,

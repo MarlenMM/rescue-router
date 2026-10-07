@@ -1,6 +1,6 @@
 {
- "id": "marlenmelis/rr-final-notebook-exec",
- "title": "rr-final-notebook-exec",
+ "id": "marlenmelis/rr-final-notebook-b13",
+ "title": "rr-final-notebook-b13",
  "code_file": "run_notebook.py",
  "language": "python",
  "kernel_type": "script",
@@ -8,8 +8,12 @@
  "enable_gpu": true,
  "enable_internet": true,
  "machine_shape": "NvidiaTeslaT4",
- "dataset_sources": ["marlenmelis/rr-bundle"],
+ "dataset_sources": [
+  "marlenmelis/rr-bundle-b13"
+ ],
  "competition_sources": [],
- "kernel_sources": ["marlenmelis/rr-fetch-data"],
+ "kernel_sources": [
+  "marlenmelis/rr-fetch-data"
+ ],
  "model_sources": []
 }
