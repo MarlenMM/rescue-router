@@ -79,7 +79,7 @@ def sh(cmd, cwd=None, tail=40, check=True, env=None):
     if tail:
         print('\n'.join(out[-tail:]))
     if check and r.returncode:
-        raise RuntimeError(f'command failed ({r.returncode}): {cmd}')
+        raise RuntimeError(f'command failed ({r.returncode}): {cmd}\n' + '\n'.join(out[-15:]))
     return r
 
 IN_COLAB = 'google.colab' in sys.modules
@@ -148,6 +148,11 @@ if not SAM_W:
     urllib.request.urlretrieve('https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth', SAM_W)
 os.environ['RR_SAM_WEIGHTS'] = SAM_W
 print('SAM ViT-B weights:', SAM_W, f'({os.path.getsize(SAM_W) / 1e6:.0f} MB)')
+# SAM runs on the CPU inside this notebook process (a few s per photo): the T4 stays free for the Chameleon scripts,
+# which run as subprocesses and need nearly all of its 15 GB (stored class maps cover every cached photo anyway)
+import rr.final_decode as FD
+from segment_anything import SamPredictor, sam_model_registry
+FD._SAM['p'] = (SamPredictor(sam_model_registry['vit_b'](checkpoint=SAM_W).eval()), 'cpu')
 
 # ---- working folder for GPU scripts: they read splits/ and supports/ next to their outputs ----------------------
 WORK = os.path.join(RR, 'results/kaggle_v2/rr')
