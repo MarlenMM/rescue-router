@@ -180,9 +180,9 @@ labelled buildings with F1 .81 (first model .85; RescueNet .63). Test-time flips
 \textbf{not adopted}: with their own val30-tuned decode the full test fell to .455.
 
 \textbf{System.} Fig.~\ref{fig:routes} shows the router on a predicted and a labelled map. The notebook runs end to end
-on a fresh T4 in 26 minutes (Kaggle; 30 on Colab) and \textbf{recomputes the 50- and 20-shot models live: identical to the
-stored predictions on Kaggle}, where they were made (maximum difference 0; on Colab within 3/255, 99.99\,\% of pixels
-decoding the same), then routes an uploaded photo through the app in 16\,s. The viewer shows all 200 eval100 photos,
+on a fresh T4 in 28 minutes (Kaggle) and \textbf{recomputes the 50- and 20-shot models live: identical to the stored
+predictions} (maximum difference 0; the whole decode chain with SAM: 100\,\% of pixels; on Colab the first model's
+predictions were within 3/255), then routes an uploaded photo through the app in 31\,s. The viewer shows all 200 eval100 photos,
 animated routes, minutes and metres, and the water probability behind each ``check first''.
 
 \begin{figure}[h]\centering
