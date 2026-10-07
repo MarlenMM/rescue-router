@@ -28,9 +28,9 @@ import postproc_sweep as PS  # noqa: E402
 from decode_tune import load  # noqa: E402
 
 REF = dict(tau=0.48354, stacked=0.50382, dp_tau=0.5686, dp_stacked=0.5991)
-COST = {'v2': '2x prediction', 'st128': '2x prediction', 'sc1-1.25': '3x prediction', 'self': '2x prediction',
+COST = {'ctlavg': '2x prediction', 'v2': '2x prediction', 'st128': '2x prediction', 'sc1-1.25': '3x prediction', 'self': '2x prediction',
         'wavg': 'none', 'cw': 'none', 'comp': 'none'}
-IDEA = {'b13ctl': 'I34 control (1000 steps, freeze_rest)', 'b13rare': 'I12+I13 rare-class weights + crops',
+IDEA = {'ctlavg750-1000': 'I22 snapshot average of the control (750+1000)', 'b13ctl': 'I34 control (1000 steps, freeze_rest)', 'b13rare': 'I12+I13 rare-class weights + crops',
         'b13dice': 'I14 Dice term', 'b13ld': 'I5 label decoder tuned (+I7 head)', 'b13reg': 'I15+I18+I19 regularisers',
         'b13lr2': 'I16 lr 2x', 'b13rp': 'I6 relpos tuned', 'b13bal': 'I4 class-balanced supports',
         'b13ep4': 'I10 authors episodes (2+2, 500 steps)', 'b13sa': 'I8 separate alpha',
@@ -38,19 +38,26 @@ IDEA = {'b13ctl': 'I34 control (1000 steps, freeze_rest)', 'b13rare': 'I12+I13 r
         'v2': 'I1 two support views', 'comp': 'I36 torch.compile', 'st128': 'I24 stride 128', 'sc1-1.25': 'I25 scales 1+1.25'}
 
 
-def stacked_tune(probs, gts, imgs, workers):
-    pp = [PS.guided_filter(I, P, 4, 1e-3) for I, P in zip(imgs, probs)]
-    S = PS.Scorer(pp, gts, workers)
-    tau, r = PS.tune_tau(S, 'combo', dict(t_w=0.2), start=[0.25, 0.35, 0.6, 0.3, 0.45])
-    best = (0, 0, r)
-    for k in (0, 800, 1600, 3200):
-        for rr in (0, 1, 4):
-            if k or rr:
-                x = S('combo', tau=tau, t_w=0.2, k=k, r=rr)
-                if x['drivable_precision'] >= PS.P_MIN - 1e-9 and x['miou'] > best[2]['miou']:
-                    best = (k, rr, x)
-    S.close()
-    return dict(tau=tau, k=best[0], r=best[1]), best[2]
+def stacked_tune(probs, gts, imgs, workers, tau0):
+    """Own stacked decode per model: guided filter (none / r4 eps 1e-3) x two-step t_w grid, tau re-tuned from the
+    model's own tuned tau, then the clean-up grid. Best by val30 mIoU (drivable precision constraint as always)."""
+    best = None
+    for gf in (None, (4, 1e-3)):
+        pp = [PS.guided_filter(I, P, *gf) for I, P in zip(imgs, probs)] if gf else probs
+        S = PS.Scorer(pp, gts, workers)
+        for t_w in (0.2, 0.3, 0.4, 0.5):
+            tau, r = PS.tune_tau(S, 'combo', dict(t_w=t_w), start=tau0)
+            cand = (dict(gf=gf, t_w=t_w, tau=tau, k=0, r=0), r)
+            for k in (0, 800, 1600, 3200):
+                for rr in (0, 1, 4):
+                    if k or rr:
+                        x = S('combo', tau=tau, t_w=t_w, k=k, r=rr)
+                        if x['drivable_precision'] >= PS.P_MIN - 1e-9 and x['miou'] > cand[1]['miou']:
+                            cand = (dict(gf=gf, t_w=t_w, tau=tau, k=k, r=rr), x)
+            if best is None or cand[1]['miou'] > best[1]['miou']:
+                best = cand
+        S.close()
+    return best
 
 
 def score(path, root, imgs_cache, workers, stacked=True):
@@ -65,7 +72,7 @@ def score(path, root, imgs_cache, workers, stacked=True):
         ids = [str(i) for i in np.load(path)['ids']]
         imgs = [imgs_cache.setdefault(i, np.asarray(Image.open(os.path.join(root, 'val', 'images', f'{i}.jpg')).convert('L'),
                                                      np.float32) / 255) for i in ids]
-        p, rs = stacked_tune(probs, gts, imgs, workers)
+        p, rs = stacked_tune(probs, gts, imgs, workers, tau)
         out.update(stacked_params=p, miou_stacked=rs['miou'], dp_stacked=rs['drivable_precision'], val30_stacked=rs)
     return out
 
@@ -82,12 +89,13 @@ def main():
     done = json.load(open(f_json)) if os.path.exists(f_json) else {}
     root = os.path.join(a.data, 'floodnet_r768')
     imgs = {}
-    caches = sorted(c for d in a.dirs.split(',') for c in glob.glob(os.path.join(d, 'preds', '*floodnet_val_tune30*.npz')))
+    caches = sorted({os.path.basename(c): c for d in a.dirs.split(',')
+                     for c in glob.glob(os.path.join(d, 'preds', '*floodnet_val_tune30*.npz'))}.values())
     rows = []
     for c in caches:
         name = os.path.basename(c)[:-4]
         m = re.match(r'floodnet_50shot_s0_(stratified|balanced)_(b13\w+?)(_ema)?_step(\d+)_floodnet_val_tune30_fp16$', name)
-        v = re.match(r'floodnet_50shot_s0_stratified_floodnet_val_tune30_fp16_(.+)$', name)
+        v = re.match(r'floodnet_50shot_s0_stratified(?:_b13\w+?_step\d+)?_floodnet_val_tune30_fp16_(.+)$', name)
         if m:
             row = dict(kind='train', run=m.group(2), ema=bool(m.group(3)), step=int(m.group(4)))
         elif v:
@@ -101,18 +109,24 @@ def main():
         row.update(done[name])
         rows.append(row)
         print(name, round(row['miou05'], 4), round(row['miou_tau'], 4), flush=True)
-    # per training run: the select_ckpt choice (best tau-.5 val30 among plain snapshots) + its EMA; stacked decode on both
-    chosen = []
+    # per training run: the plain snapshot with the best tuned-tau val30 (the tau-.5 choice of select_ckpt is
+    # calibration-sensitive: b13ctl picks 750 at tau .5 but 1000 is better once the decode is tuned) + its EMA
+    chosen, log_only = [], []
     for run in sorted({r['run'] for r in rows if r['kind'] == 'train'}):
         plain = [r for r in rows if r['run'] == run and not r['ema']]
-        best = max(plain, key=lambda r: r['miou05'])
+        best = max(plain, key=lambda r: r['miou_tau'])
         chosen.append(dict(best, label=f"{IDEA.get(run, run)} (step {best['step']})"))
-        chosen += [dict(r, label=f"I17 EMA of {run} (step {r['step']})") for r in rows if r['run'] == run and r['ema']]
+        # EMA rows get the (slow) stacked decode only if they are not already worse with the tuned tau
+        chosen += [dict(r, label=f"I17 EMA of {run} (step {r['step']})") for r in rows if r['run'] == run and r['ema']
+                   and r['miou_tau'] >= best['miou_tau']]
+        log_only.extend(dict(r, label=f"I17 EMA of {run} (step {r['step']})") for r in rows if r['run'] == run and r['ema']
+                        and r['miou_tau'] < best['miou_tau'])
     chosen += [dict(r, label=IDEA.get(r['run'], r['run'])) for r in rows if r['kind'] == 'predict']
     for r in chosen:
-        if 'miou_stacked' not in done[r['cache']]:
+        if done[r['cache']].get('stacked_v') != 2:
             done[r['cache']] = score(os.path.join(next(d for d in a.dirs.split(',') if os.path.exists(os.path.join(d, 'preds', r['cache'] + '.npz'))),
                                                   'preds', r['cache'] + '.npz'), root, imgs, a.workers, stacked=True)
+            done[r['cache']]['stacked_v'] = 2
             json.dump(done, open(f_json, 'w'), indent=1)
         r.update(done[r['cache']])
     ctl = next((r for r in chosen if r['run'] == 'b13ctl' and not r['ema']), None)
@@ -127,7 +141,10 @@ def main():
         lines.append(f"| {r['label']} | {cost} | {r['miou05']:.4f} | {r['miou_tau']:.4f} | {r['miou_tau'] - REF['tau']:+.4f} | "
                      f"{r['miou_stacked']:.4f} | {d:+.4f} | {'' if ctl is None else f'{r['delta_ctl']:+.4f}'} | "
                      f"{r['dp_stacked']:.3f} | {'yes' if keep else 'no'} |")
-    json.dump(dict(scores=done, chosen=chosen), open(os.path.join(a.out, 'decide_rows.json'), 'w'), indent=1, default=str)
+    for r in log_only:
+        lines.append(f"| {r['label']} | none | {r['miou05']:.4f} | {r['miou_tau']:.4f} | {r['miou_tau'] - REF['tau']:+.4f} | "
+                     f"(worse than its run with tuned τ) | | | | no |")
+    json.dump(dict(scores=done, chosen=chosen, log_only=log_only), open(os.path.join(a.out, 'decide_rows.json'), 'w'), indent=1, default=str)
     open(os.path.join(a.out, 'decide.md'), 'w').write('\n'.join(lines) + '\n')
     print('\n'.join(lines))
 
