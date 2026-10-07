@@ -6,6 +6,7 @@ The bundle mirrors the repository, so every script runs from its root with the d
   src/ splits/ supports/ demo/ kaggle/live/ README.md requirements.txt VERSION   code at git HEAD (+ commit hash)
   rr_data/floodnet_r768/train/{images,labels}            the 50 support photos (live inference, demo fine-tuning)
   rr_data/floodnet_r768/val/{images,labels,labels_raw}   val30 (decode tuning, demo validation)
+  (Batch 13: all 448 FloodNet test photos are included: the headline decode's guided filter reads the photo)
   rr_data/floodnet_r768/test/{labels,labels_raw}         all 448 test labels; images: eval100 only
   rr_data/rescuenet_r768/{val,test}/{labels,labels_raw}  RescueNet val30 + eval100 labels (photos: the 2 showcase scenes)
   results/kaggle_v2/rr/{ckpt,decode,metrics,logs}        the 7 fine-tuned checkpoints, decodes, metrics, training logs
@@ -106,8 +107,7 @@ def main():
     sup = ids('supports/floodnet_stratified_s0.txt')[:50]
     copy_split(a.data, out, 'floodnet', 'train', sup, ['images', 'labels'])
     copy_split(a.data, out, 'floodnet', 'val', ids('floodnet_val_tune30'), ['images', 'labels', 'labels_raw'])
-    copy_split(a.data, out, 'floodnet', 'test', ids('floodnet_test_full'), ['labels', 'labels_raw'])
-    copy_split(a.data, out, 'floodnet', 'test', ids('floodnet_test_eval100'), ['images'])
+    copy_split(a.data, out, 'floodnet', 'test', ids('floodnet_test_full'), ['images', 'labels', 'labels_raw'])   # images: Batch 13 decode (guided filter)
     copy_split(a.data, out, 'rescuenet', 'val', ids('rescuenet_val_tune30'), ['labels', 'labels_raw'])
     copy_split(a.data, out, 'rescuenet', 'test', ids('rescuenet_test_eval100'), ['labels', 'labels_raw'])
     copy_split(a.data, out, 'rescuenet', 'test', ['12195', '15833'], ['images'])     # the two showcase scenes
