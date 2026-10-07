@@ -20,8 +20,8 @@ cd "$ROOT"
 
 # the data zip's code must still be the code at HEAD (modified, deleted or renamed files; additions are fine)
 # (excluded: src/publish_demo.sh, Pages only; src/make_bundle.py, its 8 Oct change only skips .ipynb files, and that one file
-# was deleted from this zip with zip -d)
-if [[ -n "$(git diff --stat --diff-filter=MDRT "$BUNDLE_COMMIT" HEAD -- src splits supports demo kaggle/live requirements.txt ':!src/publish_demo.sh' ':!src/make_bundle.py')" ]]; then
+# was deleted from this zip with zip -d; src/tests, tests only (the app zip has src/ at HEAD))
+if [[ -n "$(git diff --stat --diff-filter=MDRT "$BUNDLE_COMMIT" HEAD -- src splits supports demo kaggle/live requirements.txt ':!src/publish_demo.sh' ':!src/make_bundle.py' ':!src/tests')" ]]; then
   echo "code changed since the bundle ($BUNDLE_COMMIT): rebuild it with src/make_bundle.py and re-run G3" >&2; exit 1
 fi
 [[ -z "$(git status --porcelain src)" ]] || { echo "uncommitted changes in src/" >&2; exit 1; }
