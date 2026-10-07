@@ -5,9 +5,9 @@ Push (needs Marlen's OK: GPU time):  cd kaggle/gradio_live && ~/.venvs/kaggle/bi
 Setup takes ~10 min; then the log prints the share link (https://<id>.gradio.live) in a banner, and
 /kaggle/working/share_url.txt holds it. The app keeps serving for HOURS, then the script ends (GPU time = setup +
 HOURS). To stop early, cancel the run in the Kaggle web UI (the CLI has no cancel).
-Inputs: dataset marlenmelis/rr-code (kaggle/build_rr_code.sh: src + decodes + tiers + viewer index), notebook
-outputs marlenmelis/rr-fetch-data (data tars, generalist.ckpt), marlenmelis/rr-gpu-select50 (FloodNet 50-shot
-checkpoint + eval100 cache), marlenmelis/rr-gpu-queue (RescueNet 20-shot eval100 cache)."""
+Inputs (Batch 13, 8 Oct): dataset marlenmelis/rr-bundle-b13 (the data bundle = the submitted data zip: code, the Batch 13
+FloodNet 50-shot checkpoint, decodes incl. the SAM class maps, packed caches) and notebook output marlenmelis/rr-fetch-data
+(generalist.ckpt, rescuenet_r768.tar for the RescueNet photos). SAM ViT-B weights are downloaded from Meta at start."""
 import glob, os, shutil, subprocess, sys, tarfile, threading, time
 HOURS = 3.0                                                            # presentation day; the Batch 7 test ran 0.75
 GRADIO = 'gradio==6.29.1'                                          # the version the app was written and tested with
@@ -22,35 +22,29 @@ def find(name):
     return hits[0]
 
 sh('nvidia-smi --query-gpu=index,name,memory.total --format=csv')
-try:
-    root = os.path.dirname(os.path.dirname(find('src/gradio_app.py')))
-except AssertionError:
-    root = '/content/rr_code'
-    with tarfile.open(find('rr_code.tar.gz')) as t:
-        t.extractall(root, filter='data')
-shutil.copytree(root, '/content/rr', dirs_exist_ok=True)
+bundle = os.path.dirname(find('BUNDLE.json'))
+shutil.copytree(bundle, '/content/rr', dirs_exist_ok=True)
+os.chdir('/content/rr')
+sh(f'{sys.executable} src/cache_pack.py unpack --src results/kaggle_v2/rr_packed --workers {os.cpu_count()}')
+with tarfile.open(find('rescuenet_r768.tar')) as t:                     # the RescueNet eval100 photos (the bundle has 2)
+    t.extractall('/content/rr/rr_data', filter='data')
 sh('git clone -q --depth 1 https://github.com/GitGyun/AIC200-Project-StructuredPrediction.git /content/starter')
 import numpy
 sh(f'pip install -q pytorch_lightning==2.4.0 timm==0.6.13 easydict einops scikit-image pycocotools fastremap numba flow_vis '
-   f'"{GRADIO}" "numpy=={numpy.__version__}"')
-os.makedirs('/content/rr_data', exist_ok=True)
-for tar in ('floodnet_r768.tar', 'rescuenet_r768.tar'):                   # cached scenes of both datasets
-    with tarfile.open(find(tar)) as t:
-        t.extractall('/content/rr_data', filter='data')
+   f'segment-anything "{GRADIO}" "numpy=={numpy.__version__}"')
+import urllib.request
+SAM = '/content/sam_vit_b_01ec64.pth'
+urllib.request.urlretrieve('https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth', SAM)
 ck = find('generalist.ckpt')
 assert os.path.getsize(ck) == 2967114775
-RES = '/content/rr/results/kaggle_v2/rr'
-os.makedirs(f'{RES}/preds', exist_ok=True)
-for run, ds in (('floodnet_50shot_s0_stratified', 'floodnet'), ('rescuenet_20shot_s0_stratified', 'rescuenet')):
-    shutil.copy(find(f'preds/{run}_{ds}_test_eval100_fp16.npz'), f'{RES}/preds/')
-    assert os.path.exists(f'{RES}/decode/{run}.json'), 'rr-code must ship results/kaggle_v2/rr/decode (build_rr_code.sh)'
-shutil.copy(find('ckpt/floodnet_50shot_s0_stratified.ckpt'), '/content/ft.ckpt')
 print(f'setup done in {(time.time() - T0) / 60:.1f} min', flush=True)
 
-cmd = [sys.executable, '-u', '/content/rr/src/gradio_app.py', '--live', '--share', '--ckpt', '/content/ft.ckpt',
-       '--mt_ckpt', ck, '--chameleon', '/content/starter/chameleon', '--data', '/content/rr_data',
+cmd = [sys.executable, '-u', '/content/rr/src/gradio_app.py', '--live', '--share',
+       '--ckpt', '/content/rr/results/kaggle_v2/rr/ckpt/floodnet_50shot_s0_stratified.ckpt',
+       '--mt_ckpt', ck, '--chameleon', '/content/starter/chameleon', '--data', '/content/rr/rr_data',
        '--runs', '/content/runs_data', '--amp', 'fp16']
-p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, cwd='/content/rr',
+                     env=dict(os.environ, RR_SAM_WEIGHTS=SAM))
 end = time.time() + HOURS * 3600
 found = {}
 
