@@ -24,7 +24,9 @@ def main():
     ap.add_argument('--slug', default='rr-b13-final')
     a = ap.parse_args()
     cks, opts = a.ckpts.split(','), shlex.split(a.opts)
-    lane0 = [[pr(c, 'floodnet_test_full_part1', opts)] for c in cks]
+    lane0 = [[['predict', ['--ckpt', f'{{OUT}}/ckpt/{c}.ckpt', '--dataset', 'floodnet', '--split_file', 'floodnet_val_tune30',
+                           '--split', 'val', '--amp', 'fp16', '--chunk', 1, '--channel_chunk', 1, *opts]]] for c in cks]   # consistency check
+    lane0 += [[pr(c, 'floodnet_test_full_part1', opts)] for c in cks]
     lane1 = [[pr(c, 'floodnet_test_full_part2', opts)] for c in cks]
     for k, c in enumerate(cks):                 # transfer caches alternate between the lanes
         (lane0 if k % 2 else lane1).append([pr(c, 'rescuenet_test_eval100', opts, 'rescuenet')])
