@@ -19,7 +19,8 @@ DATA="$HOME/rr_data"
 cd "$ROOT"
 
 # the data zip's code must still be the code at HEAD (modified, deleted or renamed files; additions are fine)
-if [[ -n "$(git diff --stat --diff-filter=MDRT "$BUNDLE_COMMIT" HEAD -- src splits supports demo kaggle/live requirements.txt)" ]]; then
+# (src/publish_demo.sh is excluded: it only publishes docs/ to GitHub Pages and is never used by the notebook or the bundle)
+if [[ -n "$(git diff --stat --diff-filter=MDRT "$BUNDLE_COMMIT" HEAD -- src splits supports demo kaggle/live requirements.txt ':!src/publish_demo.sh')" ]]; then
   echo "code changed since the bundle ($BUNDLE_COMMIT): rebuild it with src/make_bundle.py and re-run G3" >&2; exit 1
 fi
 [[ -z "$(git status --porcelain src)" ]] || { echo "uncommitted changes in src/" >&2; exit 1; }
