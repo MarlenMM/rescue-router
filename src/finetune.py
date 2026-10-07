@@ -15,6 +15,14 @@ evaluates the snapshots on val30 in fresh processes and keeps the best (same rul
 
 --amp fp16: forward + loss under fp16 autocast with a GradScaler (trainable params stay fp32; the
 scaler state is part of _last.pt), and the val inference runs in fp16 too (rr.infer).
+
+Batch 13 options (PLAN §15 "Batch 13"; every default reproduces the published recipe exactly; --tag names the
+variant run <run_id>_<tag>): --tune label_decoder,relpos,head (I5-I7, the starter's tuning flags, at
+--lr_pretrained), --separate_alpha (I8), --accum k gradient accumulation (I11; with --gbs = episode size, I10),
+--pos_weight (I12), --rare_crop (I13), --dice (I14), --rot_blur (I15), --attn_dropout (I18), --copy_paste (I19),
+--ema d (I17: an exponential moving average of the trained tensors, saved next to each snapshot as
+<run_id>_ema_step<N>.ckpt from --ema_from on), --snap_from N (no snapshots before step N), --freeze_rest
+(efficiency: gradients only for the trained tensors; the same optimizer updates, ~3 GB less memory, less backward).
 """
 
 import argparse
@@ -66,6 +74,23 @@ def parse():
     ap.add_argument('--mt_ckpt', default='/content/generalist.ckpt')
     ap.add_argument('--chameleon', default='/content/AIC200-Project-StructuredPrediction/chameleon')
     ap.add_argument('--code_version', default=os.environ.get('RR_CODE_VERSION', 'unknown'))
+    # Batch 13 options (defaults = the published recipe)
+    ap.add_argument('--tag', default='', help='variant name, appended to the run id')
+    ap.add_argument('--tune', default='', help='comma list of label_decoder, relpos, head (starter tuning flags)')
+    ap.add_argument('--lr_pretrained', type=float, default=None, help='lr of the --tune parts (starter default 2e-4)')
+    ap.add_argument('--separate_alpha', action='store_true', help='one matching temperature per channel')
+    ap.add_argument('--accum', type=int, default=1, help='gradient accumulation steps')
+    ap.add_argument('--pos_weight', default='', help='per-channel BCE positive weights, e.g. 1,3,1,3,1')
+    ap.add_argument('--dice', type=float, default=0.0, help='weight of a soft-Dice term')
+    ap.add_argument('--rare_crop', type=float, default=0.0, help='probability of a rare-class-centred training crop')
+    ap.add_argument('--rot_blur', action='store_true', help='rotation + blur augmentation')
+    ap.add_argument('--copy_paste', type=float, default=0.0, help='probability of rare-class copy-paste')
+    ap.add_argument('--attn_dropout', type=float, default=None, help='matching-attention dropout (starter 0.5)')
+    ap.add_argument('--ema', type=float, default=0.0, help='EMA decay of the trained tensors (0 = off)')
+    ap.add_argument('--ema_from', type=int, default=0, help='first step whose snapshot also saves the EMA')
+    ap.add_argument('--snap_from', type=int, default=0, help='--defer_val: no snapshots before this step')
+    ap.add_argument('--freeze_rest', action='store_true',
+                    help='requires_grad only on the trained tensors (same updates; no weight grads for the frozen 3 GB)')
     return ap.parse_args()
 
 
@@ -113,7 +138,8 @@ def main():
     sys.path.insert(0, a.chameleon)            # rr.data imports chameleon's downstream.custom
     from rr.data import build_run_folder, read_ids
     from rr.metrics import WET
-    run_id = f'{a.dataset}_{a.shot}shot_s{a.seed}_{a.sel}' + ('' if a.res == 'r768' else f'_{a.res}')
+    run_id = f'{a.dataset}_{a.shot}shot_s{a.seed}_{a.sel}' + ('' if a.res == 'r768' else f'_{a.res}') \
+        + (f'_{a.tag}' if a.tag else '')
     for d in ('ckpt', 'metrics', 'logs', 'preds'):
         os.makedirs(os.path.join(a.drive, d), exist_ok=True)
     f_ckpt = os.path.join(a.drive, 'ckpt', f'{run_id}.ckpt')
@@ -123,7 +149,7 @@ def main():
     if os.path.exists(f_ckpt) and os.path.exists(f_metrics) and not a.stop_after:
         print(f'[{run_id}] done already, skipping')
         return
-    f_snap = lambda step: os.path.join(a.drive, 'ckpt', f'{run_id}_step{step}.ckpt')
+    f_snap = lambda step, kind='': os.path.join(a.drive, 'ckpt', f'{run_id}{kind}_step{step}.ckpt')
     if a.defer_val and os.path.exists(f_snap(a.n_steps)) and not os.path.exists(f_last):
         print(f'[{run_id}] training done already (snapshots exist), skipping')
         return
@@ -142,17 +168,39 @@ def main():
     random.seed(a.seed); np.random.seed(a.seed); torch.manual_seed(a.seed)
     torch.backends.cuda.matmul.allow_tf32 = torch.backends.cudnn.allow_tf32 = a.tf32
     H, W = {'r768': (576, 768), 'r1024': (768, 1024)}[a.res]
+    tune = [t for t in a.tune.split(',') if t]
+    assert set(tune) <= {'label_decoder', 'relpos', 'head'}, tune
+    assert not {'label_decoder', 'head'} <= set(tune), 'the head is part of the label decoder'
+    extra = {f'{t}_tuning': True for t in tune}
+    if a.separate_alpha:
+        extra['separate_alpha'] = True
+    if a.lr_pretrained is not None:
+        extra['lr_pretrained'] = a.lr_pretrained
     cfg = su.build_config(stage=1, dataset='custom', n_tasks=5, loss_type='bce', shot=a.shot, eval_shot=a.shot,
                           img_size=384, base_size=[H, W], global_batch_size=a.gbs, n_steps=a.n_steps, lr=a.lr,
                           lr_schedule=a.lr_schedule,
                           channel_sampling=a.channel_sampling, seed=a.seed, chunk_size=a.chunk,
-                          channel_chunk_size=a.channel_chunk)
+                          channel_chunk_size=a.channel_chunk, **extra)
+    from rr.data import FloodDataset, FloodLearner
+    FloodDataset.rare_crop_p, FloodDataset.rot_blur, FloodDataset.copy_paste_p = a.rare_crop, a.rot_blur, a.copy_paste
+    if a.pos_weight:
+        FloodLearner.pos_weight = [float(w) for w in a.pos_weight.split(',')]
+    FloodLearner.dice = a.dice
     model, cfg = su.load_chameleon(cfg, a.mt_ckpt, verbose=False)
+    if a.attn_dropout is not None:
+        for attn in model.model.matching_module.matching:
+            attn.attn_dropout.p = a.attn_dropout
+        cfg.attn_dropout = model.config.attn_dropout = a.attn_dropout
     if a.grad_ckpt:
         from rr.compat import enable_grad_checkpointing
         print(f'[{run_id}] gradient checkpointing on {enable_grad_checkpointing(model)} encoder blocks', flush=True)
     optimizer, sched = get_optimizer(cfg, model.model)
     names = set(su.finetuned_parameter_names(model))
+    if a.freeze_rest:
+        for k, v in model.named_parameters():
+            v.requires_grad_(k in names)
+        print(f'[{run_id}] trainable tensors: {sum(v.requires_grad for v in model.parameters())}, '
+              f'{sum(v.numel() for v in model.parameters() if v.requires_grad) / 1e6:.2f} M values', flush=True)
     from rr.infer import amp_context
     scaler = torch.amp.GradScaler('cuda', enabled=a.amp == 'fp16')
     autocast = (lambda: amp_context(a.amp)) if a.amp != 'none' else contextlib.nullcontext
@@ -161,7 +209,7 @@ def main():
                gpu_mem_gb=round(torch.cuda.get_device_properties(0).total_memory / 1024 ** 3, 1),
                args=vars(a), supports=supports, val_split=val_file, losses=[], val=[], timing={},
                started=time.strftime('%Y-%m-%d %H:%M:%S'))
-    start = 0
+    start, st = 0, {}
     if os.path.exists(f_last):
         st = torch.load(f_last, map_location='cpu', weights_only=False)
         missing = model.load_state_dict(st['state_dict'], strict=False)
@@ -176,11 +224,27 @@ def main():
         sd = {k: v.detach().cpu() for k, v in model.state_dict().items() if k in names}
         tmp = f_last + '.tmp'
         torch.save(dict(state_dict=sd, optimizer=optimizer.state_dict(), scaler=scaler.state_dict(), step=step, log=log,
-                        rng_torch=torch.get_rng_state(), rng_np=np.random.get_state()), tmp)
+                        rng_torch=torch.get_rng_state(), rng_np=np.random.get_state(),
+                        **(dict(ema={k: v.cpu() for k, v in ema.items()}) if ema is not None else {})), tmp)
         os.replace(tmp, f_last)
 
     def write_log():
         json.dump(log, open(f_log, 'w'), indent=1)
+
+    trained = [(k, v) for k, v in model.named_parameters() if k in names]
+    ema = {k: v.detach().float().clone() for k, v in trained} if a.ema else None
+    if ema is not None and os.path.exists(f_last) and st.get('ema'):
+        ema = {k: v.cuda() for k, v in st['ema'].items()}
+
+    def save_ema(step):
+        live = {k: v.detach().clone() for k, v in trained}
+        with torch.no_grad():
+            for k, v in trained:
+                v.copy_(ema[k])
+        su.save_finetuned(model, f_snap(step, '_ema'))
+        with torch.no_grad():
+            for k, v in trained:
+                v.copy_(live[k])
 
     loader = model.learner.get_train_loader()
     it = iter(loader)
@@ -194,16 +258,38 @@ def main():
             it = iter(loader)
             batch = next(it)
         batch = to_device(batch, 'cuda')
-        with autocast():
-            Y_pred, Y_q, M_q, _ = model(batch)
-            loss, _ = model.learner.compute_loss(Y_pred, Y_q, M_q)
-        optimizer.zero_grad(set_to_none=True)
-        scaler.scale(loss).backward()
+        if a.accum == 1:
+            with autocast():
+                Y_pred, Y_q, M_q, _ = model(batch)
+                loss, _ = model.learner.compute_loss(Y_pred, Y_q, M_q)
+            optimizer.zero_grad(set_to_none=True)
+            scaler.scale(loss).backward()
+        else:                                   # I11: k micro-batches per optimizer step
+            optimizer.zero_grad(set_to_none=True)
+            losses = []
+            for j in range(a.accum):
+                if j:
+                    try:
+                        batch = next(it)
+                    except StopIteration:
+                        it = iter(loader)
+                        batch = next(it)
+                    batch = to_device(batch, 'cuda')
+                with autocast():
+                    Y_pred, Y_q, M_q, _ = model(batch)
+                    loss_j, _ = model.learner.compute_loss(Y_pred, Y_q, M_q)
+                scaler.scale(loss_j / a.accum).backward()
+                losses.append(loss_j.detach())
+            loss = torch.stack(losses).mean()
         scale = scaler.get_scale()
         scaler.step(optimizer)                  # skipped if the fp16 grads overflowed
         scaler.update()
         n_skip += scaler.is_enabled() and scaler.get_scale() < scale
         sched.step(step)
+        if ema is not None:
+            with torch.no_grad():
+                for k, v in trained:
+                    ema[k].mul_(a.ema).add_(v.detach().float(), alpha=1 - a.ema)
         run_loss.append(loss.item())
         done = step + 1
         if done % a.log_every == 0:
@@ -224,9 +310,12 @@ def main():
             write_log()
             return
         last = done == a.n_steps
-        if a.defer_val and (done % a.val_every == 0 or last):
+        if a.defer_val and (done % a.val_every == 0 or last) and done >= a.snap_from:
             su.save_finetuned(model, f_snap(done))
             log.setdefault('snapshots', []).append(done)
+            if ema is not None and done >= a.ema_from:
+                save_ema(done)
+                log.setdefault('ema_snapshots', []).append(done)
             print(f'[{run_id}] snapshot at step {done}', flush=True)
             write_log()
             t_win = time.time()
