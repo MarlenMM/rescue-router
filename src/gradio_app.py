@@ -91,7 +91,7 @@ def cached_state(key, args, **kw):
     ds, i = key.split(':')
     c = load_cached(ds, i, args.results, args.data)
     cap = {(d, j): t for d, j, t in SCENES}.get((ds, i), 'eval100 photo')
-    s = build_scene(ds, c['img'], c['probs'], c['decode'], c['gt'])
+    s = build_scene(ds, c['img'], c['probs'], c['decode'], c['gt'], photo_id=i, split_file=f'{ds}_test_eval100')
     s.update(id=i, **scene_scale(dict(dataset=ds, id=i), args.data), tier_stats=tier_stats(ds))
     return new_state(s, f'{ds} {i}: {cap}', **kw)
 

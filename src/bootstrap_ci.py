@@ -23,6 +23,7 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from rr.metrics import WET, confusion, decode, gt_classes, summarize  # noqa: E402
+from rr.final_decode import decode_photo, photo  # noqa: E402
 
 NAMES = {'floodnet': ['road_clear', 'road_flooded', 'bldg_flooded', 'bldg_dry', 'water'],
          'rescuenet': ['road_clear', 'road_blocked', 'bldg_intact', 'bldg_damaged', 'water']}
@@ -40,7 +41,8 @@ def per_image_cms(ds, shot, split_file, a, dec):
     out = {}
     for i, p in zip([str(x) for x in z['ids']], z['probs']):
         gt = gt_classes(np.asarray(Image.open(os.path.join(a.data, f'{ds}_r768', 'test', 'labels', f'{i}.png'))))
-        out[i] = confusion(decode(p.astype(np.float32) / 255, **dec), gt)
+        out[i] = confusion(decode_photo(p.astype(np.float32) / 255, dec, img=photo(a.data, ds, 'test', i),
+                                        split_file=split_file, photo_id=i), gt)
     return out
 
 

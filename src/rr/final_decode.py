@@ -52,6 +52,12 @@ def _classmap(dec, split_file, photo_id, root):
     return m[1][m[0][str(photo_id)]]
 
 
+def photo(data, ds, split, i):
+    """lazy loader for decode_photo(img=...): data = the rr_data folder, ds = floodnet/rescuenet, split = test/val"""
+    from PIL import Image
+    return lambda: np.asarray(Image.open(os.path.join(data, f'{ds}_r768', split, 'images', f'{i}.jpg')).convert('RGB'))
+
+
 def sam_predictor(weights=None):
     if 'p' not in _SAM:
         import torch
@@ -72,6 +78,8 @@ def decode_photo(probs, dec, img=None, split_file=None, photo_id=None, root='.')
         return decode(probs, **plain_kwargs(dec))
     from postproc_sweep import cleanup, guided_filter
     P = np.asarray(probs, np.float32)
+    if callable(img) and needs_photo(dec):     # lazy photo loader (rr.final_decode.photo)
+        img = img()
     if dec.get('gf'):
         assert img is not None, 'decode with a guided filter needs the photo'
         P = guided_filter(img.mean(2).astype(np.float32) / 255, P, *dec['gf'])

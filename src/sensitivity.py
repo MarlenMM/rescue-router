@@ -27,6 +27,7 @@ import router as R  # noqa: E402
 from export_web_assets import building_masks  # noqa: E402
 from route_eval import PRED_OFFROAD_MAXWET  # noqa: E402
 from rr.metrics import decode, gt_classes  # noqa: E402
+from rr.final_decode import decode_photo, photo  # noqa: E402
 
 RUNS = {'floodnet': 'floodnet_50shot_s0_stratified', 'rescuenet': 'rescuenet_20shot_s0_stratified'}
 COSTS = [dict(lam=0.0), dict(lam=20.0), dict(boat_cost=1.5), dict(boat_cost=6.0), dict(launch=0.0), dict(launch=200.0),
@@ -42,7 +43,8 @@ def load(ds, a):
     out = []
     for i, p in zip([str(x) for x in z['ids']], z['probs']):
         gt = gt_classes(np.asarray(Image.open(os.path.join(a.data, f'{ds}_r768', 'test', 'labels', f'{i}.png'))))
-        out.append((i, gt, decode(p.astype(np.float32) / 255, **dec), p))
+        out.append((i, gt, decode_photo(p.astype(np.float32) / 255, dec, img=photo(a.data, ds, 'test', i),
+                                        split_file=f'{ds}_test_eval100', photo_id=i), p))
     return out
 
 

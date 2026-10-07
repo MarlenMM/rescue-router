@@ -26,6 +26,7 @@ sys.path.insert(0, HERE)
 import router as R  # noqa: E402
 from route_eval import PRED_CAUTIOUS_MAXWET, PRED_OFFROAD_MAXWET  # noqa: E402
 from rr.metrics import decode, gt_classes  # noqa: E402
+from rr.final_decode import decode_photo, photo  # noqa: E402
 
 CANDIDATES = (0.25, 0.2, 0.15, 0.1, 0.05)
 TARGET = 0.99
@@ -46,7 +47,8 @@ def collect(ds, split, a, gates):
     for i in [l.strip() for l in open(os.path.join(a.repo, 'splits', f'{sf}.txt')) if l.strip()]:
         gt = gt_classes(np.asarray(Image.open(os.path.join(a.data, f'{ds}_r768', folder, 'labels', f'{i}.png'))))
         gcls, gprob = R.cell_classes(gt), R.onehot_probs(gt)
-        pred = decode(P[i].astype(np.float32) / 255, **dec)
+        pred = decode_photo(P[i].astype(np.float32) / 255, dec, img=photo(a.data, ds, folder, i), split_file=sf, photo_id=i,
+                            root=a.repo)
         pcls, pprob = R.cell_classes(pred), R.cell_probs(P[i])
         wet_p, wet_g = pprob[[1, 4]].sum(0).ravel(), gprob[[1, 4]].sum(0).ravel()
         for k, m in (('all', np.ones_like(wet_p, bool)), ('other', pcls.ravel() == R.OTHER)):

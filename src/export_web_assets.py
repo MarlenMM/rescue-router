@@ -41,6 +41,7 @@ sys.path.insert(0, HERE)
 import router as R  # noqa: E402
 from route_eval import PRED_CAUTIOUS_MAXWET, PRED_OFFROAD_MAXWET  # noqa: E402
 from rr.metrics import decode, gt_classes  # noqa: E402
+from rr.final_decode import decode_photo  # noqa: E402
 from viz import COLORS, NAMES, blend, colorize, load_image, load_label  # noqa: E402
 
 RUNS = {'floodnet': 'floodnet_50shot_s0_stratified', 'rescuenet': 'rescuenet_20shot_s0_stratified'}
@@ -86,10 +87,10 @@ def load_cached(dataset, i, results, data):
                 probs=z['probs'][ids.index(i)], decode=dec, run=run)
 
 
-def build_scene(dataset, img, probs, dec, gt=None):
+def build_scene(dataset, img, probs, dec, gt=None, photo_id=None, split_file=None):
     """Decoded maps, cell grids, base and buildings of one photo. probs: uint8 (C, H, W). Without GT (an
     uploaded photo) the base and the buildings come from the prediction itself."""
-    pred = decode(probs.astype(np.float32) / 255, **dec)
+    pred = decode_photo(probs.astype(np.float32) / 255, dec, img=img, split_file=split_file, photo_id=photo_id)
     ref = pred if gt is None else gt
     rcls = R.cell_classes(ref)
     blds = R.buildings_from_gt(ref, dataset)
@@ -120,7 +121,7 @@ def make_grids(s, lam=R.DEFAULTS['lam'], boat_cost=R.DEFAULTS['boat_cost']):
 def scene(dataset, i, results, data):
     """Everything about one cached eval100 scene, with the Python reference statuses and costs (lam 5, 0)."""
     c = load_cached(dataset, i, results, data)
-    s = build_scene(dataset, c['img'], c['probs'], c['decode'], c['gt'])
+    s = build_scene(dataset, c['img'], c['probs'], c['decode'], c['gt'], photo_id=i, split_file=f'{dataset}_test_eval100')
     s.update(id=i, run=c['run'], grids={lam: make_grids(s, lam) for lam in LAMS})
     g = s['grids'][LAMS[0]]['gt']
     for r, b in zip(s['buildings'], s['bld']):                      # goal rings per mode (same on both maps)

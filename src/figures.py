@@ -17,6 +17,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from rr.metrics import decode, gt_classes  # noqa: E402
+from rr.final_decode import decode_photo  # noqa: E402
 from viz import blend, legend_handles, load_image, load_label  # noqa: E402
 
 RUN = 'floodnet_50shot_s0_stratified'
@@ -37,8 +38,8 @@ def load_run(results, run, split='test_eval100_fp16', ds='floodnet'):
     return dict(zip([str(i) for i in z['ids']], z['probs'])), dec
 
 
-def predicted(P, dec):
-    return decode(P.astype(np.float32) / 255, **dec)
+def predicted(P, dec, img=None, i=None, split_file='floodnet_test_eval100'):
+    return decode_photo(P.astype(np.float32) / 255, dec, img=img, split_file=split_file, photo_id=i)
 
 
 def gallery(a, plt):
@@ -48,7 +49,7 @@ def gallery(a, plt):
     for ax, (i, tag) in zip(axes.ravel(), GALLERY):
         img, gt = load_image(a.data, 'floodnet', 'test', i), gt_classes(load_label(a.data, 'floodnet', 'test', i))
         pair = np.concatenate([blend(img, gt), np.full((img.shape[0], 12, 3), 255, np.uint8),
-                               blend(img, predicted(probs[i], dec))], 1)
+                               blend(img, predicted(probs[i], dec, img, i))], 1)
         ax.imshow(pair)
         ax.set_xticks([]), ax.set_yticks([])
         for s in ax.spines.values():
@@ -71,7 +72,7 @@ def qualitative(a, plt, ids):
     fig, axes = plt.subplots(len(ids), len(cols), figsize=(2.6 * len(cols), 2.05 * len(ids)))
     for r, i in enumerate(ids):
         img, gt = load_image(a.data, 'floodnet', 'test', i), gt_classes(load_label(a.data, 'floodnet', 'test', i))
-        tiles = [img, blend(img, gt)] + [blend(img, predicted(p[i], dec)) for p, dec in loaded]
+        tiles = [img, blend(img, gt)] + [blend(img, predicted(p[i], dec, img, i)) for p, dec in loaded]
         for c, t in enumerate(tiles):
             ax = axes[r, c]
             ax.imshow(t)
