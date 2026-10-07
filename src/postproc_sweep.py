@@ -194,6 +194,8 @@ def main():
     ap.add_argument('--out', default='results/b13/postproc')
     ap.add_argument('--only', default='base,i22,i27,i28,i29,i30,i32,combo')
     ap.add_argument('--workers', type=int, default=10)
+    ap.add_argument('--cache', default=None, help='val30 cache of another model (default: the published one); the reference '
+                    'becomes that model own tuned tau')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     f_json = os.path.join(a.out, 'postproc.json')
@@ -202,13 +204,15 @@ def main():
     rows = [r for r in rows if r['idea'].lower() not in only]
     root = os.path.join(a.data, f'{DS}_r768')
     pred = lambda s: os.path.join(a.results, 'preds', f'{RUN}_step{s}_floodnet_val_tune30_fp16.npz')
-    main_cache = os.path.join(a.results, 'preds', f'{RUN}_floodnet_val_tune30.npz')
+    main_cache = a.cache or os.path.join(a.results, 'preds', f'{RUN}_floodnet_val_tune30.npz')
     probs, gts = load_cache(main_cache, root)
     ids = [str(i) for i in np.load(main_cache)['ids']]
     t0 = time.time()
 
     S = Scorer(probs, gts, a.workers)
     tau0, r0 = tune_tau(S)
+    if a.cache:                                 # deltas against this model's own tuned decode
+        REF.update(miou=r0['miou'], drivable_precision=r0['drivable_precision'])
     print(f'base: tau {tau0} miou {r0["miou"]:.4f} drvP {r0["drivable_precision"]:.4f} ({time.time() - t0:.0f}s)', flush=True)
     if 'base' in only:
         rows.append(row('current model, tuned tau (reference)', 'base', dict(tau=tau0), r0))

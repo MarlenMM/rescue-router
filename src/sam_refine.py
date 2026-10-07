@@ -75,6 +75,8 @@ def main():
     ap.add_argument('--sam', default=os.path.expanduser('~/rr_data/weights/sam_vit_b_01ec64.pth'))
     ap.add_argument('--cache', default=None, help='val30 cache (default: the published FloodNet 50-shot one)')
     ap.add_argument('--out', default='results/b13/sam')
+    ap.add_argument('--postproc', default='results/b13/postproc', help='postproc_sweep.py output of the same model')
+    ap.add_argument('--decode_json', default=None, help='decode_ctl_check.py output of the same model (overrides --postproc)')
     a = ap.parse_args()
     import torch
     from segment_anything import SamPredictor, sam_model_registry
@@ -87,14 +89,25 @@ def main():
     probs, gts = load(cache, root, 'val')
     probs = [p.astype(np.float32) / 255 for p in probs]
     ids = [str(i) for i in np.load(cache)['ids']]
-    pp = json.load(open('results/b13/postproc/postproc.json'))
-    tau0 = next(r for r in pp if r['idea'] == 'base')['params']['tau']
-    combo = max((r for r in pp if r['idea'] == 'combo'), key=lambda r: r['val30']['miou'])['params']
-    decoders = {
-        'tuned tau': lambda P, I: decode(P, tau=tau0),
-        'stacked no-cost decode': lambda P, I: cleanup(decode_two_step(
-            guided_filter(I, P, *combo['gf']) if combo['gf'] else P, combo['tau'], combo['t_w']), combo['k'], combo['r']),
-    }
+    if a.decode_json:                           # a model's own decode (decode_ctl_check.py): best row = filter + tau + clean-up
+        rows_d = json.load(open(a.decode_json))
+        best = max(rows_d, key=lambda r: r['miou'])
+        tau0 = best['tau']
+        combo = dict(best, t_w=None)
+        decoders = {
+            'tuned tau': lambda P, I: decode(P, tau=tau0),
+            'final no-cost decode': lambda P, I: cleanup(decode(guided_filter(I, P, *best['gf']) if best['gf'] else P,
+                                                               tau=best['tau']), best['k'], best['r']),
+        }
+    else:
+        pp = json.load(open(os.path.join(a.postproc, 'postproc.json')))
+        tau0 = next(r for r in pp if r['idea'] == 'base')['params']['tau']
+        combo = max((r for r in pp if r['idea'] == 'combo'), key=lambda r: r['val30']['miou'])['params']
+        decoders = {
+            'tuned tau': lambda P, I: decode(P, tau=tau0),
+            'stacked no-cost decode': lambda P, I: cleanup(decode_two_step(
+                guided_filter(I, P, *combo['gf']) if combo['gf'] else P, combo['tau'], combo['t_w']), combo['k'], combo['r']),
+        }
     modes = ('none', 'replace', 'grow', 'shrink')
     cms = {(d, m, ma): np.zeros((6, 6), np.int64) for d in decoders for m in modes for ma in (50, 200)}
     t0 = time.time()
