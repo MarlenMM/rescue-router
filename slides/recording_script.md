@@ -9,11 +9,11 @@ full talk text is in each slide's speaker notes). For KLMS: download it as PDF (
 | slide | time | say in one line (full text: speaker notes) |
 |---|---|---|
 | Title | 0:00–0:15 | Rescue Router: few-shot flood maps (Track A) + rescue routing system (Track B) |
-| 1 Problem + results | 0:15–1:05 | Seoul 2022, Osong 2023 → "can a truck get there?"; 1 h of labelling per photo; .472 / .759 / 98.7 % |
+| 1 Problem + results | 0:15–1:05 | Seoul 2022, Osong 2023 → "can a truck get there?"; 1 h of labelling per photo; .507 / .752 / 100 % (first model .472) |
 | 2 Formulation | 1:05–1:45 | 5 dense channels chosen for the router; tiles; rejected alternatives |
 | 3 Data + setup | 1:45–2:25 | FloodNet + RescueNet, no own labels; only the Chameleon checkpoint; T4 recipe; notebook = cache |
 | 4 Track A | 2:25–3:15 | curve with intervals; flooded roads are the gap (.29 vs .82); new disaster needs its own labels |
-| 5 Track B | 3:15–4:05 | router truck → boat → foot; F1 .759; confident 98.7 % vs check first 74 %; viewer + Gradio |
+| 5 Track B | 3:15–4:05 | router truck → boat → foot; F1 .752; confident 100 % (208 houses) vs check first 79 %; viewer + Gradio |
 | 6 Learned | 4:05–4:50 | the dangerous error and the gate (.74 → .84); confidence > IoU points; dropped ideas; limits |
 
 Rehearse with a timer: the notes are ~4:40 at a calm pace. If the live demo is shown, take it from slide 5's time
