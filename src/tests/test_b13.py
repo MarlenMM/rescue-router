@@ -182,3 +182,20 @@ def test_final_decode_defaults_and_chain(tmp_path):
     np.savez(tmp_path / 'm.npz', ids=np.array(['7']), maps=ref[None])
     dec3 = dict(dec2, classmaps={'s': str(tmp_path / 'm.npz')})
     assert np.array_equal(decode_photo(P * 0, dec3, split_file='s', photo_id='7'), ref)
+
+
+def test_final_decode_lazy_photo_only_when_needed():
+    from rr.final_decode import decode_photo, needs_photo
+    rng = np.random.default_rng(2)
+    P = rng.random((5, 30, 40)).astype(np.float32)
+    calls = []
+
+    def loader():
+        calls.append(1)
+        return (rng.random((30, 40, 3)) * 255).astype(np.uint8)
+    plain = {'tau': [0.5] * 5}
+    decode_photo(P, plain, img=loader)
+    assert not calls and not needs_photo(plain)               # the published decode never loads the photo
+    gf = {'tau': [0.5] * 5, 'gf': [2, 1e-3]}
+    decode_photo(P, gf, img=loader)
+    assert calls == [1] and needs_photo(gf)
