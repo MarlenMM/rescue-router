@@ -77,7 +77,7 @@ def sh(cmd, cwd=None, tail=40, check=True, env=None):
     return r
 
 IN_COLAB = 'google.colab' in sys.modules
-ON_KAGGLE = os.path.isdir('/kaggle/input')
+ON_KAGGLE = os.path.isdir('/kaggle/input') and not IN_COLAB   # Colab runtimes also have an empty /kaggle/input
 BASE = '/tmp/rr_nb' if ON_KAGGLE else '/content' if IN_COLAB else os.path.abspath('nb_work')   # Kaggle: keep outputs small
 RR = os.path.join(BASE, 'rr')                      # the unpacked data bundle = the repository layout
 os.makedirs(BASE, exist_ok=True)

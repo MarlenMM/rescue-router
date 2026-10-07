@@ -68,9 +68,10 @@ def main():
     from rr.metrics import WET, confusion, decode, gt_classes, summarize
 
     ck = torch.load(a.ckpt, map_location='cpu', weights_only=False)['hyper_parameters']['config']
-    shot = a.eval_shot or ck.shot
+    ck_shot = ck.eval_shot if (getattr(ck, 'eval_shot', 0) or 0) > 0 else ck.shot    # = ck.shot except I20 runs
+    shot = a.eval_shot or ck_shot
     run_id = os.path.splitext(os.path.basename(a.ckpt))[0]
-    tag = f'{run_id}_{a.split_file}' + ('' if shot == ck.shot else f'_es{shot}') + (f'_n{a.limit}' if a.limit else '') \
+    tag = f'{run_id}_{a.split_file}' + ('' if shot == ck_shot else f'_es{shot}') + (f'_n{a.limit}' if a.limit else '') \
         + ('' if a.amp == 'none' else f'_{a.amp}') + ('' if a.flip == 'none' else f'_flip{a.flip}')
     scales = tuple(float(x) for x in a.scales.split(','))
     crop_w = [float(x) for x in a.crop_weights.split(',')] if a.crop_weights else None
@@ -96,7 +97,11 @@ def main():
     ov.update(shot=shot, eval_shot=shot, chunk_size=a.chunk, channel_chunk_size=a.channel_chunk, n_tasks=5,
               loss_type='bce', img_size=384, base_size=list(ck.base_size))
     cfg = su.build_config(stage=2, dataset='custom', **ov)
-    model, cfg = su.load_chameleon(cfg, a.mt_ckpt, a.ckpt, verbose=False)
+    from rr.lora import is_lora_ckpt, load_chameleon_lora
+    if is_lora_ckpt(a.ckpt):                    # I9 checkpoints carry LoRA adapters the starter cannot load
+        model, cfg = load_chameleon_lora(su, cfg, a.mt_ckpt, a.ckpt)
+    else:
+        model, cfg = su.load_chameleon(cfg, a.mt_ckpt, a.ckpt, verbose=False)
     model.eval()
 
     ids = read_ids(os.path.join(a.drive, 'splits', f'{a.split_file}.txt'))

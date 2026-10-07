@@ -153,3 +153,15 @@ def test_postproc_helpers():
     assert np.allclose(PS.guided_filter(I, flat, 4, 1e-2), 0.3, atol=1e-5)
     two = PS.decode_two_step(P, [0.5] * 5, 0.5)
     assert two.shape == cls.shape and two.max() <= 5
+
+
+def test_lora_starts_as_identity_and_trains_only_adapters():
+    from rr.lora import LoRAQKV
+    base = torch.nn.Linear(16, 48, bias=False)
+    m = LoRAQKV(base, 4, 8)
+    x = torch.randn(3, 16)
+    assert torch.allclose(torch.nn.functional.linear(x, m.weight), base(x))
+    assert [n for n, _ in m.named_parameters()] == ['lora_A', 'lora_B']
+    m.lora_B.data.normal_()
+    torch.nn.functional.linear(x, m.weight).sum().backward()
+    assert m.lora_A.grad is not None and m.lora_B.grad is not None

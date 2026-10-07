@@ -5,7 +5,8 @@
 
 Variant keys: name (cache suffix), ckpt (another fine-tuned checkpoint of the same architecture, e.g. a snapshot or
 an avg_ckpt.py weight average: swapped in without rebuilding the model), views (I1), crop_weights (I2), stride (I24),
-scales (I25), compile (I36; applied once and kept for the later variants, so put it last). Each variant writes
+scales (I25), self_support (I3: {"tau": [...], "hi": .7, "mix": false}), compile (I36; applied once and kept for the
+later variants, so put it last). Each variant writes
 preds/<run>_<split_file>_fp16_<name>.npz + metrics/<same>.json like predict.py (existing caches are skipped), plus
 the timing (support encoding, s per photo) and the peak memory. A failed variant (e.g. CUDA OOM) is logged and the
 sweep goes on.
@@ -54,17 +55,22 @@ def main():
     ck = torch.load(a.ckpt, map_location='cpu', weights_only=False)['hyper_parameters']['config']
     run_id = os.path.splitext(os.path.basename(a.ckpt))[0]
     sel = run_id.split('_')[3] if len(run_id.split('_')) > 3 else 'stratified'
-    supports = read_ids(os.path.join(a.drive, 'supports', f'{a.dataset}_{sel}_s{ck.seed}.txt'))[:ck.shot]
+    shot = ck.eval_shot if (getattr(ck, 'eval_shot', 0) or 0) > 0 else ck.shot
+    supports = read_ids(os.path.join(a.drive, 'supports', f'{a.dataset}_{sel}_s{ck.seed}.txt'))[:shot]
     data_root = os.path.join(a.data, f'{a.dataset}_{a.res}')
     run_root = build_run_folder(os.path.join(a.runs, f'{run_id}_sweep'), data_root, supports,
                                 split_support=SUPPORT_SPLIT[a.dataset])
     su = setup_chameleon(a.chameleon, run_root)
     ov = su.derive_stage2_overrides(a.ckpt, verbose=False)
-    ov.update(shot=ck.shot, eval_shot=ck.shot, chunk_size=a.chunk, channel_chunk_size=a.channel_chunk, n_tasks=5,
+    ov.update(shot=shot, eval_shot=shot, chunk_size=a.chunk, channel_chunk_size=a.channel_chunk, n_tasks=5,
               loss_type='bce', img_size=384, base_size=list(ck.base_size))
     cfg = su.build_config(stage=2, dataset='custom', **ov)
     t_load = time.time()
-    model, cfg = su.load_chameleon(cfg, a.mt_ckpt, a.ckpt, verbose=False)
+    from rr.lora import is_lora_ckpt, load_chameleon_lora
+    if is_lora_ckpt(a.ckpt):                    # I9 checkpoints carry LoRA adapters the starter cannot load
+        model, cfg = load_chameleon_lora(su, cfg, a.mt_ckpt, a.ckpt)
+    else:
+        model, cfg = su.load_chameleon(cfg, a.mt_ckpt, a.ckpt, verbose=False)
     model.eval()
     print(f'model loaded once in {time.time() - t_load:.0f} s', flush=True)
     ids = read_ids(os.path.join(a.drive, 'splits', f'{a.split_file}.txt'))
@@ -92,7 +98,8 @@ def main():
             torch.cuda.reset_peak_memory_stats()
             t0 = time.time()
             Ps, labs, t_sup = predict_views(model, lambda i: load_query(data_root, a.split, i), ids, v.get('views', 1),
-                                            v.get('crop_weights'), scales, v.get('stride', 192), a.amp)
+                                            v.get('crop_weights'), scales, v.get('stride', 192), a.amp,
+                                            self_support=v.get('self_support'))
             torch.cuda.synchronize()
             dt = time.time() - t0 - t_sup
             cm = np.zeros((6, 6), np.int64)
