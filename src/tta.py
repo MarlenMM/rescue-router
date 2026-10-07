@@ -30,6 +30,9 @@ from rr.metrics import WET, confusion, decode, gt_classes, summarize  # noqa: E4
 
 RUN = 'floodnet_50shot_s0_stratified'
 TTA = RUN + '_tta4'
+# Batch 13: the headline run name now holds the new model; the flips belong to the published model, whose caches and
+# decode are kept as run <RUN>_pub (src/b13_switch.py). The flipped caches keep their original names.
+BASE = RUN + '_pub' if os.path.exists(os.path.join('results/kaggle_v2/rr/preds', RUN + '_pub_floodnet_val_tune30.npz')) else RUN
 FLIPS = ('h', 'v', 'hv')
 NAMES = ['road_clear', 'road_flooded', 'bldg_flooded', 'bldg_dry', 'water']
 REPO = os.path.dirname(HERE)
@@ -58,12 +61,12 @@ def build(a):
     P = os.path.join(a.results, 'preds')
     flip = lambda split_files, f: {k: v for s in split_files  # noqa: E731
                                    for k, v in load(os.path.join(a.flips, f'{RUN}_{s}_fp16_flip{f}.npz')).items()}
-    v0 = load(os.path.join(P, f'{RUN}_floodnet_val_tune30.npz'))  # = the selected snapshot's (step 1000) cache
+    v0 = load(os.path.join(P, f'{BASE}_floodnet_val_tune30.npz'))  # = the selected snapshot's (step 1000) cache
     vf = [flip(['floodnet_val_tune30'], f) for f in FLIPS]
     ids = ids_of('floodnet_val_tune30')
     write(os.path.join(P, f'{TTA}_floodnet_val_tune30.npz'), {i: average([v0[i]] + [d[i] for d in vf]) for i in ids}, ids)
     # test: unflipped = the full-test cache (eval100 is a subset; its own cache is compared in the report)
-    t0 = load(os.path.join(P, f'{RUN}_floodnet_test_full_fp16.npz'))
+    t0 = load(os.path.join(P, f'{BASE}_floodnet_test_full_fp16.npz'))
     parts = ['floodnet_test_eval100', 'floodnet_test_rest348_a', 'floodnet_test_rest348_b']
     tf = [flip(parts, f) for f in FLIPS]
     full = ids_of('floodnet_test_full')
@@ -97,21 +100,21 @@ def boot(cmsA, cmsB, ids, B, rng):
 
 def report(a):
     P = os.path.join(a.results, 'preds')
-    dec = {k: json.load(open(os.path.join(a.results, 'decode', f'{k}.json')))['chosen'] for k in (RUN, TTA)}
+    dec = {k: json.load(open(os.path.join(a.results, 'decode', f'{k}.json')))['chosen'] for k in (BASE, TTA)}
     for k in dec:
         dec[k] = {kk: vv for kk, vv in dec[k].items() if kk != 'variant'}
     rng = np.random.default_rng(0)
     out = dict(decode={k: v for k, v in dec.items()}, splits={})
     sources = {
-        'val30': ('val', load(os.path.join(P, f'{RUN}_floodnet_val_tune30.npz')),
+        'val30': ('val', load(os.path.join(P, f'{BASE}_floodnet_val_tune30.npz')),
                   load(os.path.join(P, f'{TTA}_floodnet_val_tune30.npz'))),
-        'full448': ('test', load(os.path.join(P, f'{RUN}_floodnet_test_full_fp16.npz')),
+        'full448': ('test', load(os.path.join(P, f'{BASE}_floodnet_test_full_fp16.npz')),
                     load(os.path.join(P, f'{TTA}_floodnet_test_full_fp16.npz'))),
     }
     ev = ids_of('floodnet_test_eval100')
     for name, (split, plain, tta) in sources.items():
         for dname in ('tau0.5', 'tuned'):
-            dA = dict(tau=0.5) if dname == 'tau0.5' else dec[RUN]
+            dA = dict(tau=0.5) if dname == 'tau0.5' else dec[BASE]
             dB = dict(tau=0.5) if dname == 'tau0.5' else dec[TTA]
             cA, cB = per_image(plain, split, a.data, dA), per_image(tta, split, a.data, dB)
             subsets = {name: list(plain)} if name == 'val30' else {'full448': list(plain), 'eval100': ev}
@@ -122,7 +125,7 @@ def report(a):
                 r['drivable_precision'] = dict(plain=sA['drivable_precision'], tta=sB['drivable_precision'])
                 out['splits'].setdefault(sname, {})[dname] = r
     # the eval100 cache vs the full-test cache on the same 100 images (fp16 determinism of the two runs)
-    e0 = load(os.path.join(P, f'{RUN}_floodnet_test_eval100_fp16.npz'))
+    e0 = load(os.path.join(P, f'{BASE}_floodnet_test_eval100_fp16.npz'))
     f0 = sources['full448'][1]
     out['eval100_cache_vs_full_cache_max_abs_diff'] = int(max(np.abs(e0[i].astype(int) - f0[i].astype(int)).max() for i in ev))
     # flipped views vs the unflipped view (decode agreement): a mis-registered flip would be far below the others
@@ -134,10 +137,10 @@ def report(a):
         out['flip_vs_plain_pixel_agreement_eval100'] = agree
     # post-hoc only (not used for the decision): TTA probabilities with the plain model's decode
     plain, tta = sources['full448'][1], sources['full448'][2]
-    cA, cB = per_image(plain, 'test', a.data, dec[RUN]), per_image(tta, 'test', a.data, dec[RUN])
+    cA, cB = per_image(plain, 'test', a.data, dec[BASE]), per_image(tta, 'test', a.data, dec[BASE])
     out['posthoc_tta_with_plain_decode'] = {s: boot(cA, cB, ids, a.B, np.random.default_rng(0))
                                             for s, ids in (('full448', list(plain)), ('eval100', ev))}
-    cv = per_image(sources['val30'][2], 'val', a.data, dec[RUN])
+    cv = per_image(sources['val30'][2], 'val', a.data, dec[BASE])
     out['posthoc_tta_with_plain_decode']['val30_tta'] = miou(sum(cv.values()))
     rt = {}
     for name, f in (('plain, tuned decode (headline)', 'full/pred_floodnet_50shot_full_tuned.json'),
@@ -160,7 +163,7 @@ def report(a):
                          f"[{r['diff']['ci'][0]:+.3f}, {r['diff']['ci'][1]:+.3f}] |")
     lines += ['', 'Per class (full test, tuned): ' + ', '.join(
         f"{k} {v['plain']:.3f} → {v['tta']:.3f}" for k, v in out['splits']['full448']['tuned'].get('per_class', {}).items()), '',
-        f"Decodes: plain {dec[RUN]}, TTA {dec[TTA]}.", '',
+        f"Decodes: plain {dec[BASE]}, TTA {dec[TTA]}.", '',
         f"eval100 cache vs full-test cache on the same images: max |diff| {out['eval100_cache_vs_full_cache_max_abs_diff']} "
         '(uint8 probability units).']
     if 'flip_vs_plain_pixel_agreement_eval100' in out:
@@ -169,7 +172,7 @@ def report(a):
     ph = out['posthoc_tta_with_plain_decode']
     d = lambda r: f"{r['diff']['value']:+.3f} [{r['diff']['ci'][0]:+.3f}, {r['diff']['ci'][1]:+.3f}]"  # noqa: E731
     lines += ['', '## Post-hoc (not used for any decision)',
-              f"TTA probabilities decoded with the **plain** model's val30-tuned decode {dec[RUN]}: full test "
+              f"TTA probabilities decoded with the **plain** model's val30-tuned decode {dec[BASE]}: full test "
               f"{ph['full448']['tta']['value']:.3f} vs plain {ph['full448']['plain']['value']:.3f}, paired diff {d(ph['full448'])}; "
               f"eval100 {ph['eval100']['tta']['value']:.3f} vs {ph['eval100']['plain']['value']:.3f}, diff {d(ph['eval100'])}; "
               f"val30 {ph['val30_tta']:.3f} (TTA's own decode: {out['splits']['val30']['tuned']['tta']['value']:.3f}, so val30 "

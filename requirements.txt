@@ -9,3 +9,8 @@ pillow==12.3.0
 pytest==9.1.1
 gradio==6.29.1
 gradio_client==2.7.2
+# Batch 13 (SAM building outlines, the new decode chain; CPU works, ~1 s/photo; weights: sam_vit_b_01ec64.pth from
+# https://dl.fbaipublicfiles.com/segment_anything/, set RR_SAM_WEIGHTS or put it in ~/rr_data/weights/)
+torch==2.14.1
+torchvision==0.29.1
+segment-anything==1.0
