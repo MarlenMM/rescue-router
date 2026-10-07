@@ -22,20 +22,36 @@ FloodNet 50-shot model, 7–8 Oct 2026. Every number below is a measured value f
   cost (slower prediction, extra model) → keep only if Δ ≥ +.010. Final switch only if the paired full-test
   difference has its 95 % bootstrap CI above 0.
 
-## Final result
+## Final result (the submitted model, 8 Oct)
 
 | setup | val30 (tuned) | full test mIoU (448 photos) | Δ full test [95 % CI] | full-test drv P |
 |---|---|---|---|---|
-| published model | .4835 | .472 | | .830 |
-| new model, Chameleon only | .5232 | .502 | +.030 [+.009, +.052] | .841 |
-| **new model + SAM** | **.5255** | **.506** | **+.034 [+.013, +.056]** | **.842** |
+| published (first) model | .4835 | .472 | | .830 |
+| new model, Chameleon only | .5163 | .503 | +.031 [+.010, +.052] | .843 |
+| **new model + SAM** | **.5186** | **.507** | **+.035 [+.013, +.057]** | **.845** |
 
-eval100 (100-photo subset of the full test): .492 → .513 (Chameleon only), .515 (+SAM); Δ +.024 [−.009, +.054].
-Per class on the full test (published → new + SAM): road clear .544 → .660, road flooded .291 → .309,
-building flooded .577 → .582, building dry .500 → .496, water .448 → .485.
+eval100 (100-photo subset of the full test): .492 → .516 (Chameleon only), .519 (+SAM); Δ +.027 [−.006, +.057].
+Per class on the full test (published → new + SAM): road clear .544 → .662, road flooded .291 → .307,
+building flooded .577 → .594, building dry .500 → .498, water .448 → .472.
 
 New model = published recipe + **I34** 1000-step schedule (+ `--freeze_rest`) + **I23** weight average of steps 750
-and 1000 + decode **I30** guided filter (r 2) → re-tuned τ → **I29** clean-up → **I31** SAM.
+and 1000 + decode **I30** guided filter (r 2, ε 1e-3) → re-tuned τ → **I31** SAM "grow".
+
+**Corrected during the switch (13.6):** an earlier version of this chain also had the **I29 clean-up** (val30 .5255,
+full test .506). Rebuilding the downstream reports showed that it deletes and merges small houses: building-detection
+F1 on eval100 fell to .736 (published model .853), with recall .654. A guard was added on val30 like the drivable-
+precision one (the decode may not detect fewer buildings than plain tuned τ, val30 F1 .680): every clean-up variant
+failed it (best .644), so the clean-up was removed. Without it the full test is slightly better (.507 vs .506).
+
+**Other effects of the switch (measured, not used for any choice):**
+- routing, houses cut off by road, F1: full test .759 → .752 (Δ −.007 [−.048, +.026]), eval100 .835 → .819
+  (Δ −.015 [−.060, +.020]); both within noise: the better pixel map did not improve routing measurably;
+- building detection F1 (eval100, IoU .5): .853 → .806 (the new model itself; SAM +.00, clean-up removed);
+- confidence tiers (I32): the cautious gate was re-chosen on val30 by the same rule (largest gate with ≥ 99 %
+  correct confident houses): 0.1 → 0.05; eval100: 208 confident houses, 100 % truly truck-reachable (was 301, 98.7 %),
+  287 "check first" 79 % (was 189, 74 %); the tuned off-road gate stays 0.3;
+- at a plain τ 0.5 the new model scores only .278 (full test): the shorter schedule shifted the calibration, so its
+  val30-tuned thresholds are part of the model.
 
 ## All ideas (I1–I37)
 
@@ -97,12 +113,12 @@ and 1000 + decode **I30** guided filter (r 2) → re-tuned τ → **I29** clean-
 |---|---|---|---|---|
 | I27 | per-class additive bias offsets | .4798 (**−.0037**) | .4851 (**−.0286**) | dropped |
 | I28 | two-step decode: wet vs dry first, then the class | .4982 (**+.0146**) | .5058 (**−.0079**) | dropped (helped only the old model) |
-| I29 | clean-up: specks < 1600 px filled from the neighbour, road/water closing | .4862 (**+.0027**), drv P .586 | .5174 (**+.0037**), drv P .760 | **kept** |
+| I29 | clean-up: specks < 1600 px filled from the neighbour, road/water closing | .4862 (**+.0027**), drv P .586 | .5174 (**+.0037**), drv P .760; but building-detection F1 .680 → .653 (deletes/merges small houses) | kept first, **removed in 13.6** (detection guard) |
 | I30 | guided filter (edge-aware, guided by the photo) | best r 4 ε 1e-3: .4904 (**+.0069**); r 16 ε .01: +.0008; r 16 ε .1: −.0095; r 32: −.0159 | best r 4 ε 1e-3: .5158 (**+.0021**); r 16 ε .01: −.0091; r 32: −.0280 | **kept** |
-| I29+I30 together | filter → τ → clean-up | (with I28: .5037, **+.0202**, drv P .599) | .5182 (**+.0045**), drv P .764; on the final checkpoint .5231 vs .5153 (**+.0078**) | **kept** |
-| I31 | SAM ViT-B redraws building outlines ("grow": adds building pixels inside each predicted building's box; Chameleon keeps the class) | on tuned τ .4917 (**+.0082**); on the stacked decode .5138 (**+.0099**) | on tuned τ .5198 (**+.0061**); on the final decode .5237 (**+.0054**); final checkpoint .5255 vs .5232 (**+.0023**); **full test .502 → .506 (+.004)** | **kept** (Marlen's decision; it missed the +.010 bar for an extra model by .0001 on the old model) |
+| I29+I30 together | filter → τ → clean-up | (with I28: .5037, **+.0202**, drv P .599) | .5182 (**+.0045**), drv P .764; on the final checkpoint .5231 vs .5153 (**+.0078**) | the filter alone is kept: final checkpoint .5163 (**+.0010**), detection F1 .678 |
+| I31 | SAM ViT-B redraws building outlines ("grow": adds building pixels inside each predicted building's box; Chameleon keeps the class) | on tuned τ .4917 (**+.0082**); on the stacked decode .5138 (**+.0099**) | on tuned τ .5198 (**+.0061**); final checkpoint with filter (no clean-up) .5186 vs .5163 (**+.0023**), detection F1 .678 → .684; **full test .503 → .507 (+.004 [+.002, +.007])** | **kept** (Marlen's decision; it missed the +.010 bar for an extra model by .0001 on the old model) |
 | I31 other modes | "replace" outline / "shrink" only | replace +.0043 / shrink −.0041 | replace +.0005, shrink −.0052 (final decode) | not used |
-| I32 | calibration of the router's wet probability | ECE .054 on val30; the router gates are val30-tuned thresholds, so recalibration changes no status | gates to be re-tuned for the new model in 13.6 | re-tune |
+| I32 | calibration of the router's wet probability | ECE .054 on val30; the router gates are val30-tuned thresholds, so recalibration changes no status | re-tuned on val30 in 13.6: off-road gate 0.3 unchanged, cautious gate 0.1 → 0.05 | **done** |
 
 ### 7. Efficiency
 
@@ -110,7 +126,7 @@ and 1000 + decode **I30** guided filter (r 2) → re-tuned τ → **I29** clean-
 |---|---|---|---|
 | I33 | one process runs all prediction variants (the 3 GB generalist loads once) | model load 29 s once instead of per variant; 6 variants in one 68-min process (one of them, I3, ran out of memory) | **kept** |
 | I34 | 1000-step schedule | see section 3: +.0302 and half the training time | **kept** |
-| I35 | save encoded supports for the app | **not done yet** (part of 13.6) | open |
+| I35 | save encoded supports for the app | not done (the app encodes the 50 supports once at start, ~30 s; saving them would need the encoder's internal tensors on disk, 1–2 GB) | not done |
 | I36 | `torch.compile` of the encoder blocks | outputs within 1/255 of the uncompiled ones (val30 .5136 vs .5137), but **slower**: 16.9 vs 16.8 s per photo | dropped |
 | I37 | Colab detection fix in the notebook (`/kaggle/input` also exists on Colab) | no metric change (correct environment label and work folder on Colab) | **kept** |
 

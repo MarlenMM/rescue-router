@@ -45,15 +45,22 @@ def curve():
     shots = [1, 5, 10, 20, 50]
     plt.rcParams.update({'font.size': 20, 'axes.spines.top': False, 'axes.spines.right': False, 'font.family': 'DejaVu Sans'})
     fig, ax = plt.subplots(figsize=(10, 6.6))
-    for dec, col, lab, dx in (('tau0.5', '#8a94a6', 'τ = 0.5', 0.97), ('tuned', '#1F6FB2', 'decode tuned on 30 val photos', 1.03)):
-        m = [CI[f'floodnet/{s}/floodnet_test_eval100/{dec}']['miou'] for s in shots]
+    # Batch 13: τ 0.5 only up to 20 shots (the final 50-shot model is always used with its tuned decode); first model: open
+    for dec, col, lab, dx, sh in (('tau0.5', '#8a94a6', 'τ = 0.5', 0.97, shots[:4]), ('tuned', '#1F6FB2', 'decode tuned on 30 val photos', 1.03, shots)):
+        m = [CI[f'floodnet/{s}/floodnet_test_eval100/{dec}']['miou'] for s in sh]
         y = np.array([v['value'] for v in m])
         err = np.array([[v['value'] - v['lo'] for v in m], [v['hi'] - v['value'] for v in m]])
-        ax.errorbar(np.array(shots) * dx, y, yerr=err, marker='o', ms=9, lw=3, capsize=5, color=col, label=lab)
+        ax.errorbar(np.array(sh) * dx, y, yerr=err, marker='o', ms=9, lw=3, capsize=5, color=col, label=lab)
+    first = json.load(open(os.path.join(ROOT, 'results/kaggle_v2/rr/decode/floodnet_50shot_s0_stratified_pub.json')))
+    first_full = json.load(open(os.path.join(ROOT, 'results/kaggle_v2/report/b13/b13.json')))['full test (448)/new_sam']['miou']['old']
+    ax.plot([50 * 1.03], [first['eval100'][first['chosen']['variant']]['miou']], marker='o', ms=10, mfc='#F6F4EF', mew=2.5,
+            color='#1F6FB2', ls='none', label='first 50-shot model')
+    ax.plot([64], [first_full], marker='D', ms=11, mfc='#F6F4EF', mew=2.5, color='#8a94a6', ls='none')
     v = CI['floodnet/50/floodnet_test_full/tuned']['miou']
     ax.errorbar([64], [v['value']], yerr=[[v['value'] - v['lo']], [v['hi'] - v['value']]], marker='D', ms=11, color='#1F6FB2',
-                mfc='#F6F4EF', mew=3, capsize=5, lw=2.5)
-    ax.annotate(f"full test\n{v['value']:.3f}", (64, v['lo'] - 0.015), ha='center', va='top', fontsize=17, color='#1F2A3A')
+                mew=3, capsize=5, lw=2.5)
+    ax.annotate(f"full test\n{v['value']:.3f}\n(first {first_full:.3f})", (64, first_full - 0.02), ha='center', va='top',
+                fontsize=17, color='#1F2A3A')
     ax.axhline(.848, ls='--', lw=2.5, color='#D9731F')
     ax.text(1.0, .865, 'PSPNet with 1,445 labels: .848', fontsize=18, color='#B85A12', va='bottom')
     ax.set(xscale='log', xticks=shots, xticklabels=[str(s) for s in shots], xlim=(0.8, 100), ylim=(0.1, 0.95),

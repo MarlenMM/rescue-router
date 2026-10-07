@@ -4,7 +4,7 @@
 #
 #   bash release/build_release.sh [OUT]          # default OUT=~/rr_push/submission
 #
-# data.zip = the bundle the G3 run used (src/make_bundle.py at e4ec713, Kaggle dataset marlenmelis/rr-bundle), as is:
+# data.zip = the bundle the G3 run used (src/make_bundle.py at 1b5d176, Kaggle dataset marlenmelis/rr-bundle-b13; Batch 13), as is:
 # every file of its code (src, splits, supports, demo, kaggle/live, requirements) is unchanged since (checked below;
 # files added later, such as src/gradio_viewer.py, ship in the app zip only; its README.md is the one of that commit).
 
@@ -13,8 +13,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-$HOME/rr_push/submission}"
 P=20260876_MarlenMelis
-BUNDLE_ZIP="$HOME/rr_push/bundle/20260876_NAME_data.zip"
-BUNDLE_COMMIT=e4ec713
+BUNDLE_ZIP="$HOME/rr_push/bundle_b13/20260876_MarlenMelis_data.zip"
+BUNDLE_COMMIT=1b5d176
 DATA="$HOME/rr_data"
 cd "$ROOT"
 

@@ -15,9 +15,10 @@
 \vspace{3pt}
 \textbf{Summary.} We adapt Chameleon to map flooded roads and buildings in drone photos from \textbf{50 labelled photos}
 (Track A) and build a rescue router, a web viewer and a Gradio app on its predicted maps (Track B). On the full
-448-photo FloodNet test set the model reaches \textbf{mIoU .472}\ci{.437}{.506} (5 classes, 95\,\% bootstrap CI); the
-router finds the houses that are cut off by road with \textbf{F1 .759}\ci{.638}{.856}. A fully supervised PSPNet trained on
-1,445 labels reaches .848 on the same classes, so this is a fast first map, not a replacement for full labelling.
+448-photo FloodNet test set the final model reaches \textbf{mIoU .507}\ci{.474}{.538} (5 classes, 95\,\% bootstrap CI;
++.035\ci{+.013}{+.057} over our first model after a pre-registered round of 36 improvement ideas); the router finds the
+houses that are cut off by road with \textbf{F1 .752}\ci{.629}{.851}. A fully supervised PSPNet trained on 1,445 labels
+reaches .848 on the same classes, so this is a fast first map, not a replacement for full labelling.
 
 \sect{1\quad Problem and motivation}
 On 8 Aug 2022 Seoul recorded 141.5\,mm of rain in one hour, the most since records began in 1907, and streets in
@@ -75,8 +76,10 @@ as a support photo (ORB + RANSAC): 14 of 448 do; removing them changes mIoU by $
 \textbf{Pretrained weights.} (1) The \textbf{Chameleon} meta-trained generalist checkpoint~\cite{chameleon} distributed
 by the course (\url{https://github.com/GitGyun/AIC200-Project-StructuredPrediction}, shared Drive folder; model code
 \url{https://github.com/GitGyun/chameleon}). It contains (2) its BEiT-v2-Large image encoder~\cite{beitv2} and (3) its
-ViT-L label encoder and DPT-style decoder as released by the Chameleon authors. No other pretrained model is used.
-\textbf{Compute:} all GPU work ran on 16-GB NVIDIA T4s on Kaggle, about 17 GPU-hours in total.
+ViT-L label encoder and DPT-style decoder as released by the Chameleon authors. (4) \textbf{SAM ViT-B}~\cite{sam}
+(\url{https://github.com/facebookresearch/segment-anything}, Apache-2.0), used only to redraw the outline of each
+building Chameleon predicts (\S4); every class comes from Chameleon. \textbf{Compute:} 16-GB NVIDIA T4s on Kaggle (and
+Colab), about 29 GPU-hours in total (12 of them for the improvement round).
 
 \sect{4\quad Method and experimental setup}
 \begin{minipage}[t]{0.50\textwidth}\vspace{0pt}
@@ -94,12 +97,24 @@ input & 384\,px crops (side 320--480\,px)\\
 augment & flips, rot90, bright./contrast 0.2\\
 support (inference) & best 384\,px window\\
 batch; optimiser & 2; Adam, lr $10^{-3}$ cosine, no decay\\
-steps & 1,000 ($\le$10 shots), 2,000 (20, 50)\\
+steps & 1,000 ($\le$10, 50 shots), 2,000 (20)\\
 precision & fp16 + scaler, grad.\ ckpt.\\
-speed (T4) & 3.6--4.1\,s/step, 10--13.5\,GB\\\bottomrule
+speed (T4) & 2.6--4.1\,s/step, 10--13.5\,GB\\\bottomrule
 \end{tabular}
 \end{minipage}
 \vspace{3pt}
+
+\textbf{Improvement round} (FloodNet 50-shot only; 36 ideas, every one scored on val30 with its own re-tuned decode;
+rule fixed in advance: a free change is kept if val30 mIoU and drivable precision do not drop, a costly one needs
++.010, and the switch needs a paired full-test gain with CI above 0). Kept: a \textbf{1,000-step} schedule with
+gradients only on the trained tensors (+.030 on val30; 30\,\% faster), the \textbf{weight average} of the step-750 and
+step-1,000 snapshots (+.002), a \textbf{guided filter} (edge-aware smoothing of the probabilities, guided by the photo)
+before the decode (+.001) and \textbf{SAM} prompted with each predicted building's box, which adds the building pixels
+Chameleon missed (+.002; a second model, adopted although below +.010). A clean-up step (+.003 mIoU) was removed
+again because it merged and deleted small houses (val30 building-detection F1 .680$\rightarrow$.653). Everything else
+was dropped: e.g.\ training more parts (label decoder $-$.020, relative positions $-$.007), rare-class losses $-$.038,
+augmentations $-$.097, class-balanced supports $-$.106, pseudo-labels on 100 unlabelled photos $-$.070; denser tiles
+gained +.010 but double the prediction time and were cut for the GPU budget (full list: notebook \S5.4).
 
 \textbf{Router} (Dijkstra over (cell, mode) states; modes go truck $\rightarrow$ boat $\rightarrow$ on foot, never back into
 a vehicle). A truck drives on clear road at cost 1 per cell, plus $5\,p_\text{wet}$ (risk-aware), or on dry land at
@@ -110,7 +125,7 @@ photo), parked cars do not block a road, boats pass under tree canopy, and nothi
 obstacles. The \textbf{labelled map} is the same router on the human labels: the datasets label pixels, not
 reachability, so this is our reference, not ground truth. We score the houses \textbf{cut off by road} (status $\ne$
 \textsc{truck}) on the predicted map against the labelled map (P, R, F1). \textbf{Confidence tiers:} each prediction is
-routed again with a cautious gate (0.1 FloodNet, 0.15 RescueNet, chosen on val30 as the largest gate whose
+routed again with a cautious gate (0.05 FloodNet, 0.15 RescueNet, chosen on val30 as the largest gate whose
 truck-reachable houses are $\ge$99\,\% correct); a house a truck still reaches is \emph{confident}, else
 \emph{check first}. The \textbf{system}: a web viewer (Leaflet; the router ported to JavaScript and bit-exact with
 Python on all 200 scenes) and a Gradio app that runs the model live on an uploaded photo.
@@ -123,42 +138,46 @@ Python on all 200 scenes) and a Gradio app that runs the model live on an upload
 \begin{minipage}[t]{0.57\textwidth}\vspace{0pt}\small\setlength{\tabcolsep}{3.5pt}
 \begin{tabular}{@{}lcccccc@{}}\toprule
 IoU (full test) & labels & r.\,clear & r.\,flood & b.\,flood & b.\,dry & water\\\midrule
-ours, $\tau$ 0.5 & 50 & .501 & .293 & .558 & .298 & .450\\
-ours, tuned & 50 & .544 & .291 & .577 & .500 & .448\\
+ours, first model & 50 & .544 & .291 & .577 & .500 & .448\\
+\textbf{ours, final} & 50 & \textbf{.662} & \textbf{.307} & \textbf{.594} & .498 & \textbf{.472}\\
 ENet~\cite{floodnet} & 1,445 & .484 & .125 & .069 & .474 & .490\\
 DeepLabV3+~\cite{floodnet} & 1,445 & .702 & .520 & .327 & .728 & .752\\
 PSPNet~\cite{floodnet} & 1,445 & .912 & .822 & .689 & .898 & .920\\\bottomrule
 \end{tabular}
-\captionof{table}{Per class, full 448-photo test. Baselines: FloodNet paper (10 classes, 713$\times$713); our 5-channel
-decode avoids tree/grass confusions, which may favour us slightly.}\label{tab:base}
+\captionof{table}{Per class, full 448-photo test (tuned decodes). Baselines: FloodNet paper (10 classes,
+713$\times$713); our 5-channel decode avoids tree/grass confusions, which may favour us slightly.}\label{tab:base}
 \end{minipage}
 \vspace{3pt}
 
-\textbf{Segmentation (Track A).} The curve rises from .26 (1 photo) to .49 (50 photos) on eval100 with the tuned decode
-(Fig.~\ref{fig:curve}); paired bootstrap differences show real gains from 1$\rightarrow$5 (+.14\ci{+.10}{+.18}) and
-20$\rightarrow$50 (+.10\ci{+.06}{+.14}, $\tau$ 0.5), but 5$\rightarrow$10 is indistinguishable from zero
-(+.01\ci{$-$.03}{+.05}). On the full test the 50-shot model reaches \textbf{.420}\ci{.386}{.455} at $\tau$ 0.5 and
-\textbf{.472}\ci{.437}{.506} tuned (Table~\ref{tab:base}): above ENet on 4 of 5 classes and above DeepLabV3+ on flooded
-buildings, far below PSPNet; \textbf{flooded roads are the gap} (.29 vs .82). The model never learned a flooded/dry
-signal for buildings (per-building AUC $\approx$0.5); a rule tuned on val30 (``flooded if water lies within
-$\sim$10\,m'') fixes dry buildings at 5--20 shots. \textbf{Cross-disaster:} the FloodNet model applied to RescueNet
+\textbf{Segmentation (Track A).} The curve rises from .26 (1 photo) to .52 (50 photos, final model) on eval100 with the
+tuned decode (Fig.~\ref{fig:curve}); paired bootstrap differences show real gains from 1$\rightarrow$5
+(+.14\ci{+.10}{+.18}, $\tau$ 0.5) and 20$\rightarrow$50 (+.10\ci{+.05}{+.14}, tuned), but 5$\rightarrow$10 is
+indistinguishable from zero (+.01\ci{$-$.03}{+.05}). On the full test the final model reaches \textbf{.507}\ci{.474}{.538}
+(first model .472, paired +.035\ci{+.013}{+.057}; Chameleon alone without SAM .503), above ENet on 4 of 5 classes and
+DeepLabV3+ on flooded buildings, far below PSPNet; \textbf{flooded roads are the gap} (.31 vs .82). The gain is mostly
+clear roads (.54$\rightarrow$.66) and water; drivable precision rose .830$\rightarrow$.845. Its decode matters: the shorter
+schedule shifted the calibration, so at a plain $\tau$ 0.5 it scores only .278; the per-channel thresholds chosen on
+val30 are part of the model. The first model never learned a flooded/dry signal for buildings (per-building AUC
+$\approx$0.5); a rule tuned on val30 (``flooded if water lies within $\sim$10\,m'') fixes dry buildings at 5--20 shots. \textbf{Cross-disaster:} the FloodNet model applied to RescueNet
 with zero RescueNet labels reaches about half of what 20 RescueNet labels give (mean road/building/water IoU .32 vs .63):
 a new disaster needs its own few labels. RescueNet 20-shot: .421 (eval100, tuned); 50 shots did not help (.402).
 \textbf{Failure analysis} (16 worst eval100 photos, tagged by eye): the dangerous error is \textbf{shallow or muddy water
-decoded as dry land}; 92\,\% of the labelled-water cells on predicted truck routes had been crossed as dry off-road land
+decoded as dry land}; on the first model, 92\,\% of the labelled-water cells on predicted truck routes had been crossed as dry off-road land
 (median $p_\text{wet}$ .21), which is why the off-road gate exists. Most other errors are benign for routing
 (water vs flooded road, both boat cells) or are label ambiguities (bridges labelled ``flooded road'').
 
 \textbf{Routing (Track B).} Houses cut off by road, prediction vs labelled map: FloodNet full test (1,232 houses)
-P .847, R .687, \textbf{F1 .759}\ci{.638}{.856}; eval100 \textbf{.835}\ci{.752}{.899}; RescueNet 20-shot eval100
-\textbf{.818}\ci{.524}{.966} (only 25 cut-off houses). The off-road gate lifts val30 F1 from .556 to .980 and eval100
-from .737 to .835; vehicle widths add .802$\rightarrow$.835 (FloodNet eval100). Statuses do not depend on the cost
-values at all (14 cost changes, 0 status changes), and F1 stays within .78--.86 when the gate, cell size, goal ring or
-vehicle widths change. \textbf{Confidence tiers:} of 490 houses the prediction calls truck-reachable on FloodNet eval100,
-the 301 \emph{confident} ones are \textbf{98.7\,\%} truly truck-reachable, the 189 \emph{check first} only 74\,\%; in the
-honest-failure scene 7241 all 6 wrongly truck-reachable houses are \emph{check first}. Buildings found on the predicted
-map match labelled buildings with F1 .85 (RescueNet .63). Test-time flips (4 views) were tried and \textbf{not adopted}:
-with their own val30-tuned decode the full test fell to .455.
+P .827, R .690, \textbf{F1 .752}\ci{.629}{.851}; eval100 \textbf{.819}\ci{.722}{.893}; RescueNet 20-shot eval100
+\textbf{.818}\ci{.524}{.966} (only 25 cut-off houses). The better map did \emph{not} improve routing: vs the first model
+F1 changed by $-$.007\ci{$-$.048}{+.026} (full test) and $-$.015\ci{$-$.060}{+.020} (eval100), both within noise. The
+off-road gate lifted the first model's val30 F1 from .556 to .980; vehicle widths add .770$\rightarrow$.819 (FloodNet
+eval100). Statuses do not depend on the cost values at all (14 cost changes, 0 status changes), and F1 stays within
+.80--.84 when the gate, cell size, goal ring or vehicle widths change. \textbf{Confidence tiers:} of 495 houses the
+prediction calls truck-reachable on FloodNet eval100, the 208 \emph{confident} ones are \textbf{100\,\%} truly
+truck-reachable (cautious gate re-tuned for the final model), the 287 \emph{check first} 79\,\%; in the honest-failure
+scene 7241 all 6 wrongly truck-reachable houses are \emph{check first}. Buildings found on the predicted map match
+labelled buildings with F1 .81 (first model .85; RescueNet .63). Test-time flips (4 views, first model) were tried and
+\textbf{not adopted}: with their own val30-tuned decode the full test fell to .455.
 
 \textbf{System.} Fig.~\ref{fig:routes} shows the router on a predicted and a labelled map. The notebook runs end to end
 on a fresh T4 in 26 minutes (Kaggle; 30 on Colab) and \textbf{recomputes the 50- and 20-shot models live: identical to the
@@ -175,8 +194,9 @@ needs a boat on both. Right: RescueNet canal row, truck $\rightarrow$ boat acros
 
 \textbf{Limitations.} US hurricane suburbs are not Korean urban floods (dense blocks, underpasses invisible from above);
 single nadir frames without georeferencing or mosaics; the labelled map encodes our router's assumptions, not
-field-checked access; one seed per point; val30 is reused for checkpoints, decodes and gates (eval100 and the full test
-were not used for any choice); minutes and metres are rough estimates.
+field-checked access; one seed per point; val30 (30 photos) is reused for checkpoints, decodes, gates and the 36
+improvement ideas, so val30 numbers are optimistic (eval100 and the full test were not used for any choice; the switch
+needed a paired full-test gain); minutes and metres are rough estimates.
 
 \renewcommand{\refname}{\large References}
 \begingroup\small
@@ -184,6 +204,7 @@ were not used for any choice); minutes and metres are rough estimates.
 \bibitem{chameleon} D.~Kim, S.~Cho, S.~Kim, C.~Luo, S.~Hong. \emph{Chameleon: A Data-Efficient Generalist for Dense Visual Prediction in the Wild}. ECCV 2024. arXiv:2404.18459; \url{https://github.com/GitGyun/chameleon}.
 \bibitem{floodnet} M.~Rahnemoonfar, T.~Chowdhury, A.~Sarkar et al. \emph{FloodNet: A High Resolution Aerial Imagery Dataset for Post Flood Scene Understanding}. IEEE Access 9, 2021. arXiv:2012.02951.
 \bibitem{rescuenet} M.~Rahnemoonfar, T.~Chowdhury, R.~Murphy. \emph{RescueNet: A High Resolution UAV Semantic Segmentation Dataset for Natural Disaster Damage Assessment}. Scientific Data 10, 2023. doi:10.1038/s41597-023-02799-4.
+\bibitem{sam} A.~Kirillov, E.~Mintun, N.~Ravi et al. \emph{Segment Anything}. ICCV 2023. arXiv:2304.02643.
 \bibitem{beitv2} Z.~Peng, L.~Dong, H.~Bao et al. \emph{BEiT v2: Masked Image Modeling with Vector-Quantized Visual Tokenizers}. arXiv:2208.06366, 2022.
 \bibitem{seoul} NPR, \emph{Historic rainfall turns Seoul's roads into rivers and leaves 8 dead}, 9 Aug 2022. \url{https://www.npr.org/2022/08/09/1116455746/historic-rainfall-turns-seouls-roads-into-rivers-and-leaves-8-dead}.
 \bibitem{osong} The Korea Times, \emph{50 dead or missing in downpours after 5 more bodies recovered from underground road}, 18 Jul 2023. \url{https://www.koreatimes.co.kr/www/nation/2023/07/281_355125.html}.

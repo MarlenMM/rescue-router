@@ -5,17 +5,20 @@ Few-shot flood mapping from drone photos, and rescue routes on the predicted map
 
 **Track A (segmentation).** [Chameleon](https://github.com/GitGyun/chameleon) (Kim et al., ECCV 2024), meta-trained
 by the course, is adapted with **50 labelled FloodNet photos** to five classes: clear road, flooded road, flooded
-building, dry building, water. On the full 448-photo FloodNet test set it reaches **mIoU .472 [.437, .506]** with a
-decode tuned on 30 validation photos (.420 [.386, .455] at τ 0.5; bootstrap 95 % CIs). PSPNet trained on 1,445 labelled
-photos scores .848 on the same classes, so this is far below full supervision; flooded roads are the gap (IoU .29 vs
-.82). Learning curve and the second dataset (RescueNet, Hurricane Michael, 20 labels: .421 on eval100) are in
+building, dry building, water. On the full 448-photo FloodNet test set the final model reaches **mIoU .507 [.474, .538]**
+(bootstrap 95 % CI) with its decode tuned on 30 validation photos; our first model reached .472, and a round of 36
+improvement ideas tested on the validation photos only (Batch 13: a 1,000-step schedule, a weight average of two
+snapshots, a guided-filter decode and SAM to redraw building outlines; `writeup/batch13_improvements.md`) added
++.035 [+.013, +.057] (paired). PSPNet trained on 1,445 labelled photos scores .848 on the same classes, so this is far
+below full supervision; flooded roads are the gap (IoU .31 vs .82). Learning curve and the second dataset (RescueNet, Hurricane Michael, 20 labels: .421 on eval100) are in
 `results/kaggle_v2/report/`.
 
 **Track B (routing).** A router on 4×4-pixel cells sends a truck along dry roads, then a boat across water, then a
 walk to each house (never back into a vehicle), with vehicle widths, parked cars, tree canopy and a corner rule. On
-the predicted maps it finds the houses that cannot be reached by road with **F1 .759** on the full FloodNet test
-(.835 on eval100; RescueNet .818). Each truck-reachable house gets a confidence tier: 301 "confident" houses on
-FloodNet eval100 were 98.7 % truly truck-reachable; the others say "check first". The "labelled map" these numbers
+the predicted maps it finds the houses that cannot be reached by road with **F1 .752** on the full FloodNet test
+(.819 on eval100; RescueNet .818; the first model's .759 / .835 are within noise of these). Each truck-reachable house
+gets a confidence tier: all 208 "confident" houses on FloodNet eval100 were truly truck-reachable; the others say
+"check first" (79 %). The "labelled map" these numbers
 compare with is the same router run on the human labels: the datasets label pixels, not reachability.
 
 **Try it:** <https://marlenmm.github.io/rescue-router-demo/> (public copy of `docs/`). The web viewer (`docs/`, no server needed) shows all 200 eval100 photos: prediction vs labelled map,
@@ -95,7 +98,9 @@ slides, data zip, app zip with `release/README_app.md`) and checks that it holds
 
 - Model: Chameleon, Kim et al., *Chameleon: A Data-Efficient Generalist for Dense Visual Prediction in the Wild*,
   ECCV 2024 (<https://github.com/GitGyun/chameleon>); course starter
-  <https://github.com/GitGyun/AIC200-Project-StructuredPrediction>.
+  <https://github.com/GitGyun/AIC200-Project-StructuredPrediction>. Second pretrained model (Batch 13): SAM ViT-B,
+  Kirillov et al., *Segment Anything*, ICCV 2023 (<https://github.com/facebookresearch/segment-anything>, Apache-2.0),
+  used only to redraw the outlines of the buildings Chameleon predicts.
 - Data: FloodNet (Rahnemoonfar et al., 2021), CDLA-Permissive-1.0
   (<https://github.com/BinaLab/FloodNet-Supervised_v1.0>); RescueNet (Rahnemoonfar et al., 2023), figshare CC0
   (GitHub release CC BY-NC-ND 4.0). Viewer photos and labels are derived from these datasets.
