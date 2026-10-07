@@ -26,8 +26,9 @@ from postproc_sweep import cleanup, guided_filter  # noqa: E402
 from rr.metrics import WET, confusion, decode, gt_classes, summarize  # noqa: E402
 
 NAMES = ['road_clear', 'road_flooded', 'bldg_flooded', 'bldg_dry', 'water']
-OLD_CACHE = 'results/kaggle_v2/rr/preds/floodnet_50shot_s0_stratified_floodnet_test_full_fp16.npz'
-OLD_DECODE = 'results/kaggle_v2/rr/decode/floodnet_50shot_s0_stratified.json'
+_PUB = '_pub' if os.path.exists('results/kaggle_v2/rr/decode/floodnet_50shot_s0_stratified_pub.json') else ''  # after b13_switch
+OLD_CACHE = f'results/kaggle_v2/rr/preds/floodnet_50shot_s0_stratified{_PUB}_floodnet_test_full_fp16.npz'
+OLD_DECODE = f'results/kaggle_v2/rr/decode/floodnet_50shot_s0_stratified{_PUB}.json'
 
 
 def load_parts(paths):
@@ -122,7 +123,7 @@ def main():
     json.dump(res, open(os.path.join(a.out, 'final.json'), 'w'), indent=1)
     f = lambda r: f"{r['new']:.3f} [{r['new_ci'][0]:.3f}, {r['new_ci'][1]:.3f}] vs {r['old']:.3f}: Δ {r['diff']:+.3f} [{r['diff_ci'][0]:+.3f}, {r['diff_ci'][1]:+.3f}]"
     lines = [f'Paired bootstrap over photos (B {a.B}). Old = published model + published decode; new = Batch 13 checkpoint '
-             '+ its val30-chosen decode (guided filter -> tau -> clean-up), "+SAM" = with SAM grow.', '']
+             '+ its val30-chosen decode (guided filter -> tau [-> clean-up if chosen]), "+SAM" = with SAM grow.', '']
     for split in ('full', 'eval100'):
         for v, lab in (('new', 'Chameleon only'), ('new_sam', '+SAM')):
             lines.append(f"- {split} test, {lab}: mIoU {f(res[f'{split}_{v}_miou'])}; drivable precision "

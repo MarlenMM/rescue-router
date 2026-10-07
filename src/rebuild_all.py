@@ -74,28 +74,30 @@ STEPS = {
                    f'{RT}/tta/decode_tta4.json'),
              route('floodnet', 'floodnet_test_full', f'{RT}/tta/pred_floodnet_50shot_tta4_full_default.json', TTA_FULL),
              py('tta.py', 'report')], ['decode', 'route_full'], 'report/tta/: test-time flips (not adopted)'),
+    'b13': ([py('b13_report.py')], ['decode'], 'report/b13/: Batch 13 headline switch recomputed (val30 chain, paired test)'),
     'export': ([py('export_web_assets.py', '--out', 'app/scenes')], ['tiers'], 'app/scenes/: 200 viewer scenes'),
     'viewer': ([py('build_viewer.py')], ['export'], 'docs/: the built web viewer'),
     'tests': ([[PY, '-m', 'pytest', 'src/tests', '-q'], ['node', '--test', 'app/test/router.test.mjs']], ['export'],
               'Python tests + JS router parity (bit-exact on all scenes)'),
 }
 
-# headline numbers as published (PLAN §15 Quick summary); --check compares the rebuilt files with these (3 decimals)
+# headline numbers as published (PLAN §15 Quick summary); --check compares the rebuilt files with these (3 decimals).
+# Updated 8 Oct (Batch 13.6): FloodNet 50-shot = the Batch 13 model (the published 7 Oct values: results/published_7oct.tar)
 EXPECTED = {
-    'FloodNet 50 full test mIoU, tau 0.5': (f'{REP}/ci/ci.json', ['curve', 'floodnet/50/floodnet_test_full/tau0.5', 'miou', 'value'], .420),
-    'FloodNet 50 full test mIoU, tuned': (f'{REP}/ci/ci.json', ['curve', 'floodnet/50/floodnet_test_full/tuned', 'miou', 'value'], .472),
-    'FloodNet 50 eval100 mIoU, tau 0.5': (f'{REP}/ci/ci.json', ['curve', 'floodnet/50/floodnet_test_eval100/tau0.5', 'miou', 'value'], .457),
-    'FloodNet 50 eval100 mIoU, tuned': (f'{REP}/ci/ci.json', ['curve', 'floodnet/50/floodnet_test_eval100/tuned', 'miou', 'value'], .492),
-    'FloodNet 20 eval100 mIoU, tuned': (f'{REP}/ci/ci.json', ['curve', 'floodnet/20/floodnet_test_eval100/tuned', 'miou', 'value'], .422),
-    'FloodNet 5 eval100 mIoU, tuned': (f'{REP}/ci/ci.json', ['curve', 'floodnet/5/floodnet_test_eval100/tuned', 'miou', 'value'], .353),
-    'RescueNet 20 eval100 mIoU, tuned': (f'{REP}/ci/ci.json', ['curve', 'rescuenet/20/rescuenet_test_eval100/tuned', 'miou', 'value'], .421),
-    'stranded F1, FloodNet 50 eval100': (f'{REP}/ci/ci.json', ['routing', 'FloodNet 50-shot eval100', 'all', 'value'], .835),
-    'stranded F1, FloodNet 50 full test': (f'{REP}/ci/ci.json', ['routing', 'FloodNet 50-shot full test', 'all', 'value'], .759),
-    'stranded F1, RescueNet 20 eval100': (f'{REP}/ci/ci.json', ['routing', 'RescueNet 20-shot eval100', 'all', 'value'], .818),
-    'confident-truck houses, FloodNet eval100': (f'{RT}/tiers/tiers.json', ['tiers', 'floodnet_eval100', 'CONFIDENT_TRUCK', 'n'], 301),
-    'confident-truck share truly truck-reachable': (f'{RT}/tiers/tiers.json', ['tiers', 'floodnet_eval100', 'CONFIDENT_TRUCK', 'gt_truck_share'], .987),
-    'building detection F1, FloodNet (IoU .5)': (f'{RT}/sensitivity/sensitivity.json', ['detection', 'floodnet', 0, 'f1'], .853),
-    'TTA full test mIoU, own tuned decode (not adopted)': (f'{REP}/tta/tta.json', ['splits', 'full448', 'tuned', 'tta', 'value'], .455),
+    'FloodNet 50 full test mIoU, tau 0.5': (f'{REP}/ci/ci.json', ['curve', 'floodnet/50/floodnet_test_full/tau0.5', 'miou', 'value'], 0.278496),
+    'FloodNet 50 full test mIoU, tuned': (f'{REP}/ci/ci.json', ['curve', 'floodnet/50/floodnet_test_full/tuned', 'miou', 'value'], 0.5068),
+    'FloodNet 50 eval100 mIoU, tau 0.5': (f'{REP}/ci/ci.json', ['curve', 'floodnet/50/floodnet_test_eval100/tau0.5', 'miou', 'value'], 0.3526),
+    'FloodNet 50 eval100 mIoU, tuned': (f'{REP}/ci/ci.json', ['curve', 'floodnet/50/floodnet_test_eval100/tuned', 'miou', 'value'], 0.518506),
+    'FloodNet 20 eval100 mIoU, tuned': (f'{REP}/ci/ci.json', ['curve', 'floodnet/20/floodnet_test_eval100/tuned', 'miou', 'value'], 0.4225),
+    'FloodNet 5 eval100 mIoU, tuned': (f'{REP}/ci/ci.json', ['curve', 'floodnet/5/floodnet_test_eval100/tuned', 'miou', 'value'], 0.353),
+    'RescueNet 20 eval100 mIoU, tuned': (f'{REP}/ci/ci.json', ['curve', 'rescuenet/20/rescuenet_test_eval100/tuned', 'miou', 'value'], 0.4206),
+    'stranded F1, FloodNet 50 eval100': (f'{REP}/ci/ci.json', ['routing', 'FloodNet 50-shot eval100', 'all', 'value'], 0.8194),
+    'stranded F1, FloodNet 50 full test': (f'{REP}/ci/ci.json', ['routing', 'FloodNet 50-shot full test', 'all', 'value'], 0.7524),
+    'stranded F1, RescueNet 20 eval100': (f'{REP}/ci/ci.json', ['routing', 'RescueNet 20-shot eval100', 'all', 'value'], 0.8182),
+    'confident-truck houses, FloodNet eval100': (f'{RT}/tiers/tiers.json', ['tiers', 'floodnet_eval100', 'CONFIDENT_TRUCK', 'n'], 208),
+    'confident-truck share truly truck-reachable': (f'{RT}/tiers/tiers.json', ['tiers', 'floodnet_eval100', 'CONFIDENT_TRUCK', 'gt_truck_share'], 1.0),
+    'building detection F1, FloodNet (IoU .5)': (f'{RT}/sensitivity/sensitivity.json', ['detection', 'floodnet', 0, 'f1'], 0.8063),
+    'TTA full test mIoU, own tuned decode (not adopted)': (f'{REP}/tta/tta.json', ['splits', 'full448', 'tuned', 'tta', 'value'], 0.4548),
 }
 
 

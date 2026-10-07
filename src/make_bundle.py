@@ -99,7 +99,7 @@ def main():
     if dirty:
         print('warning: uncommitted changes in code are NOT in the bundle (git HEAD):\n' + dirty)
     arc = subprocess.run(['git', 'archive', 'HEAD', 'src', 'splits', 'supports', 'demo', 'kaggle/live', 'README.md',
-                          'requirements.txt'], cwd=ROOT, capture_output=True, check=True).stdout
+                          'requirements.txt', 'writeup/batch13_improvements.md'], cwd=ROOT, capture_output=True, check=True).stdout
     subprocess.run(['tar', '-x', '-C', out], input=arc, check=True)
     open(os.path.join(out, 'VERSION'), 'w').write(commit + '\n')
     # data
@@ -116,7 +116,7 @@ def main():
     os.makedirs(os.path.join(rr, 'ckpt'))
     for r in RUNS:
         shutil.copy2(os.path.join(a.results, 'ckpt', f'{r}_s0_stratified.ckpt'), os.path.join(rr, 'ckpt'))
-    for sub in ('decode', 'metrics', 'logs'):
+    for sub in ('decode', 'metrics', 'logs', 'classmaps'):                 # classmaps: Batch 13 decode incl. SAM, per split
         shutil.copytree(os.path.join(a.results, sub), os.path.join(rr, sub))
     for f in glob.glob(os.path.join(rr, 'decode', '*_tta4.json')):          # TTA not adopted: its report has it
         os.remove(f)

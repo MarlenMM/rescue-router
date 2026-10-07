@@ -33,7 +33,9 @@ SPLIT = {'test': 'test', 'val': 'val'}
 PRED_OFFROAD_MAXWET = {'floodnet': 0.3, 'rescuenet': 0.2}
 # cautious gate for the confidence tiers (Batch 2): largest gate below the tuned one whose confident-truck houses are
 # >= 99 % truck-reachable on the dataset's val30 (src/tiers.py, results/routing/tiers/tiers.md)
-PRED_CAUTIOUS_MAXWET = {'floodnet': 0.1, 'rescuenet': 0.15}
+# Batch 13 (8 Oct, I32): re-chosen on the new FloodNet model's val30 by the same rule: 0.1 -> 0.05 (the published model's 0.1
+# is in results/published_7oct.tar); the tuned gate 0.3 is unchanged (results/routing/gate/gate.md)
+PRED_CAUTIOUS_MAXWET = {'floodnet': 0.05, 'rescuenet': 0.15}
 
 
 def main():

@@ -29,7 +29,10 @@ RUNS = ['floodnet_1shot', 'floodnet_5shot', 'floodnet_10shot', 'floodnet_20shot'
 PACK = ([f'{r}_s0_stratified_{r.split("_")[0]}_test_eval100_fp16' for r in RUNS]
         + [f'{r}_s0_stratified_{r.split("_")[0]}_val_tune30' for r in RUNS]
         + ['floodnet_50shot_s0_stratified_floodnet_test_full_fp16',
-           'floodnet_50shot_s0_stratified_rescuenet_test_eval100_fp16'])
+           'floodnet_50shot_s0_stratified_rescuenet_test_eval100_fp16']
+        # Batch 13: the published FloodNet 50-shot model's caches (run <...>_pub), for the paired comparison
+        + ['floodnet_50shot_s0_stratified_pub_floodnet_test_full_fp16', 'floodnet_50shot_s0_stratified_pub_floodnet_test_eval100_fp16',
+           'floodnet_50shot_s0_stratified_pub_floodnet_val_tune30'])
 
 
 def sha(a):

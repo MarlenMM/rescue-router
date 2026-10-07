@@ -85,7 +85,8 @@ def tune(probs, gts, ds):
                 val_miou_tau_bldg=best_b, val_miou_tau_ctx=best_c)
 
 
-LABEL = {'default': 'τ=0.5', 'tau': 'tuned τ', 'tau_bldg': 'tuned τ + vote', 'tau_ctx': 'tuned τ + wet ctx'}
+LABEL = {'default': 'τ=0.5', 'tau': 'tuned τ', 'tau_bldg': 'tuned τ + vote', 'tau_ctx': 'tuned τ + wet ctx',
+         'b13': 'B13: filter → τ → SAM'}
 
 
 def write_table(results, path):

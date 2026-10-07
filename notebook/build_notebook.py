@@ -30,13 +30,19 @@ water) by **Chameleon** (Kim et al., ECCV 2024) adapted from **50 labelled Flood
 sends a truck along dry roads, a boat across water and a team on foot to each house, and marks the houses a truck can
 reach with confidence (Track B: a web viewer and a Gradio app around the model).
 
+**Improved model (Batch 13, 7–8 Oct):** 36 improvement ideas were tried on the FloodNet 50-shot model, each scored on
+the 30 val photos only (§5.4). Kept: a 1,000-step schedule, the weight average of two snapshots, an edge-aware
+(guided-filter) decode and **SAM** (a second pretrained model) to redraw the outlines of the buildings Chameleon finds.
+The switch rule, fixed in advance, was a paired full-test gain with its 95 % CI above 0: full test mIoU **.472 → .507**
+[Δ +.035, CI +.013 to +.057]; Chameleon alone .503.
+
 | section | what | runs |
 |---|---|---|
 | 1 Setup | environment, GPU, data bundle, flags | ~3 min |
 | 2 Data | splits, hashes, class mapping, samples | CPU |
 | 3 Formulation | channels, labels, tiling | CPU |
 | 4 Fine-tuning | recipe, training curves of the 7 runs, a short live fine-tuning run | GPU ~7 min |
-| 5 Results | **live recompute of FloodNet 50- and 20-shot vs the caches**, learning curve, CIs, full test, baselines | GPU ~6 min + CPU |
+| 5 Results | **live recompute of FloodNet 50- and 20-shot vs the caches**, learning curve, CIs, full test, baselines, Batch 13 | GPU ~7 min + CPU |
 | 6 Failure analysis | where the model goes wrong | CPU |
 | 7 Cross-disaster | RescueNet: zero-label transfer and re-adaptation | CPU |
 | 8 Routing | router, routing metrics on predicted maps (live), tiers, ablations | CPU |
@@ -131,7 +137,17 @@ if not os.path.isdir(STARTER):
 CHAMELEON = os.path.join(STARTER, 'chameleon')
 import numpy
 sh(f'{sys.executable} -m pip install -q pytorch_lightning==2.4.0 timm==0.6.13 easydict einops scikit-image pycocotools '
-   f'fastremap numba flow_vis "numpy=={numpy.__version__}"', tail=3)
+   f'fastremap numba flow_vis segment-anything "numpy=={numpy.__version__}"', tail=3)
+
+# ---- SAM ViT-B (second pretrained model, Batch 13: redraws the outlines of predicted buildings; Meta, Apache-2.0) --
+SAM_W = os.environ.get('RR_SAM_WEIGHTS') or find('/kaggle/input/**/sam_vit_b_01ec64.pth', os.path.join(BASE, 'sam_vit_b_01ec64.pth'),
+                                                 f'{MYDRIVE}/sam_vit_b_01ec64.pth', os.path.expanduser('~/rr_data/weights/sam_vit_b_01ec64.pth'))
+if not SAM_W:
+    import urllib.request
+    SAM_W = os.path.join(BASE, 'sam_vit_b_01ec64.pth')
+    urllib.request.urlretrieve('https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth', SAM_W)
+os.environ['RR_SAM_WEIGHTS'] = SAM_W
+print('SAM ViT-B weights:', SAM_W, f'({os.path.getsize(SAM_W) / 1e6:.0f} MB)')
 
 # ---- working folder for GPU scripts: they read splits/ and supports/ next to their outputs ----------------------
 WORK = os.path.join(RR, 'results/kaggle_v2/rr')
@@ -237,6 +253,12 @@ shots, 2,000 for 20 and 50; validation on val30 every 250 steps (500 at 50 shots
 inference does not fit next to the training state) and the checkpoint with the best val30 mIoU is kept. All 7 runs
 ran on Kaggle T4s (`kaggle/queue/run_queue_kaggle.py` → `src/run_queue.py` → `src/finetune.py`, `src/select_ckpt.py`,
 `src/predict.py`). Their logs:
+
+**FloodNet 50-shot, Batch 13 (the headline model):** the same recipe with a **1,000-step** cosine schedule (the 2,000-step
+run peaked at step 1,000) and gradients only on the trained tensors (`--freeze_rest`: the same updates, ~30 % faster);
+the final checkpoint is the **average of the weights at steps 750 and 1,000** (`src/avg_ckpt.py`). Ten training
+variants (more trained parameters, rare-class losses, augmentations, episodes, learning rate, balanced supports, EMA,
+pseudo-labels) were run the same way and dropped: none beat this control run on val30 (§5.4).
 ''')
 code(r'''
 tic('finetune')
@@ -256,10 +278,11 @@ ax[0].legend(fontsize=8); ax[1].legend(fontsize=8); plt.tight_layout(); plt.show
 code(r'''
 if RUN_TRAINING:   # the full matrix, as on Kaggle (one process per run; resumable): ~12 GPU-hours on a T4
     for shot, steps, val, chunk, extra in [(1, 1000, 250, 6, ''), (5, 1000, 250, 6, ''), (10, 1000, 250, 6, ''),
-                                           (20, 2000, 250, 6, ''), (50, 2000, 500, 1, '--defer_val')]:
+                                           (20, 2000, 250, 6, ''), (50, 1000, 250, 1, '--defer_val --freeze_rest --snap_from 750')]:
         sh(f'{sys.executable} src/finetune.py --dataset floodnet --shot {shot} --n_steps {steps} --val_every {val} --amp fp16 '
            f'--grad_ckpt --chunk {chunk} --channel_chunk 1 {extra} --drive {BASE}/retrain {GPU_ARGS}', tail=5)
-    print('then src/select_ckpt.py for the 50-shot run and src/predict.py for the caches (see kaggle/queue)')
+    print('then, for 50 shots: src/avg_ckpt.py over the step-750 and step-1000 snapshots (Batch 13), and src/predict.py '
+          'for the caches (see kaggle/queue, kaggle/b13)')
 if RUN_DEMO_TRAINING and torch.cuda.is_available():   # a short real run of the same code: 60 steps at 5 shots, validated on val30 at the end
     DEMO = os.path.join(BASE, 'demo_run')
     for d in ('splits', 'supports'):
@@ -279,7 +302,7 @@ md(r'''
 ### 5.1 Live recompute of the headline models
 
 The prediction caches were made on Kaggle T4s by `src/predict.py`. Here the same script runs the FloodNet 50-shot
-(headline) and 20-shot models again on the first test photos of eval100, and the result is compared with the cache:
+(headline, Batch 13) and 20-shot models again on the first test photos of eval100, and the result is compared with the cache:
 on Kaggle, where the caches were made, the probabilities are identical (maximum difference 0 in the submitted run).
 On Colab's T4 the GPU libraries differ slightly: measured 7 Oct, at most 3/255 (50-shot) and 14/255 (20-shot)
 apart, with 99.99 % and 99.95 % of pixels decoding to the same class. Every number below comes from the caches.
@@ -305,6 +328,15 @@ if RUN_LIVE and torch.cuda.is_available():
         LIVE[shot] = dict(minutes=round((time.time() - t) / 60, 1), max_abs_diff=int(max(d)), decode_agreement=float(agree))
         print(f'FloodNet {shot}-shot, {len(live)} photos live: max |live - cache| = {max(d)} (uint8 units), '
               f'tuned-decode pixel agreement {agree:.4f}, {LIVE[shot]["minutes"]} min')
+        if shot == 50:   # the whole Batch 13 decode, live (guided filter -> tau -> SAM on this GPU) vs the stored class maps
+            from rr.final_decode import decode_photo, photo
+            t = time.time()
+            full_dec = json.load(open(f'results/kaggle_v2/rr/decode/{run}.json'))['chosen']
+            dec_live = {k: v for k, v in full_dec.items() if k != 'classmaps'}
+            ag = np.mean([(decode_photo(live[i] / 255., dec_live, img=photo(DATA, 'floodnet', 'test', i)) ==
+                           decode_photo(cache[i] / 255., full_dec, split_file='floodnet_test_eval100', photo_id=i)).mean() for i in live])
+            LIVE['50_chain_agreement'] = float(ag)
+            print(f'  full decode chain live (incl. SAM) vs the stored class maps: pixel agreement {ag:.4f} ({time.time() - t:.0f} s)')
 else:
     print('RUN_LIVE is off or no GPU: the results below come from the caches only')
 toc('live')
@@ -317,20 +349,23 @@ optionally a building-level flooded/dry rule). 95 % bootstrap CIs over images (B
 ''')
 code(r'''
 tic('cpu_results')
-# FloodNet 50-shot decode re-tuned here on val30 (the others are loaded): must give the published decode
-sh(f'{sys.executable} src/decode_tune.py --runs floodnet_50shot_s0_stratified', tail=1)
+# FloodNet 20-shot decode re-tuned here on val30 (the others are loaded): must give the shipped decode. (The 50-shot
+# headline decode is the Batch 13 chain, chosen on val30 in §5.4; decode_tune keeps it as it is.)
+sh(f'{sys.executable} src/decode_tune.py --runs floodnet_20shot_s0_stratified', tail=1)
 print('re-tuned decode equals the shipped one:',
-      {k: v for k, v in json.load(open('results/kaggle_v2/rr/decode/floodnet_50shot_s0_stratified.json'))['chosen'].items() if k != 'variant'} == DEC['floodnet_50shot_s0_stratified'])
-def miou_of(cache, ds, dec, split='test'):
+      {k: v for k, v in json.load(open('results/kaggle_v2/rr/decode/floodnet_20shot_s0_stratified.json'))['chosen'].items() if k != 'variant'} == DEC['floodnet_20shot_s0_stratified'])
+from rr.final_decode import decode_photo, photo
+def miou_of(cache, ds, dec, split='test', split_file=None):
     cm = np.zeros((6, 6), np.int64)
     for i, p in cache.items():
-        cm += confusion(decode(p / 255., **dec), gt_classes(load_label(DATA, ds, split, i)))
+        cm += confusion(decode_photo(p / 255., dec, img=photo(DATA, ds, split, i), split_file=split_file, photo_id=i),
+                        gt_classes(load_label(DATA, ds, split, i)))
     return summarize(cm, NAMES[ds], WET[ds])
 rows = []
 for ds, shots in (('floodnet', (1, 5, 10, 20, 50)), ('rescuenet', (20, 50))):
     for s in shots:
         run = f'{ds}_{s}shot_s0_stratified'; c = load_cache(f'{run}_{ds}_test_eval100_fp16')
-        a, b = miou_of(c, ds, dict(tau=0.5)), miou_of(c, ds, DEC[run])
+        a, b = miou_of(c, ds, dict(tau=0.5)), miou_of(c, ds, DEC[run], split_file=f'{ds}_test_eval100')
         rows.append((ds, s, a['miou'], b['miou'], b['drivable_precision']))
 sh(f'{sys.executable} src/bootstrap_ci.py', tail=0)   # recomputes every CI from the caches (seeded)
 CI = json.load(open('results/kaggle_v2/report/ci/ci.json'))
@@ -356,7 +391,7 @@ we compare on the same five classes. They are far ahead: this is 50 labels again
 ''')
 code(r'''
 full = load_cache('floodnet_50shot_s0_stratified_floodnet_test_full_fp16')
-r0, r1 = miou_of(full, 'floodnet', dict(tau=0.5)), miou_of(full, 'floodnet', DEC['floodnet_50shot_s0_stratified'])
+r0, r1 = miou_of(full, 'floodnet', dict(tau=0.5)), miou_of(full, 'floodnet', DEC['floodnet_50shot_s0_stratified'], split_file='floodnet_test_full')
 c0, c1 = CI['curve']['floodnet/50/floodnet_test_full/tau0.5']['miou'], CI['curve']['floodnet/50/floodnet_test_full/tuned']['miou']
 print(f'FloodNet 50-shot, full test ({len(full)} photos): mIoU {r0["miou"]:.3f} [{c0["lo"]:.3f}, {c0["hi"]:.3f}] at τ 0.5, '
       f'{r1["miou"]:.3f} [{c1["lo"]:.3f}, {c1["hi"]:.3f}] tuned; drivable precision {r1["drivable_precision"]:.3f}')
@@ -366,8 +401,27 @@ print(open('results/kaggle_v2/report/baselines.md').read())
 print('Near-duplicates (src/dupes.py): test photos showing the same ground as a support photo:',
       {k: len(v) for k, v in json.load(open('results/kaggle_v2/report/dupes/dupes.json'))['runs']['floodnet']['overlapping'].items()},
       'of 448; without them:', {k: round(v['miou']['value'], 3) for k, v in CI['without_overlap'].items() if 'floodnet/50' in k})
-print('\nTest-time flips (4 views, src/tta.py): not adopted. ' + open('results/kaggle_v2/report/tta/tta.md').read().split('## Decision')[1].strip())
+print('\nTest-time flips (4 views, src/tta.py, on the published model): not adopted. ' + open('results/kaggle_v2/report/tta/tta.md').read().split('## Decision')[1].strip())
 toc('cpu_results')
+''')
+md(r'''
+### 5.4 Batch 13: improving the 50-shot model (and how the switch was decided)
+
+36 ideas were tried on the FloodNet 50-shot model (7–8 Oct, Kaggle T4s; every idea, its measured change and the
+decision: `writeup/batch13_improvements.md`). Rule fixed before any result: each variant gets its own decode re-tuned
+on the 30 val photos; a change with no running cost is kept if val30 mIoU and drivable precision do not drop, a costly
+one (slower prediction, second model) must gain at least +.010; **the switch needs a paired full-test gain with its
+95 % CI above 0**. Kept: the 1,000-step schedule (+.030 on val30), the weight average of steps 750 and 1,000 (+.002),
+the guided-filter decode (+.001) and SAM (+.002; second model, adopted by decision although below +.010). A clean-up
+step that had raised val30 mIoU was removed again because it merged and deleted small houses (val30 building-detection
+F1 .680 → .653): a lost house matters more to a rescue router than a few pixels. Below, recomputed from the caches.
+''')
+code(r'''
+tic('b13')
+sh(f'{sys.executable} src/b13_report.py', tail=0)
+print(open('results/kaggle_v2/report/b13/b13.md').read())
+print(open('writeup/batch13_improvements.md').read().split('## All ideas')[0].split('## Final result')[1])
+toc('b13')
 ''')
 
 md(r'''
@@ -410,7 +464,8 @@ two obstacles. Each house gets a status: TRUCK, BOAT, FOOT or ISOLATED (no route
 
 The **labelled map** is the same router on the human labels: the datasets label pixels, not reachability. On predicted
 maps we score the houses that are **cut off by road** (status ≠ TRUCK) against the labelled map. Each truck-reachable
-house also gets a **confidence tier**: routed again with a cautious gate (0.1 / 0.15), a house still reachable is
+house also gets a **confidence tier**: routed again with a cautious gate (0.05 / 0.15; FloodNet re-tuned on val30 for the
+Batch 13 model, was 0.1), a house still reachable is
 "confident", otherwise "check first".
 ''')
 code(r'''
@@ -497,8 +552,12 @@ md(r'''
 - **Pretrained weights:** Chameleon meta-trained generalist checkpoint from the course
   (<https://github.com/GitGyun/AIC200-Project-StructuredPrediction>, shared Drive folder; model: Kim et al., *Chameleon:
   A Data-Efficient Generalist for Dense Visual Prediction in the Wild*, ECCV 2024, <https://github.com/GitGyun/chameleon>;
-  its image encoder is BEiT-v2-Large). Our 7 fine-tuned checkpoints (adapted parameters only, ~5 MB each) are in the
+  its image encoder is BEiT-v2-Large). Our fine-tuned checkpoints (adapted parameters only, ~5 MB each) are in the
   data bundle (`results/kaggle_v2/rr/ckpt/`).
+- **Second pretrained model (Batch 13):** SAM ViT-B (Kirillov et al., *Segment Anything*, ICCV 2023,
+  <https://github.com/facebookresearch/segment-anything>, weights
+  <https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth>, Apache-2.0). It only redraws the outline of
+  each building Chameleon predicted (prompted with that building's box); every class comes from Chameleon.
 - **Data:** FloodNet <https://github.com/BinaLab/FloodNet-Supervised_v1.0> (CDLA-Permissive-1.0); RescueNet
   <https://springernature.figshare.com/collections/6647354> (CC0). Preprocessing: `src/prep_data.py`.
 - **Everything else:** `src/rebuild_all.py` recomputes every reported number from the caches on CPU and checks the

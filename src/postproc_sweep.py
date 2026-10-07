@@ -60,15 +60,19 @@ def decode_two_step(P, tau, t_w):
     return np.where(any_pass & (out == OTHER_IDX), decode(P, tau), out)    # the group had no candidate: plain rule
 
 
-def cleanup(cls, k=0, r=0, close_classes=(0, 1, 4)):
+def cleanup(cls, k=0, r=0, close_classes=(0, 1, 4), kb=None):
+    """kb: size threshold for the building classes (2, 3); None = k (as chosen first); 0 = buildings never filled."""
     out = cls.copy()
     if k:
         hole = np.zeros(cls.shape, bool)
         for c in range(OTHER_IDX + 1):
+            kc = k if (kb is None or c not in (2, 3)) else kb
+            if not kc:
+                continue
             lab, n = ndimage.label(cls == c)
             if n:
                 size = np.bincount(lab.ravel())
-                small = size < k
+                small = size < kc
                 small[0] = False
                 hole |= small[lab]
         if hole.any() and not hole.all():
