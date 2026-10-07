@@ -22,7 +22,10 @@ variant run <run_id>_<tag>): --tune label_decoder,relpos,head (I5-I7, the starte
 --pos_weight (I12), --rare_crop (I13), --dice (I14), --rot_blur (I15), --attn_dropout (I18), --copy_paste (I19),
 --ema d (I17: an exponential moving average of the trained tensors, saved next to each snapshot as
 <run_id>_ema_step<N>.ckpt from --ema_from on), --snap_from N (no snapshots before step N), --freeze_rest
-(efficiency: gradients only for the trained tensors; the same optimizer updates, ~3 GB less memory, less backward).
+(efficiency: gradients only for the trained tensors; the same optimizer updates, ~3 GB less memory, less backward),
+--pseudo_list/--pseudo_dir (I20: the training pool also holds pseudo-labelled photos; the checkpoint's shot is then
+50 + N for the pool, its eval_shot 50 = the support set predict.py uses), --lora r (I9: LoRA adapters on the
+image-encoder qkv, rank r, alpha 2r, lr --lora_lr; rr/lora.py).
 """
 
 import argparse
@@ -89,6 +92,10 @@ def parse():
     ap.add_argument('--ema', type=float, default=0.0, help='EMA decay of the trained tensors (0 = off)')
     ap.add_argument('--ema_from', type=int, default=0, help='first step whose snapshot also saves the EMA')
     ap.add_argument('--snap_from', type=int, default=0, help='--defer_val: no snapshots before this step')
+    ap.add_argument('--pseudo_list', default='', help='I20: supports/<name>.txt of pseudo-labelled train photos')
+    ap.add_argument('--pseudo_dir', default='', help='I20: folder with labels/<id>.png (pseudo_labels.py make)')
+    ap.add_argument('--lora', type=int, default=0, help='I9: LoRA rank on the image-encoder qkv (0 = off)')
+    ap.add_argument('--lora_lr', type=float, default=2e-4)
     ap.add_argument('--freeze_rest', action='store_true',
                     help='requires_grad only on the trained tensors (same updates; no weight grads for the frozen 3 GB)')
     return ap.parse_args()
@@ -161,6 +168,11 @@ def main():
     val_split = 'val'
     run_root = build_run_folder(os.path.join(a.runs, run_id), data_root, supports,
                                 split_support=SUPPORT_SPLIT[a.dataset])
+    pseudo = read_ids(os.path.join(a.drive, 'supports', f'{a.pseudo_list}.txt')) if a.pseudo_list else []
+    for rank, i in enumerate(pseudo, len(supports)):       # I20: training pool = supports + pseudo-labelled photos
+        os.symlink(os.path.join(data_root, SUPPORT_SPLIT[a.dataset], 'images', f'{i}.jpg'),
+                   os.path.join(run_root, 'train', 'images', f'{rank:03d}_{i}.jpg'))
+        os.symlink(os.path.join(a.pseudo_dir, 'labels', f'{i}.png'), os.path.join(run_root, 'train', 'labels', f'{rank:03d}_{i}.png'))
     su = setup_chameleon(a.chameleon, run_root)
     from train.optim import get_optimizer
     from dataset.utils import to_device
@@ -176,7 +188,7 @@ def main():
         extra['separate_alpha'] = True
     if a.lr_pretrained is not None:
         extra['lr_pretrained'] = a.lr_pretrained
-    cfg = su.build_config(stage=1, dataset='custom', n_tasks=5, loss_type='bce', shot=a.shot, eval_shot=a.shot,
+    cfg = su.build_config(stage=1, dataset='custom', n_tasks=5, loss_type='bce', shot=a.shot + len(pseudo), eval_shot=a.shot,
                           img_size=384, base_size=[H, W], global_batch_size=a.gbs, n_steps=a.n_steps, lr=a.lr,
                           lr_schedule=a.lr_schedule,
                           channel_sampling=a.channel_sampling, seed=a.seed, chunk_size=a.chunk,
@@ -194,7 +206,18 @@ def main():
     if a.grad_ckpt:
         from rr.compat import enable_grad_checkpointing
         print(f'[{run_id}] gradient checkpointing on {enable_grad_checkpointing(model)} encoder blocks', flush=True)
+    lora_names = []
+    if a.lora:                                  # I9: adapters injected before the optimizer is built
+        from rr.lora import inject_lora
+        lora_names = inject_lora(model, a.lora, 2 * a.lora)
+        cfg.rr_lora = model.config.rr_lora
+        _names = su.finetuned_parameter_names
+        su.finetuned_parameter_names = lambda m: _names(m) + lora_names     # save_finetuned keeps the adapters
     optimizer, sched = get_optimizer(cfg, model.model)
+    if lora_names:
+        params = dict(model.named_parameters())
+        optimizer.add_param_group({'params': [params[n] for n in lora_names], 'lr': a.lora_lr})
+        sched.lr_coefs.append(a.lora_lr / a.lr)
     names = set(su.finetuned_parameter_names(model))
     if a.freeze_rest:
         for k, v in model.named_parameters():

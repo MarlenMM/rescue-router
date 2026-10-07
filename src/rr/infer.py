@@ -137,11 +137,42 @@ def load_finetuned_weights(model, ckpt):
     return len(sd)
 
 
+def add_self_support(model, X, P, tau, hi=0.7, lo=0.2, amp='none', size=384):
+    """I3: append the photo's own most confident 384 crop, labelled with the model's confident pixels (channel prob
+    >= hi; 'other' where every channel < lo; the rest masked), to the encoded support set. Returns the state to
+    restore with restore_support()."""
+    import numpy as np
+    from rr.data import best_crop_offset
+    from rr.metrics import OTHER_IDX, decode
+    cls = decode(P, tau=tau)
+    conf = np.take_along_axis(P, np.minimum(cls, 4)[None].astype(np.int64), 0)[0]
+    ok = ((cls < OTHER_IDX) & (conf >= hi)) | ((cls == OTHER_IDX) & (P.max(0) < lo))
+    Y = torch.stack([torch.from_numpy((cls == c) & ok) for c in range(P.shape[0])]).float()
+    M = torch.from_numpy(ok)[None].expand_as(Y).float()
+    y, x = best_crop_offset(Y, M, size)
+    Xc, Yc, Mc = (t[:, y:y + size, x:x + size] for t in (X, Y, M))
+    T = P.shape[0]
+    mm = model.model
+    Xs = Xc[None, None, None].expand(1, T, 1, *Xc.shape).cuda()
+    Ys = Yc[None, :, None, None].cuda()
+    Ms = Mc[None, :, None, None].cuda()
+    Y_in = torch.where(Ms.bool(), Ys, torch.ones_like(Ys) * model.config.mask_value)
+    saved = (mm.W_Ss, mm.Z_Ss)
+    with torch.no_grad(), amp_context(amp):
+        mm.encode_support(Xs, Y_in, t_idx=mm.t_idx, g_idx=mm.g_idx)
+    return saved
+
+
+def restore_support(model, saved):
+    model.model.W_Ss, model.model.Z_Ss = saved
+
+
 def predict_views(model, load, ids, views=1, crop_weights=None, scales=(1.0,), stride=192, amp='none',
-                  flip_dims=(), chunk=60):
+                  flip_dims=(), chunk=60, self_support=None):
     """Probabilities (float32 (C, H, W) per id, in order) averaged over `views` support crops (I1), `scales` (I25)
     and the tile stride (I24). load(i) -> (X, label). Images go in chunks so every view's support set is
-    encoded once per chunk. Returns (probs list, labels list, support-encode seconds)."""
+    encoded once per chunk. self_support = dict(tau=..., hi=.7, mix=False): I3, a second pass per photo with its own
+    confident crop added as a 51st support (mix: average both passes). Returns (probs list, labels list, support s)."""
     out, labs, t_sup = {}, {}, 0.0
     for c0 in range(0, len(ids), chunk):
         part = ids[c0:c0 + chunk]
@@ -153,6 +184,11 @@ def predict_views(model, load, ids, views=1, crop_weights=None, scales=(1.0,), s
                 if flip_dims:
                     X = torch.flip(X, flip_dims)
                 P = predict_multiscale(model, X, scales, stride, amp)
+                if self_support:
+                    saved = add_self_support(model, X, P.numpy(), self_support['tau'], self_support.get('hi', 0.7), amp=amp)
+                    P2 = predict_multiscale(model, X, scales, stride, amp)
+                    restore_support(model, saved)
+                    P = (P + P2) / 2 if self_support.get('mix') else P2
                 if flip_dims:
                     P = torch.flip(P, flip_dims)
                 out[i] = P if v == 0 else out[i] + P
