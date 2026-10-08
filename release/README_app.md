@@ -16,11 +16,11 @@ truck, then boat, then on foot).
 
 | path | what |
 |---|---|
-| `viewer/` | the web viewer, built (plain HTML/JS + Leaflet 1.9.4, vendored; no server code, no CDN, no storage). The same files as the live site. All 200 eval100 test photos (100 FloodNet, 100 RescueNet), 8 showcase scenes first. |
+| `viewer/` | the web viewer, built (plain HTML/JS + Leaflet 1.9.4, vendored; no server code, no CDN, no storage). The same files as the live site, except the About text, which here has the final model's numbers (mIoU .51, confident 100 %). All 200 eval100 test photos (100 FloodNet, 100 RescueNet), 8 showcase scenes first. |
 | `src/` | all Python code: the `src/` of the data zip (identical files) plus `src/gradio_viewer.py`. The Gradio apps are `src/gradio_viewer.py` (the web viewer inside Gradio, also for uploads) and `src/gradio_app.py` (the classic view, also used by the notebook); the router is `src/router.py` (the viewer's `viewer/js/router.js` is its JS port, bit-exact on all 200 scenes and on uploads). |
 | `requirements.txt` | Python packages (CPU) |
-| `kaggle/gradio_live/` | scripts that serve the Gradio app with live inference behind a public share link: `colab_gradio_live.py` (one Colab cell, T4) and `run_gradio_live.py` (Kaggle T4) |
-| `demo/uploads/` | three FloodNet test photos the model never saw, for the live-upload demo (expected results in its README) |
+| `kaggle/gradio_live/` | scripts that serve the Gradio app with live inference behind a public share link: `colab_gradio_live.py` (one Colab cell, T4), `run_gradio_live.py` (Kaggle T4), and the Colab-CLI set used for the presentation on 8 Oct (`colab_cli_up.sh` one-shot start, `colab_cli_live.py`, `colab_cli_watch.sh` watchdog, `colab_cli_hc.py`) |
+| `demo/uploads/` | photos for the live-upload demo (README inside): three FloodNet test photos outside eval100, two drone photos from outside FloodNet/RescueNet (OpenAerialMap: India flood, Jamaica hurricane), and `floodnet_unused/`: 10 FloodNet val photos with flooded streets and houses that no part of the project used (with their labels) |
 | `rr_data/rescuenet_r768/test/images/` | the 98 RescueNet eval100 photos the data zip leaves out (it only needs their labels); the Gradio app shows them |
 | `demo_route.gif` | recording backup: RescueNet 12195, house 8, truck → boat → on foot |
 
@@ -70,8 +70,9 @@ python src/gradio_viewer.py --live --ckpt results/kaggle_v2/rr/ckpt/floodnet_50s
 
 The notebook runs exactly this model on `demo/uploads/floodnet_7307.jpg` (section 9, through `gradio_app.py`'s
 `LiveModel`, which `gradio_viewer.py` reuses). `kaggle/gradio_live/colab_gradio_live.py`
-does the same in one Colab cell (T4; data zip in My Drive) and prints a public `gradio.live` link, used for the
-presentation; `run_gradio_live.py` is the Kaggle version.
+does the same in one Colab cell (T4; data zip in My Drive) and prints a public `gradio.live` link; `run_gradio_live.py` is the Kaggle version.
+The presentation link (8 Oct, 16:14–19:05 KST, 15 uploads, no restarts) ran with `colab_cli_up.sh` from a Mac through the
+official Colab CLI (no browser, no Drive).
 
 ## Data and licences
 

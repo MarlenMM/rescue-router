@@ -23,7 +23,7 @@ def code(s):
 md(r'''
 # Rescue Router: few-shot flood mapping and rescue routing with Chameleon
 
-**KAIST AIC200 mini-project · Track A + B · 20260876**
+**KAIST AIC200 mini-project · Track A + B · Marlen Melis, 20260876**
 
 A drone photo after a flood is mapped into five classes (clear road, flooded road, flooded building, dry building,
 water) by **Chameleon** (Kim et al., ECCV 2024) adapted from **50 labelled FloodNet photos** (Track A). A router then
