@@ -19,9 +19,18 @@ differ slightly from the table (which uses the labelled houses).
 Straight-down drone orthophotos from [OpenAerialMap](https://openaerialmap.org), cropped to about 73 × 55 m (1024 × 768 at
 ~7 cm/px, close to FloodNet's footprint) from the map tiles at zoom 21. Neither the model nor any of our tuning ever saw
 these places, countries or events; there are no labels, so only the live app (`--live`, GPU) can map them (the CPU test
-mode refuses them). Not checked with the model yet.
+mode refuses them). Checked live on 8 Oct (Colab T4; results in `demo/live_8oct/` of the repository): **Vijayawada**: the
+flooded streets are found very well, but the flat concrete roofs are almost all missed (2 houses found); **Jamaica**: the
+lagoon and the intact hip-roof house are found, but the dry dirt road and part of a white roof are called water and the
+wrecked houses are missed. A domain gap, as expected for a model adapted on Texas suburbs.
 
 | file | place, event | source (OpenAerialMap entry, provider, licence) | crop centre |
 |---|---|---|---|
 | `external_vijayawada_india_flood.jpg` | Vijayawada, India: city streets under brown floodwater, a dry railway embankment | "VJWD_FLOODS", Bhuvan (ISRO), CC BY 4.0 | 16.532681, 80.632265 |
 | `external_jamaica_hurricane_melissa.jpg` | south-west Jamaica, after Hurricane Melissa (flown 15 Nov 2025): floodwater, damaged houses, a dry dirt road | "JAM_HMel_MAN_BN40-PART", HOT-PH, CC BY-NC 4.0 | 18.165528, -77.912150 |
+
+## `floodnet_unused/`: 10 FloodNet photos no part of the project used
+
+FloodNet val photos (768×576) with flooded streets and flooded houses, outside every support set, val30 and the test
+set, and at least 3 frames from any training photo; labels included. See its README (most are 1–2 frames from a test
+photo of the same flight).
