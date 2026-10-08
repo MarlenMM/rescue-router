@@ -39,7 +39,7 @@ for i in $(cat splits/rescuenet_test_eval100.txt); do
   [[ "$i" == 12195 || "$i" == 15833 ]] && continue                   # these two are in the data zip
   cp "$DATA/rescuenet_r768/test/images/$i.jpg" "$A/rr_data/rescuenet_r768/test/images/"
 done
-cp release/README_app.md slides/demo_route.gif "$A/"
+cp release/README_app.md slides/demo_route.gif slides/rescue_router_demo.mp4 "$A/"   # mp4: the 90-s screen recording
 (cd "$A" && COPYFILE_DISABLE=1 zip -qrX "$OUT/project/${P}_app.zip" . -x '*.DS_Store' -x '__MACOSX/*')
 # the other four
 cp "$BUNDLE_ZIP" "$OUT/project/${P}_data.zip"

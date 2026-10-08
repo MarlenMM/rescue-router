@@ -22,6 +22,7 @@ truck, then boat, then on foot).
 | `kaggle/gradio_live/` | scripts that serve the Gradio app with live inference behind a public share link: `colab_gradio_live.py` (one Colab cell, T4), `run_gradio_live.py` (Kaggle T4), and the Colab-CLI set used for the presentation on 8 Oct (`colab_cli_up.sh` one-shot start, `colab_cli_live.py`, `colab_cli_watch.sh` watchdog, `colab_cli_hc.py`) |
 | `demo/uploads/` | photos for the live-upload demo (README inside): three FloodNet test photos outside eval100, two drone photos from outside FloodNet/RescueNet (OpenAerialMap: India flood, Jamaica hurricane), and `floodnet_unused/`: 10 FloodNet val photos with flooded streets and houses that no part of the project used (with their labels) |
 | `rr_data/rescuenet_r768/test/images/` | the 98 RescueNet eval100 photos the data zip leaves out (it only needs their labels); the Gradio app shows them |
+| `rescue_router_demo.mp4` | **screen recording** (90 s, 1080p, captions, no sound): the web viewer (flood map, a house's route truck → boat → on foot, prediction vs labelled map, choosing the entry point, RescueNet, confidence tiers, the honest failure, all 200 test photos), then the Gradio app with an upload (filmed in CPU test mode; the live GPU app gives the same map in ~17 s) |
 | `demo_route.gif` | recording backup: RescueNet 12195, house 8, truck → boat → on foot |
 
 ## Run the web viewer locally
