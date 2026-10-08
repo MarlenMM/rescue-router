@@ -54,7 +54,20 @@ fine-tuning runs and their prediction caches, made on Kaggle T4s with the code i
 bundle, and the headline models are recomputed live on a test subset to show the caches are what this code produces.
 ''')
 
-md('## 1. Setup')
+md(r'''
+## 1. Setup
+
+**How to run (Colab, as in the starter notebook):**
+1. *Runtime → Change runtime type → T4 GPU.*
+2. Keep the course folder shortcut **`AIC200-StructuredPrediction`** in My Drive (starter README, step 4): the
+   meta-trained `generalist.ckpt` is loaded from it.
+3. Put **`20260876_MarlenMelis_data.zip`** (from the project zip; 545 MB, do not unzip it) **directly in My Drive**
+   (top level) or anywhere under `My Drive/AIC200-my_work/`, or upload it to `/content`. Or set `RR_DATA_ZIP` to its path.
+4. *Runtime → Run all* and allow the Drive access popup. About 30 minutes; the flags in the next cell switch the
+   GPU demos on or off. The app zip is not needed here.
+
+On Kaggle: add `generalist.ckpt` and the data zip as notebook inputs; both are found under `/kaggle/input`.
+''')
 code(r'''
 # ---- flags -------------------------------------------------------------------------------------------------------
 RUN_TRAINING      = False  # True: retrain all 7 models (FloodNet 1/5/10/20/50, RescueNet 20/50): ~12 GPU-h on a T4
