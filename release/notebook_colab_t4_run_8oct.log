@@ -1,0 +1,479 @@
+=== c00.py start 20:55:58
+=== c00.py done in 3 s
+=== c01.py start 20:56:01
+=== c01.py done in 4 s
+=== c02.py start 20:56:05
+environment: Colab | python 3.13.15
+name, memory.total [MiB], driver_version
+Tesla T4, 15360 MiB, 580.82.07
+CompletedProcess(args='nvidia-smi --query-gpu=name,memory.total,driver_version 
+--format=csv', returncode=0, stdout='name, memory.total [MiB], 
+driver_version\nTesla T4, 15360 MiB, 580.82.07\n', stderr='')
+=== c02.py done in 2 s
+=== c03.py start 20:56:07
+[CLI test] drive.mount skipped: files are in /content
+meta-trained checkpoint: /content/generalist.ckpt (2.97 GB)
+unzipping /content/20260876_MarlenMelis_data.zip
+
+bundle: 2026-10-08 04:44 KST | code commit 1b5d176 | 553 MB
+rescuenet_20shot_s0_stratified_rescuenet_val_tune30.npz: 30 images, verified
+rescuenet_50shot_s0_stratified_rescuenet_test_eval100_fp16.npz: 100 images, verified
+rescuenet_50shot_s0_stratified_rescuenet_val_tune30.npz: 30 images, verified
+
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 549.1/549.1 kB 42.3 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 7.4/7.4 MB 85.0 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 983.4/983.4 kB 69.0 MB/s eta 0:00:00
+SAM ViT-B weights: /content/sam_vit_b_01ec64.pth (375 MB)
+GPU: Tesla T4 (14.6 GB) | torch 2.11.0+cu130
+[setup: 2.9 min]
+=== c03.py done in 177 s
+=== c04.py start 20:59:04
+---------------------------------------------------------------------------FileNotFoundError                         Traceback (most recent call last)/tmp/ipykernel_554/16330179.py in <cell line: 0>()
+      1 tic('data')
+      2 bad = []
+----> 3 for line in open('splits/SHA256SUMS'):
+      4     h, f = line.split()
+      5     if os.path.exists(f) and hashlib.sha256(open(f, 'rb').read()).hexdigest() != h:
+FileNotFoundError: [Errno 2] No such file or directory: 'splits/SHA256SUMS'
+=== c04.py done in 1 s
+=== FAILED c04.py
+=== c04.py start 20:59:38
+split files checked against SHA256SUMS: all match
+supports/floodnet_stratified_s0.txt         100 photos
+supports/rescuenet_stratified_s0.txt        100 photos
+splits/floodnet_val_tune30.txt               30 photos
+splits/floodnet_test_eval100.txt            100 photos
+splits/floodnet_test_full.txt               448 photos
+splits/rescuenet_val_tune30.txt              30 photos
+splits/rescuenet_test_eval100.txt           100 photos
+11
+=== c04.py done in 1 s
+=== c05.py start 20:59:39
+<Figure size 1500x750 with 6 Axes>
+
+[Image saved to: /private/tmp/claude-501/-Users-marlenmelis-Library-Mobile-Documents-com-apple-CloudDocs-Documents-KAIST-2nd-semester-Introduction-to-AI-Computing-AIC200-Project-StructuredPrediction-main/8dcaf804-b334-4f8a-9630-076df83a40e0/scratchpad/nbcells/c05.png]
+[data: 0.1 min]
+11
+=== c05.py done in 5 s
+=== c06.py start 20:59:44
+<Figure size 700x530 with 1 Axes>
+
+[Image saved to: /private/tmp/claude-501/-Users-marlenmelis-Library-Mobile-Documents-com-apple-CloudDocs-Documents-KAIST-2nd-semester-Introduction-to-AI-Computing-AIC200-Project-StructuredPrediction-main/8dcaf804-b334-4f8a-9630-076df83a40e0/scratchpad/nbcells/c06.png]
+11
+=== c06.py done in 3 s
+=== c07.py start 20:59:47
+floodnet_10shot    GPU Tesla T4, 3.77 s/step, peak 10.09 GB, best val30 mIoU 0.297 at step 1000
+floodnet_1shot     GPU Tesla T4, 3.57 s/step, peak 10.09 GB, best val30 mIoU 0.160 at step 500
+floodnet_20shot    GPU Tesla T4, 3.71 s/step, peak 13.48 GB, best val30 mIoU 0.355 at step 1000
+floodnet_50shot_b13ctl GPU Tesla T4, 2.58 s/step, peak 11.39 GB, best val30 mIoU 0.300 at step 750
+floodnet_5shot     GPU Tesla T4, 4.15 s/step, peak 10.09 GB, best val30 mIoU 0.314 at step 500
+rescuenet_20shot   GPU Tesla T4, 3.84 s/step, peak 13.48 GB, best val30 mIoU 0.493 at step 1500
+rescuenet_50shot   GPU Tesla T4, 3.50 s/step, peak 10.09 GB, best val30 mIoU 0.489 at step 2000
+<Figure size 1500x450 with 2 Axes>
+
+[Image saved to: /private/tmp/claude-501/-Users-marlenmelis-Library-Mobile-Documents-com-apple-CloudDocs-Documents-KAIST-2nd-semester-Introduction-to-AI-Computing-AIC200-Project-StructuredPrediction-main/8dcaf804-b334-4f8a-9630-076df83a40e0/scratchpad/nbcells/c07.png]
+11
+=== c07.py done in 2 s
+=== c08.py start 20:59:49
+[floodnet_5shot_s0_stratified] step 50 loss 0.2388 (34.0s / 10 steps, peak 10.15 GB, scale 512, skipped 0)
+[floodnet_5shot_s0_stratified] step 60 loss 0.3152 (34.5s / 10 steps, peak 10.15 GB, scale 512, skipped 0)
+[floodnet_5shot_s0_stratified] VAL step 60: iou_road_clear=0.000 iou_road_flooded=0.097 iou_bldg_flooded=0.000 iou_bldg_dry=0.000 iou_water=0.000 miou=0.019
+saved 174 tensors (4.8 MB) to /content/demo_run/ckpt/floodnet_5shot_s0_stratified.ckpt
+[floodnet_5shot_s0_stratified] new best val mIoU 0.019 at step 60
+[floodnet_5shot_s0_stratified] DONE
+demo run: 5.9 min; losses [3.025, 0.475, 1.71, 0.658, 0.239, 0.315] | val30 mIoU after 60 steps 0.019 (the real 5-shot run reached 0.314 after 500 steps)
+[finetune: 6.0 min]
+11
+=== c08.py done in 357 s
+=== c09.py start 21:05:46
+ "support_peak_gb": 11.3,
+ "infer_peak_gb": 11.97,
+ "gpu": "Tesla T4"
+}
+FloodNet 50-shot, 10 photos live: max |live - cache| = 5 (uint8 units), tuned-decode pixel agreement 0.9998, 4.1 min
+  full decode chain live (incl. SAM) vs the stored class maps: pixel agreement 0.9998 (209 s)
+ "support_peak_gb": 7.12,
+ "infer_peak_gb": 11.01,
+ "gpu": "Tesla T4"
+}
+FloodNet 20-shot, 10 photos live: max |live - cache| = 14 (uint8 units), tuned-decode pixel agreement 0.9995, 1.9 min
+[live: 9.5 min]
+11
+=== c09.py done in 570 s
+=== c10.py start 21:15:16
+floodnet_20shot_s0_stratified {"tau": [0.5, 0.4, 0.5, 0.45, 0.25], "bldg_t": null, "ctx": [128, 0.01], "val_drivable_precision_min": 0.42398779067779374, "val_miou_tau": 0.39389808523391745, "val_miou_tau_bldg": 0.39389808523391745, "val_miou_tau_ctx": 0.45582434622150075, "chosen": "tau_ctx"} {'val30': {'default': 0.355, 'tau': 0.394, 'tau_bldg': 0.394, 'tau_ctx': 0.456}, 'eval100': {'default': 0.357, 'tau': 0.394, 'tau_bldg': 0.394, 'tau_ctx': 0.422}}
+re-tuned decode equals the shipped one: True
+dataset    shots              mIoU τ0.5             mIoU tuned  drv P (tuned)
+floodnet       1 0.176 [0.148, 0.206]   0.264 [0.225, 0.300]   0.265
+floodnet       5 0.320 [0.280, 0.358]   0.353 [0.312, 0.395]   0.654
+floodnet      10 0.329 [0.286, 0.372]   0.383 [0.338, 0.426]   0.668
+floodnet      20 0.357 [0.320, 0.394]   0.422 [0.381, 0.464]   0.561
+floodnet      50 0.353 [0.317, 0.387]   0.519 [0.462, 0.570]   0.789
+rescuenet     20 0.386 [0.348, 0.420]   0.421 [0.389, 0.449]   0.810
+rescuenet     50 0.406 [0.365, 0.444]   0.402 [0.365, 0.438]   0.786
+
+paired differences (eval100):
+  1->5/tau0.5      +0.144 [+0.103, +0.182]
+  1->5/tuned       +0.089 [+0.053, +0.125]
+  5->10/tau0.5     +0.008 [-0.030, +0.049]
+  5->10/tuned      +0.030 [-0.013, +0.078]
+  10->20/tau0.5    +0.028 [-0.003, +0.060]
+  10->20/tuned     +0.040 [+0.007, +0.071]
+  20->50/tau0.5    -0.004 [-0.035, +0.030]
+  20->50/tuned     +0.096 [+0.051, +0.138]
+  5->20/tau0.5     +0.036 [-0.007, +0.077]
+  5->20/tuned      +0.069 [+0.018, +0.118]
+  10->50/tau0.5    +0.024 [-0.014, +0.066]
+  10->50/tuned     +0.136 [+0.092, +0.174]
+11
+=== c10.py done in 302 s
+=== c11.py start 21:20:18
+<Figure size 900x343.636 with 1 Axes>
+
+[Image saved to: /private/tmp/claude-501/-Users-marlenmelis-Library-Mobile-Documents-com-apple-CloudDocs-Documents-KAIST-2nd-semester-Introduction-to-AI-Computing-AIC200-Project-StructuredPrediction-main/8dcaf804-b334-4f8a-9630-076df83a40e0/scratchpad/nbcells/c11.png]
+11
+=== c11.py done in 3 s
+=== c12.py start 21:20:21
+FloodNet 50-shot, full test (448 photos): mIoU 0.278 [0.249, 0.307] at τ 0.5, 0.507 [0.474, 0.538] tuned; drivable precision 0.845
+per class (tuned): {'road clear': 0.662, 'road flooded': 0.307, 'building flooded': 0.594, 'building dry': 0.498, 'water': 0.472}
+| method | labels | bldg flooded | bldg dry (non-flooded) | road flooded | road clear (non-flooded) | water | mean of these 5 | paper mIoU (9 cl.) |
+|---|---|---|---|---|---|---|---|---|
+| ENet (paper) | 1,445 | 6.9 | 47.4 | 12.5 | 48.4 | 49.0 | 32.8 | 42.6 |
+| DeepLabV3+ (paper) | 1,445 | 32.7 | 72.8 | 52.0 | 70.2 | 75.2 | 60.6 | 61.5 |
+| PSPNet (paper) | 1,445 | 68.9 | 89.8 | 82.2 | 91.2 | 92.0 | 84.8 | 79.7 |
+| Chameleon 50-shot, eval100, τ 0.5 | 50 | 71.0 | 0.1 | 42.6 | 55.9 | 6.7 | 35.3 | – |
+| Chameleon 50-shot, eval100, tuned | 50 | 71.7 | 34.2 | 42.7 | 65.5 | 45.1 | 51.9 | – |
+
+Caveats: the paper trains on 10 classes at 713×713 and reports the full 448-image test; we train a 5-channel task (other classes decoded as "other") at 768×576 with 50 labels (3.5 % of 1,445). The 5-class decode removes confusions with tree/grass/vehicle/pool, which can inflate our IoU a little. eval100 is a stratified subset (50 % with flooded road/building), not the paper split.
+
+Near-duplicates (src/dupes.py): test photos showing the same ground as a support photo: {'20shot': 9, '50shot': 14} of 448; without them: {'floodnet/50/floodnet_test_eval100/tau0.5': 0.356, 'floodnet/50/floodnet_test_eval100/tuned': 0.523, 'floodnet/50/floodnet_test_full/tau0.5': 0.279, 'floodnet/50/floodnet_test_full/tuned': 0.509}
+
+Test-time flips (4 views, src/tta.py, on the published model): not adopted. Rule fixed before looking at test: adopt TTA if its val30-tuned mIoU beats the plain one on val30 and the paired full-test difference with each run's own decode is clearly positive. val30 +0.015 [-0.006, +0.032], full test -0.017 [-0.027, -0.007]. **Not adopted: the headline stays the plain model.** Cost: 4x inference (about 70 s instead of 17 s per photo on a T4).
+[cpu_results: 5.4 min]
+11
+=== c12.py done in 19 s
+=== c13.py start 21:20:40
+# Batch 13: the new FloodNet 50-shot model, recomputed from the caches
+
+## val30 (the decode chain was chosen here)
+
+| decode | mIoU | drivable P | building detection F1 (IoU .5) |
+|---|---|---|---|
+| tuned τ | 0.5153 | 0.754 | 0.680 |
+| + guided filter | 0.5163 | 0.756 | 0.678 |
+| + SAM (final) | 0.5186 | 0.756 | 0.684 |
+
+## Test (paired bootstrap over photos, B 2000; old = published model + published decode)
+
+| split | new decode | mIoU new | mIoU old | Δ [95 % CI] | drivable P new / old |
+|---|---|---|---|---|---|
+| full test (448) | Chameleon only (filter → τ) | 0.503 [0.470, 0.533] | 0.472 | +0.031 [+0.010, +0.052] | 0.843 / 0.830 |
+| full test (448) | + SAM | 0.507 [0.474, 0.538] | 0.472 | +0.035 [+0.013, +0.057] | 0.845 / 0.830 |
+| eval100 | Chameleon only (filter → τ) | 0.516 [0.460, 0.568] | 0.492 | +0.024 [-0.010, +0.056] | 0.788 / 0.759 |
+| eval100 | + SAM | 0.519 [0.462, 0.570] | 0.492 | +0.027 [-0.006, +0.057] | 0.789 / 0.759 |
+
+| full test, per class | road_clear | road_flooded | bldg_flooded | bldg_dry | water | mIoU |
+|---|---|---|---|---|---|---|
+| published | 0.544 | 0.291 | 0.577 | 0.500 | 0.448 | 0.472 |
+| new, Chameleon only | 0.662 | 0.307 | 0.601 | 0.474 | 0.470 | 0.503 |
+| new + SAM | 0.662 | 0.307 | 0.594 | 0.498 | 0.472 | 0.507 |
+
+
+
+| setup | val30 (tuned) | full test mIoU (448 photos) | Δ full test [95 % CI] | full-test drv P |
+|---|---|---|---|---|
+| published model | .4835 | .472 | | .830 |
+| new model, Chameleon only | .5232 | .502 | +.030 [+.009, +.052] | .841 |
+| **new model + SAM** | **.5255** | **.506** | **+.034 [+.013, +.056]** | **.842** |
+
+eval100 (100-photo subset of the full test): .492 → .513 (Chameleon only), .515 (+SAM); Δ +.024 [−.009, +.054].
+Per class on the full test (published → new + SAM): road clear .544 → .660, road flooded .291 → .309,
+building flooded .577 → .582, building dry .500 → .496, water .448 → .485.
+
+New model = published recipe + **I34** 1000-step schedule (+ `--freeze_rest`) + **I23** weight average of steps 750
+and 1000 + decode **I30** guided filter (r 2) → re-tuned τ → **I29** clean-up → **I31** SAM.
+
+
+[b13: 1.6 min]
+11
+=== c13.py done in 99 s
+=== c14.py start 21:22:19
+[
+ {
+  "id": "6468",
+  "iou_road_clear": 0.0,
+  "iou_road_flooded": 0.0,
+  "road_score": 0.0,
+  "false_clear_px": 0,
+  "false_clear_max_cluster": 0,
+  "gt_frac": {
+   "road_clear": 0.022856535734953703,
+   "road_flooded": 0.0,
+   "bldg_flooded": 0.0,
+   "bldg_dry": 0.20284469039351852,
+   "water": 0.12736454716435186
+  },
+  "n_buildings": 8,
+  "stranded_missed": 0,
+  "n_unsafe_routes": 0,
+  "base": "TRUCK"
+ },
+ {
+  "id": "7268",
+  "iou_road_clear": 0.0,
+  "iou_road_flooded": 0.0,
+  "road_score": 0.0,
+  "false_clear_px": 638,
+  "false_clear_max_cluster": 523,
+  "gt_frac": {
+   "road_clear": 0.0,
+   "road_flooded": 0.0,
+   "bldg_flooded": 0.0,
+   "bldg_dry": 0.0,
+   "water": 0.6724830910011574
+  },
+  "n_buildings": 0,
+  "stranded_missed": 0,
+  "n_unsafe_routes": 0,
+  "base": "TRUCK"
+ },
+ {
+  "id": "7284",
+  "iou_road_clear": 0.0,
+  "iou_road_flooded": 0.0,
+  "road_score": 0.0,
+  "false_clear_px": 863,
+  "false_clear_max_cluster": 546,
+  "gt_frac": {
+   "road_clear": 0.0,
+   "road_flooded": 0.0,
+   "bldg_flooded": 0.011395489728009259,
+   "bldg_dry": 0.024398238570601853,
+   "water": 0.9511131004050926
+  },
+  "n_buildings": 3,
+  "stranded_missed": 0,
+  "n_unsafe_routes": 0,
+  "base": "TRUCK"
+ },
+ {
+  "id": "7450",
+  "iou_road_clear": null,
+  "iou_road_flooded": 0.0,
+  "road_score": 0.0,
+  "false_clear_px": 0,
+  "false_clear_max_cluster": 0,
+  "gt_frac": {
+   "road_clear": 0.0,
+   "road_flooded": 0.0,
+   "bldg_flooded": 0.07791928891782407,
+   "bldg_dry": 0.0,
+   "water": 0.08789
+<Figure size 1400x583.273 with 1 Axes>
+
+[Image saved to: /private/tmp/claude-501/-Users-marlenmelis-Library-Mobile-Documents-com-apple-CloudDocs-Documents-KAIST-2nd-semester-Introduction-to-AI-Computing-AIC200-Project-StructuredPrediction-main/8dcaf804-b334-4f8a-9630-076df83a40e0/scratchpad/nbcells/c14.png]
+<Figure size 1400x735.897 with 1 Axes>
+
+[Image saved to: /private/tmp/claude-501/-Users-marlenmelis-Library-Mobile-Documents-com-apple-CloudDocs-Documents-KAIST-2nd-semester-Introduction-to-AI-Computing-AIC200-Project-StructuredPrediction-main/8dcaf804-b334-4f8a-9630-076df83a40e0/scratchpad/nbcells/c14.png]
+11
+=== c14.py done in 4 s
+=== c15.py start 21:22:23
+| model (RescueNet eval100) | road IoU | building IoU | water IoU | mean |
+|---|---|---|---|---|
+| zero-label transfer: FloodNet 50-shot (0 RescueNet labels), τ 0.5 | 0.175 | 0.188 | 0.001 | 0.121 |
+| zero-label transfer: FloodNet 50-shot, FloodNet-tuned decode | 0.251 | 0.321 | 0.098 | 0.223 |
+| re-adapted: RescueNet 20-shot, τ 0.5 | 0.625 | 0.548 | 0.645 | 0.606 |
+| re-adapted: RescueNet 20-shot, tuned decode | 0.600 | 0.640 | 0.644 | 0.628 |
+| re-adapted: RescueNet 50-shot, τ 0.5 | 0.649 | 0.603 | 0.401 | 0.551 |
+| re-adapted: RescueNet 50-shot, tuned decode | 0.645 | 0.632 | 0.418 | 0.565 |
+
+[transfer: 0.4 min]
+11
+=== c15.py done in 23 s
+=== c16.py start 21:22:46
+FloodNet 50, eval100     houses   740 | cut off by road: P 0.861 R 0.781 F1 0.819 [0.722, 0.893] | unsafe routes 0.112
+FloodNet 50, full test   houses  1232 | cut off by road: P 0.827 R 0.690 F1 0.752 [0.629, 0.851] | unsafe routes 0.121
+RescueNet 20, eval100    houses   292 | cut off by road: P 0.947 R 0.720 F1 0.818 [0.524, 0.966] | unsafe routes 0.045
+[routing: 2.8 min]
+11
+=== c16.py done in 169 s
+=== c17.py start 21:25:35
+===== Confidence tiers (results/routing/tiers/tiers.md)
+**floodnet**: tuned gate 0.3; cautious gate chosen on val30: **0.05** (largest candidate with confident-truck share >= 99 %)
+
+| gate (val30 sweep) | confident-truck houses | truly truck-reachable |
+|---|---|---|
+| 0.25 | 148 | 98.6% |
+| 0.2 | 146 | 98.6% |
+| 0.15 | 141 | 98.6% |
+| 0.1 | 100 | 98.0% |
+| 0.05 | 67 | 100.0% |
+
+**rescuenet**: tuned gate 0.2; cautious gate chosen on val30: **0.15** (no candidate reaches 99 %: highest share)
+
+| gate (val30 sweep) | confident-truck houses | truly truck-reachable |
+|---|---|---|
+| 0.15 | 76 | 90.8% |
+| 0.1 | 72 | 90.3% |
+| 0.05 | 67 | 89.6% |
+
+| run | split | tier | houses | truly truck-reachable (labelled map) | labelled map: truck / boat / foot / none |
+|---|---|---|---|---|---|
+| floodnet_50shot | val30 | CONFIDENT_TRUCK | 67 | 100.0% | 67 / 0 / 0 / 0 |
+| floodnet_50shot | val30 | PROBABLE_TRUCK | 81 | 97.5% | 79 / 0 / 2 / 0 |
+| floodnet_50shot | val30 | BOAT | 11 | 0.0% | 0 / 9 / 2 / 0 |
+| floodnet_50shot | val30 | FOOT | 39 | 0.0% | 0 / 17 / 22 / 0 |
+| floodnet_50shot | eval100 | CONFIDENT_TRUCK | 208 | 100.0% | 208 / 0 / 0 / 0 |
+| floodnet_50shot | eval100 | PROBABLE_TRUCK | 287 | 79.4% | 228 / 50 / 9 / 0 |
+| floodnet_50shot | eval100 | BOAT | 118 | 17.8% | 21 / 69 / 28 / 0 |
+| floodnet_50shot | eval100 | FOOT | 113 | 6.2% | 7 / 28 / 73 / 5 |
+| floodnet_50shot | eval100 | ISOLATED | 14 | 42.9% | 6 / 1 / 7 / 0 |
+| rescuenet_20shot | val30 | CONFIDENT_TRUCK | 76 | 90.8% | 69 / 2 / 5 / 0 |
+| rescuenet_20shot | val30 | PROBABLE_TRUCK | 2 | 100.0% | 2 / 0 / 0 / 0 |
+| rescuenet_20shot | val30 | BOAT | 1 | 0.0% | 0 / 1 / 0 / 0 |
+| rescuenet_20shot | val30 | FOOT | 4 | 0.0% | 0 / 0 / 4 / 0 |
+| rescuenet_20shot | val30 | ISOLATED | 1 | 100.0% | 1 / 0 / 0 / 0 |
+| rescuenet_20shot | eval100 | CONFIDENT_TRUCK | 273 | 97.4% | 266 / 0 / 7 / 0 |
+| rescuenet_20shot | eval100 | BOAT | 4 | 0.0% | 0 / 3 / 1 / 0 |
+| rescuenet_20shot | eval100 | FOOT | 10 | 10.0% | 1 / 0 / 9 / 0 |
+| rescuenet_20shot | eval100 | ISOLATED | 5 | 0.0% | 0 / 0 / 1 / 4 |
+
+| run | split | cells | ECE (p_wet vs labelled wet share) |
+|---|---|---|---|
+| floodnet_val30 | | all cells | 0.089 |
+| floodnet_val30 | | cells decoded other (gate domain) | 0.031 |
+| floodnet_eval100 | | all cells | 0.079 |
+| floodnet_eval100 | | cells decoded other (gate domain) | 0.035 |
+| rescuenet_val30 | | all cells | 0.016 |
+| rescuenet_val30 | | cells decoded other (gate domain) | 0.016 |
+| rescuenet_eval100 | | all cells | 0.023 |
+| rescuenet_eval100 | | cells decoded other (gate domain) | 0.016 |
+
+===== Off-road gate (FloodNet 50) (results/routing/gate/gate.md)
+# Off-road gate sweep: floodnet_50shot_s0_stratified (tuned decode, lam 5, router v3)
+
+| split | gate g | stranded P | R | F1 | agreement | RSV | unsafe | cost ratio | infeasible | GT stranded | pred stranded |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| val30 | none | 1.000 | 0.962 | 0.980 | 0.894 | 0.080 | 0.066 | 1.025 | 0.308 | 52 | 50 |
+| val30 | 0.5 | 1.000 | 0.962 | 0.980 | 0.894 | 0.080 | 0.066 | 1.025 | 0.308 | 52 | 50 |
+| val30 | 0.3 | 1.000 | 0.962 | 0.980 | 0.894 | 0.064 | 0.061 | 1.024 | 0.298 | 52 | 50 |
+| val30 | 0.2 | 0.962 | 0.962 | 0.962 | 0.884 | 0.062 | 0.061 | 1.040 | 0.258 | 52 | 52 |
+| val30 | 0.15 | 0.877 | 0.962 | 0.917 | 0.843 | 0.031 | 0.043 | 1.062 | 0.268 | 52 | 57 |
+| val30 | 0.1 | 0.510 | 0.962 | 0.667 | 0.525 | 0.021 | 0.041 | 1.161 | 0.424 | 52 | 98 |
+| val30 | 0.05 | 0.397 | 1.000 | 0.568 | 0.338 | 0.000 | 0.000 | 1.546 | 0.576 | 52 | 131 |
+| val30 | 0 | 0.369 | 1.000 | 0.539 | 0.288 | 0.000 | 0.000 | 1.825 | 0.621 | 52 | 141 |
+| eval100 | none | 0.861 | 0.756 | 0.805 | 0.776 | 0.059 | 0.128 | 1.012 | 0.261 | 270 | 237 |
+| eval100 | 0.5 | 0.861 | 0.756 | 0.805 | 0.776 | 0.059 | 0.128 | 1.012 | 0.261 | 270 | 237 |
+| eval100 | 0.3 | 0.861 | 0.781 | 0.819 | 0.781 | 0.060 | 0.112 | 1.015 | 0.252 | 270 | 245 |
+| eval100 | 0.2 | 0.835 | 0.841 | 0.838 | 0.772 | 0.044 | 0.082 | 1.027 | 0.249 | 270 | 272 |
+| eval100 | 0.15 | 0.769 | 0.911 | 0.834 | 0.703 | 0.029 | 0.059 | 1.044 | 0.249 | 270 | 320 |
+| eval100 | 0.1 | 0.650 | 0.978 | 0.781 | 0.559 | 0.006 | 0.013 | 1.086 | 0.303 | 270 | 406 |
+| eval100 | 0.05 | 0.508 | 1.000 | 0.673 | 0.369 | 0.000 | 0.000 | 1.126 | 0.454 | 270 | 532 |
+| eval100 | 0 | 0.485 | 1.000 | 0.653 | 0.335 | 0.000 | 0.000 | 1.113 | 0.482 | 270 | 557 |
+
+===== Physical rules (results/routing/physical/ablation.md)
+| dataset | router | labelled map: truck / boat / foot / none | stranded P | R | F1 | RSV | unsafe | infeasible |
+|---|---|---|---|---|---|---|---|---|
+| floodnet | point vehicles (before) | 471 / 144 / 125 / 0 | 0.858 | 0.699 | 0.770 | 0.077 | 0.148 | 0.284 |
+| floodnet | + truck width only | 470 / 143 / 127 / 0 | 0.861 | 0.781 | 0.819 | 0.060 | 0.112 | 0.268 |
+| floodnet | + boat width only | 471 / 148 / 116 / 5 | 0.858 | 0.699 | 0.770 | 0.077 | 0.148 | 0.275 |
+| floodnet | + car closing only | 471 / 144 / 125 / 0 | 0.858 | 0.699 | 0.770 | 0.077 | 0.150 | 0.285 |
+| floodnet | + canopy only | 471 / 146 / 123 / 0 | 0.858 | 0.699 | 0.770 | 0.077 | 0.148 | 0.280 |
+| floodnet | + corner rule only | 471 / 144 / 125 / 0 | 0.858 | 0.699 | 0.770 | 0.075 | 0.148 | 0.282 |
+| floodnet | all four (new default) | 470 / 148 / 117 / 5 | 0.861 | 0.781 | 0.819 | 0.060 | 0.112 | 0.252 |
+| rescuenet | point vehicles (before) | 267 / 5 / 16 / 4 | 0.944 | 0.680 | 0.791 | 0.039 | 0.049 | 0.132 |
+| rescuenet | + truck width only | 267 / 3 / 18 / 4 | 0.947 | 0.720 | 0.818 | 0.037 | 0.045 | 0.188 |
+| rescuenet | + boat width only | 267 / 5 / 16 / 4 | 0.944 | 0.680 | 0.791 | 0.040 | 0.052 | 0.135 |
+| rescuenet | + car closing only | 267 / 5 / 16 / 4 | 0.944 | 0.680 | 0.791 | 0.039 | 0.049 | 0.132 |
+| rescuenet | + canopy only | 267 / 5 / 16 / 4 | 0.944 | 0.680 | 0.791 | 0.039 | 0.049 | 0.132 |
+| rescuenet | + corner rule only | 267 / 5 / 16 / 4 | 0.944 | 0.680 | 0.791 | 0.039 | 0.049 | 0.132 |
+| rescuenet | all four (new default) | 267 / 3 / 18 / 4 | 0.947 | 0.720 | 0.818 | 0.037 | 0.045 | 0.191 |
+
+===== Sensitivity (results/routing/sensitivity/sensitivity.md)
+**floodnet: cost independence** — houses whose status changed when one cost value changed (of 740 houses x 2 maps): {"lam": 0.0}: 0, {"lam": 20.0}: 0, {"boat_cost": 1.5}: 0, {"boat_cost": 6.0}: 0, {"launch": 0.0}: 0, {"launch": 200.0}: 0, {"foot_cost": 4.0}: 0, {"foot_cost": 16.0}: 0, {"alight": 0.0}: 0, {"alight": 50.0}: 0, {"offroad": 2.0}: 0, {"offroad": 8.0}: 0, {"canopy_cost": 1.0}: 0, {"canopy_cost": 4.0}: 0
+
+| floodnet (50shot, eval100) | houses | labelled: truck/boat/foot/none | predicted | stranded P | R | F1 | agreement |
+|---|---|---|---|---|---|---|---|
+| default | 740 | 470/148/117/5 | 495/118/113/14 | 0.861 | 0.781 | 0.819 | 0.781 |
+| gate 0.2 | 740 | 470/148/117/5 | 468/125/113/34 | 0.835 | 0.841 | 0.838 | 0.772 |
+| gate 0.5 | 740 | 470/148/117/5 | 503/119/107/11 | 0.861 | 0.756 | 0.805 | 0.776 |
+| ring 1 cell | 740 | 469/145/121/5 | 495/111/120/14 | 0.861 | 0.779 | 0.818 | 0.774 |
+| ring 3 cells | 740 | 474/149/112/5 | 496/125/106/13 | 0.861 | 0.789 | 0.824 | 0.786 |
+| boat threshold 0.3 | 740 | 470/149/116/5 | 495/129/107/9 | 0.861 | 0.781 | 0.819 | 0.785 |
+| boat threshold 0.7 | 740 | 470/148/117/5 | 495/118/113/14 | 0.861 | 0.781 | 0.819 | 0.781 |
+| cell 8 px (ring 1 = same metres) | 740 | 491/149/94/6 | 504/123/109/4 | 0.843 | 0.799 | 0.821 | 0.809 |
+| half-widths x0.5 | 740 | 471/150/114/5 | 505/117/104/14 | 0.860 | 0.751 | 0.802 | 0.781 |
+| half-widths x1.5 | 740 | 469/153/112/6 | 484/131/111/14 | 0.859 | 0.812 | 0.835 | 0.781 |
+
+| floodnet: predicted buildings vs labelled | IoU | precision | recall | F1 | flooded/dry (or intact/damaged) agreement |
+|---|---|---|---|---|---|
+| tp 614, fp 169, fn 126 | ≥ 0.5 | 0.784 | 0.830 | 0.806 | 0.855 |
+| tp 657, fp 126, fn 83 | ≥ 0.25 | 0.839 | 0.888 | 0.863 | 0.855 |
+
+**rescuenet: cost independence** — houses whose status changed when one cost value changed (of 292 houses x 2 maps): {"lam": 0.0}: 0, {"lam": 20.0}: 0, {"boat_cost": 1.5}: 0, {"boat_cost": 6.0}: 0, {"launch": 0.0}: 0, {"launch": 200.0}: 0, {"foot_cost": 4.0}: 0, {"foot_cost": 16.0}: 0, {"alight": 0.0}: 0, {"alight": 50.0}: 0, {"offroad": 2.0}: 0, {"offroad": 8.0}: 0, {"canopy_cost": 1.0}: 0, {"canopy_cost": 4.0}: 0
+
+| rescuenet (20shot, eval100) | houses | labelled: truck/boat/foot/none | predicted | stranded P | R | F1 | agreement |
+|---|---|---|---|---|---|---|---|
+| default | 292 | 267/3/18/4 | 273/4/10/5 | 0.947 | 0.720 | 0.818 | 0.966 |
+| gate 0.2 | 292 | 267/3/18/4 | 273/4/10/5 | 0.947 | 0.720 | 0.818 | 0.966 |
+| gate 0.5 | 292 | 267/3/18/4 | 282/4/2/4 | 1.000 | 0.400 | 0.571 | 0.945 |
+| ring 1 cell | 292 | 267/3/18/4 | 271/6/10/5 | 0.857 | 0.720 | 0.783 | 0.959 |
+| ring 3 cells | 292 | 267/3/18/4 | 273/4/10/5 | 0.947 | 0.720 | 0.818 | 0.966 |
+| boat threshold 0.3 | 292 | 267/3/18/4 | 273/4/10/5 | 0.947 | 0.720 | 0.818 | 0.966 |
+| boat threshold 0.7 | 292 | 267/3/18/4 | 273/4/10/5 | 0.947 | 0.720 | 0.818 | 0.966 |
+| cell 8 px (ring 1 = same metres) | 292 | 266/3/19/4 | 273/4/11/4 | 1.000 | 0.731 | 0.844 | 0.973 |
+| half-widths x0.5 | 292 | 267/3/18/4 | 274/4/9/5 | 1.000 | 0.720 | 0.837 | 0.969 |
+| half-widths x1.5 | 292 | 263/5/20/4 | 272/4/11/5 | 0.900 | 0.621 | 0.735 | 0.949 |
+
+| rescuenet: predicted buildings vs labelled | IoU | precision | recall | F1 | flooded/dry (or intact/damaged) agreement |
+|---|---|---|---|---|---|
+| tp 214, fp 170, fn 78 | ≥ 0.5 | 0.557 | 0.733 | 0.633 | 0.780 |
+| tp 240, fp 144, fn 52 | ≥ 0.25 | 0.625 | 0.822 | 0.710 | 0.779 |
+
+
+11
+=== c17.py done in 5 s
+=== c18.py start 21:25:40
+--- Prediction: Prediction: unreachable by road 4 / 12 · 0 by boat · 4 on foot | Labelled map: unreachable by road 4 / 12 · 0 by boat · 4 on foot | Entry point: auto (largest road or dry land at the edge)
+### House 8: Last stretch on foot
+≈ 7 min · truck 10 m → boat 20 m → on foot 10 m
+truck 47 → boat 52 → on foot 26 cells · route cost 745 (truck on road 1 per cell, yards ×4; boat 3 + launch 40; on foot 8 + 10 to get out)
+Labelled map: on foot ✓
+Label: intact building
+--- Labelled map: Labelled map: unreachable by road 4 / 12 · 0 by boat · 4 on foot | Prediction: unreachable by road 4 / 12 · 0 by boat · 4 on foot | Entry point: auto (largest road or dry land at the edge)
+### House 8: Last stretch on foot
+≈ 7 min · truck 20 m → boat 30 m → on foot 10 m
+truck 46 → boat 81 → on foot 24 cells · route cost 591 (truck on road 1 per cell, yards ×4; boat 3 + launch 40; on foot 8 + 10 to get out)
+Prediction: on foot ✓
+Label: intact building
+<Figure size 1200x900 with 1 Axes>
+
+[Image saved to: /private/tmp/claude-501/-Users-marlenmelis-Library-Mobile-Documents-com-apple-CloudDocs-Documents-KAIST-2nd-semester-Introduction-to-AI-Computing-AIC200-Project-StructuredPrediction-main/8dcaf804-b334-4f8a-9630-076df83a40e0/scratchpad/nbcells/c18.png]
+11
+=== c18.py done in 6 s
+=== c19.py start 21:25:46
+patched scipy.interpolate.interp2d -> RectBivariateSpline (SciPy >= 1.14)
+wrote /content/starter/chameleon/data_paths.yaml
+<All keys matched successfully>
+support encoding 28.9 s
+/content/rr/src/gradio_app.py:253: UserWarning: The given NumPy array is not writable, and PyTorch does not support non-writable tensors. This means writing to this tensor will result in undefined behavior. You may want to copy the array to protect its data or make it writable before converting it to a tensor. This type of warning will be suppressed for the rest of this program. (Triggered internally at /pytorch/torch/csrc/utils/tensor_numpy.cpp:213.)
+  X = self.torch.from_numpy(photo).permute(2, 0, 1).float() / 255
+upload /content/rr/demo/uploads/floodnet_7307.jpg: 38.3 s (inference + routing) []
+Prediction: unreachable by road 6 / 14 · 4 by boat · 2 on foot · 8 more look truck-reachable: check first | Entry point: auto (largest road or dry land at the edge)
+<Figure size 1200x900 with 1 Axes>
+
+[Image saved to: /private/tmp/claude-501/-Users-marlenmelis-Library-Mobile-Documents-com-apple-CloudDocs-Documents-KAIST-2nd-semester-Introduction-to-AI-Computing-AIC200-Project-StructuredPrediction-main/8dcaf804-b334-4f8a-9630-076df83a40e0/scratchpad/nbcells/c19.png]
+[app: 1.8 min]
+11
+=== c19.py done in 108 s
+=== c20.py start 21:27:34
+11
+=== c20.py done in 4 s
+=== c21.py start 21:27:38
+code commit 1b5d176 | bundle 2026-10-08 04:44 KST | GPU Tesla T4
+{'numpy': '2.1.3', 'scipy': '1.16.3', 'scikit-image': '0.25.2', 'pytorch_lightning': '2.4.0', 'timm': '0.6.13', 'torch': '2.11.0+cu130'}
+live check: {50: {'minutes': 4.1, 'max_abs_diff': 5, 'decode_agreement': 0.999760154441551}, '50_chain_agreement': 0.9997838903356481, 20: {'minutes': 1.9, 'max_abs_diff': 14, 'decode_agreement': 0.9994809751157409}}
+runtime (s): {'setup': 174.8, 'data': 3.5, 'finetune': 357.4, 'live': 568.5, 'cpu_results': 321.9, 'b13': 97.3, 'transfer': 22.0, 'routing': 166.7, 'app': 105.7, 'total': 1892.9}
+total 31.5 min
+11
+=== c21.py done in 2 s
