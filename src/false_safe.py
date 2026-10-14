@@ -4,7 +4,8 @@ A false-safe house: router v3 on the predicted map says TRUCK, on the labelled m
 one, the predicted truck route is followed on the labelled map to the first cell a real truck could not use, and that
 cell's labelled vs predicted class names the error: e.g. a flooded road read as clear road, water read as land, a
 building or wall missed (the gap is narrower than it looks), a truck route through dry land the labels mark as
-blocked. Counts per cause (eval100 and full test) and the worst photos, for the model work to target.
+blocked. Houses in the photos whose labels mark dry lawns as water (splits/floodnet_label_errors.tsv, 14 Oct) are
+counted as label errors. Counts per cause (eval100 and full test) and the worst photos, for the model work to target.
 
     python src/false_safe.py [--results results/kaggle_v2/rr] [--out results/routing/false_safe]
 """
@@ -50,6 +51,8 @@ def main():
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     dec = load_chosen(a.results, RUN)
+    from label_audit import errors
+    label_errors = set(errors())
     out, md = {}, ['# False-safe houses: first point where the predicted truck route fails on the labelled map', '',
                    f'Run {RUN}, router v3 (risk-aware, off-road gate {PRED_OFFROAD_MAXWET[DS]}), the published decode.', '']
     for sf in a.splits.split(','):
@@ -87,7 +90,10 @@ def main():
                 if hit is None:
                     causes['route passes, but the labelled-map goal ring differs'] += 1
                     continue
-                causes[cause(gcls, pcls, gg, hit[0], hit[1])] += 1
+                c = cause(gcls, pcls, gg, hit[0], hit[1])
+                if i in label_errors:                    # the model is right there: the label calls a dry lawn water
+                    c = f'label error (dry lawn labelled water; splits/floodnet_label_errors.tsv): {c}'
+                causes[c] += 1
                 along.append(hit[2])
         out[sf] = dict(n_truck_pred=n_truck, n_false_safe=n_fs, causes=dict(causes.most_common()),
                        worst_photos=per_img.most_common(10),
