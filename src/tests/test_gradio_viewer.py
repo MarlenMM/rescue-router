@@ -17,7 +17,7 @@ import export_web_assets as E  # noqa: E402
 import gradio_viewer as V  # noqa: E402
 from test_export import unpack  # noqa: E402
 
-DATA = os.path.expanduser('~/rr_data')
+from rr.paths import RR_DATA as DATA  # noqa: E402
 RESULTS = os.path.join(REPO, 'results/kaggle_v2/rr')
 JS = '''
 import { readFileSync } from 'node:fs';

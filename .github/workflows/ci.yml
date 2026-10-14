@@ -1,0 +1,28 @@
+# CPU checks on every push and pull request (PLAN §16, E2). Tests that need the prediction caches or ~/rr_data skip
+# themselves here; the JS router parity test runs on all 200 committed viewer scenes.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - run: uv sync --locked
+      - run: uv run ruff check src notebook/build_notebook.py release
+      - run: uv run pytest -q
+  js-router-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test app/test/router.test.mjs

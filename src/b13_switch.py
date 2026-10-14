@@ -30,6 +30,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from rr.final_decode import decode_photo  # noqa: E402
 from rr.metrics import WET, confusion, decode, gt_classes, summarize  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 R = 'results/kaggle_v2/rr'
 FN50 = 'floodnet_50shot_s0_stratified'
@@ -162,7 +163,7 @@ def main():
     ap.add_argument('--final', default='results/b13/final_run/rr')
     ap.add_argument('--decode', default='results/b13/r2/decode_wavg_noclean.json')
     ap.add_argument('--ckpt', default=f'results/b13/{CKPT}.ckpt')
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     a = ap.parse_args()
     {'install': lambda: install(a), 'restore': restore, 'archive': archive}[a.cmd]()
 

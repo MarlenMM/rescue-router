@@ -27,6 +27,7 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from rr.metrics import WET, confusion, decode, gt_classes, summarize  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 RUN = 'floodnet_50shot_s0_stratified'
 TTA = RUN + '_tta4'
@@ -202,7 +203,7 @@ def main():
     ap.add_argument('cmd', choices=['build', 'report'])
     ap.add_argument('--results', default='results/kaggle_v2/rr')
     ap.add_argument('--flips', default='results/kaggle_v2/flips/rr/preds')
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--out', default='results/kaggle_v2/report/tta')
     ap.add_argument('--routing', default='results/routing')
     ap.add_argument('--B', type=int, default=2000)

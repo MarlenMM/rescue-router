@@ -25,7 +25,6 @@ import sys
 import tempfile
 import uuid
 
-import numpy as np
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -35,6 +34,7 @@ import gradio_app as G  # noqa: E402
 import router as R  # noqa: E402
 from export_web_assets import RUNS, build_scene, make_grids, pack_scene, tier_stats  # noqa: E402
 from viz import COLORS, NAMES, colorize  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 START = 'rescuenet_12195&h=8&m=gt'           # canal row: truck, boat across the canal, then on foot
 KEEP = 30                                    # uploaded scenes kept in the work folder
@@ -143,7 +143,7 @@ def build_app(args, live, work):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--results', default=os.path.join(REPO, 'results/kaggle_v2/rr'))
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--viewer', default=next((p for p in (os.path.join(REPO, 'docs'), os.path.join(REPO, 'viewer'))
                                               if os.path.exists(os.path.join(p, 'index.html'))), None))
     ap.add_argument('--work', default=os.path.join(tempfile.gettempdir(), 'rr_viewer'))

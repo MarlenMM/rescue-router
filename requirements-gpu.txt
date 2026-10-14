@@ -1,0 +1,21 @@
+# GPU environment for the scripts that run Chameleon (src/finetune.py, predict.py, infer_sweep.py, select_ckpt.py,
+# probe.py, gradio_app.py --live, the notebook and kaggle/*). Recorded from the runs of 7-8 Oct 2026:
+#   base image   Kaggle or Colab default image, Python 3.13.15, one Tesla T4 (15 GB)
+#   torch        2.11.0+cu128 (Kaggle) / 2.11.0+cu130 (Colab), preinstalled in the image; not reinstalled
+#   numpy        kept at the image's version (the scripts pin "numpy==<installed>" so pip does not upgrade it)
+# Install on top of the image (this is the line the notebook and the kaggle/ scripts run):
+#   pip install -r requirements-gpu.txt "numpy==$(python -c 'import numpy; print(numpy.__version__)')"
+# plus the course starter code: git clone https://github.com/GitGyun/AIC200-Project-StructuredPrediction
+# (its own changes to Chameleon: chameleon/PATCHES.md; ours are runtime shims in src/rr/compat.py, applied on load)
+# and the meta-trained generalist.ckpt
+# (course Drive folder, file id 1_UrVMFy18kEcrxwD1b_ohxuTfJIsOWsG, 2,967,114,775 bytes).
+pytorch_lightning==2.4.0
+timm==0.6.13
+easydict
+einops
+scikit-image
+pycocotools
+fastremap
+numba
+flow_vis
+segment-anything==1.0

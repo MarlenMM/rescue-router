@@ -16,9 +16,10 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from rr.metrics import WET, confusion, decode, gt_classes, summarize  # noqa: E402
+from rr.metrics import WET, confusion, gt_classes, summarize  # noqa: E402
 from rr.final_decode import decode_photo, photo  # noqa: E402
 from viz import load_label  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 CLS = ['road_clear', 'road_flooded', 'bldg_flooded', 'bldg_dry', 'water']
 PAPER = {  # bldg flooded, bldg non-flooded, road flooded, road non-flooded, water, mIoU (9 classes)
@@ -50,7 +51,7 @@ def full_test(res_dir, data, dec):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--results', default='results/kaggle_v2/rr')
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--out', default='results/kaggle_v2/report/baselines.md')
     a = ap.parse_args()
     d = json.load(open(os.path.join(a.results, 'decode', 'floodnet_50shot_s0_stratified.json')))

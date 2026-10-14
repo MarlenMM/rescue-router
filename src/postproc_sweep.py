@@ -33,6 +33,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from decode_tune import NAMES, TAU_GRID, load  # noqa: E402
 from rr.metrics import OTHER_IDX, WET, confusion, decode, summarize  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 DS = 'floodnet'
 RUN = 'floodnet_50shot_s0_stratified'
@@ -194,7 +195,7 @@ def load_cache(path, root):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--results', default='results/kaggle_v2/rr')
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--out', default='results/b13/postproc')
     ap.add_argument('--only', default='base,i22,i27,i28,i29,i30,i32,combo')
     ap.add_argument('--workers', type=int, default=10)

@@ -6,10 +6,11 @@ from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import postproc_sweep as PS
 from decode_tune import load
+from rr.paths import RR_DATA
 
 if __name__ == '__main__':
     c = sys.argv[1]
-    root = os.path.expanduser('~/rr_data/floodnet_r768')
+    root = os.path.join(RR_DATA, 'floodnet_r768')
     probs, gts = load(c, root, 'val')
     probs = [p.astype(np.float32) / 255 for p in probs]
     ids = [str(i) for i in np.load(c)['ids']]

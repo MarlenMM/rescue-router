@@ -23,6 +23,7 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from rr.metrics import OTHER_IDX, decode  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 
 def pick(a):
@@ -73,7 +74,7 @@ def make(a):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('cmd', choices=['pick', 'make'])
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data/floodnet_r768'))
+    ap.add_argument('--data', default=os.path.join(RR_DATA, 'floodnet_r768'))
     ap.add_argument('--n', type=int, default=100)
     ap.add_argument('--cache')
     ap.add_argument('--decode')

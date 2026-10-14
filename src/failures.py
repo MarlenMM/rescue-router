@@ -22,9 +22,10 @@ from scipy import ndimage
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from rr.metrics import decode, gt_classes  # noqa: E402
+from rr.metrics import gt_classes  # noqa: E402
 from rr.final_decode import decode_photo  # noqa: E402
 from viz import blend, load_image, load_label  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 WET = (1, 4)
 
@@ -66,7 +67,7 @@ def main():
     ap.add_argument('--run', default='floodnet_50shot_s0_stratified')
     ap.add_argument('--results', default='results/kaggle_v2/rr')
     ap.add_argument('--routing', default='results/routing')
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--out', default='results/kaggle_v2/report/failures')
     ap.add_argument('--n', type=int, default=12)
     a = ap.parse_args()

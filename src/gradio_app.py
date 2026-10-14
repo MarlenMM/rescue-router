@@ -32,6 +32,7 @@ sys.path.insert(0, HERE)
 import router as R  # noqa: E402
 from export_web_assets import RUNS, SCENES, build_scene, load_cached, make_grids, scene_scale, tier_stats  # noqa: E402
 from viz import COLORS, NAMES, blend  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 K = 2                                                   # display scale (768x576 -> 1536x1152)
 STATUS_RGB = {R.TRUCK: (34, 197, 94), R.BOAT: (249, 115, 22), R.FOOT: (167, 139, 250), R.ISOLATED: (239, 68, 68)}
@@ -432,7 +433,7 @@ def build_ui(args, live=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--results', default=os.path.join(REPO, 'results/kaggle_v2/rr'))
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--port', type=int, default=7860)
     ap.add_argument('--share', action='store_true')
     ap.add_argument('--live', action='store_true')

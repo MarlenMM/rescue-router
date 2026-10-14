@@ -31,6 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import cache_pack  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 RUNS = ['floodnet_1shot', 'floodnet_5shot', 'floodnet_10shot', 'floodnet_20shot', 'floodnet_50shot',
         'rescuenet_20shot', 'rescuenet_50shot']
@@ -51,7 +52,7 @@ def copy_split(data, out, ds, split, id_list, parts):
 
 
 def readme_data(out, sizes):
-    open(os.path.join(out, 'README_data.md'), 'w').write(f'''# Rescue Router: data bundle
+    open(os.path.join(out, 'README_data.md'), 'w').write('''# Rescue Router: data bundle
 
 Unzip, then from the unzipped folder: `python src/cache_pack.py unpack --src results/kaggle_v2/rr_packed`
 (restores the prediction caches bit for bit), and run the notebook or `python src/rebuild_all.py`.
@@ -86,7 +87,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--out', required=True)
     ap.add_argument('--zip', default=None)
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--results', default=os.path.join(ROOT, 'results/kaggle_v2/rr'))
     a = ap.parse_args()
     out = a.out

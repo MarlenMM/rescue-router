@@ -33,7 +33,6 @@ import contextlib
 import json
 import os
 import random
-import subprocess
 import sys
 import time
 
@@ -235,7 +234,8 @@ def main():
     start, st = 0, {}
     if os.path.exists(f_last):
         st = torch.load(f_last, map_location='cpu', weights_only=False)
-        missing = model.load_state_dict(st['state_dict'], strict=False)
+        res = model.load_state_dict(st['state_dict'], strict=False)   # only the trained tensors are saved
+        assert not res.unexpected_keys, f'resume checkpoint has unknown tensors: {res.unexpected_keys[:5]}'
         optimizer.load_state_dict(st['optimizer'])
         if st.get('scaler'):
             scaler.load_state_dict(st['scaler'])

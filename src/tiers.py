@@ -25,8 +25,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import router as R  # noqa: E402
 from route_eval import PRED_CAUTIOUS_MAXWET, PRED_OFFROAD_MAXWET  # noqa: E402
-from rr.metrics import decode, gt_classes  # noqa: E402
+from rr.metrics import gt_classes  # noqa: E402
 from rr.final_decode import decode_photo, photo  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 CANDIDATES = (0.25, 0.2, 0.15, 0.1, 0.05)
 TARGET = 0.99
@@ -91,7 +92,7 @@ def calibration(p, g, bins=10):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--results', default='results/kaggle_v2/rr')
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--repo', default=os.path.dirname(HERE))
     ap.add_argument('--out', default='results/routing/tiers')
     ap.add_argument('--fig', default='results/kaggle_v2/report/figures/calibration_pwet.png')

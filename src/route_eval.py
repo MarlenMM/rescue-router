@@ -22,8 +22,9 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import router as R  # noqa: E402
-from rr.metrics import decode, gt_classes  # noqa: E402
+from rr.metrics import gt_classes  # noqa: E402
 from rr.final_decode import decode_photo, photo  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 SPLIT = {'test': 'test', 'val': 'val'}
 # off-road gate for predicted maps (the GT grid has none): tuned on FloodNet 50-shot val30 (stranded F1
@@ -43,7 +44,7 @@ def main():
     ap.add_argument('--dataset', default='floodnet', choices=list(R.PROFILES))
     ap.add_argument('--split_file', required=True)
     ap.add_argument('--split', default=None, help='image folder (default: from the split file name)')
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--repo', default=os.path.dirname(HERE))
     ap.add_argument('--preds', default=None)
     ap.add_argument('--tau', type=float, default=0.5)
