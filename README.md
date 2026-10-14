@@ -122,6 +122,8 @@ slides, data zip, app zip with `release/README_app.md`) and checks that it holds
 
 ## Licences and credits
 
+- Our code and documentation: MIT (`LICENSE`). Third-party models, data and vendored code keep their own licences,
+  listed below; the datasets are not covered by the MIT licence.
 - Model: Chameleon, Kim et al., *Chameleon: A Data-Efficient Generalist for Dense Visual Prediction in the Wild*,
   ECCV 2024 (<https://github.com/GitGyun/chameleon>); course starter
   <https://github.com/GitGyun/AIC200-Project-StructuredPrediction>. Second pretrained model (Batch 13): SAM ViT-B,
