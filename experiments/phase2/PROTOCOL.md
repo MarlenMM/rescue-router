@@ -3,12 +3,17 @@
 Written before the runs so that no choice depends on their results. Changes after a run starts are logged at the
 end with the reason. Budget: Kaggle 2×T4 sessions (a session is billed once for its wall time; 30 h/week).
 
+**Reading guide:** the sections were added in order, all before any Phase 2 run; where they differ, the later one
+holds: "Router parameters" and "Model choice" (14 Oct) and **Amendment 1** (14 Oct night: curve on the full test,
+RescueNet 5/10, lean variance design, baseline candidates, decode floor, label errors). Superseded sentences are
+marked "→ amendment 1".
+
 ## Questions
 
 | id | question | how |
 |---|---|---|
-| A3 | How much does the 50-shot result move with the training seed and with the choice of the 50 photos? | 3 seeds × 3 support draws (the submitted model is seed 0, draw 0): 8 new runs, eval100 |
-| A4 | Learning curve and RescueNet with **one** recipe (the published curve mixes recipes) | 1/5/10/20/100 shots + RescueNet 20/50, recipe below, tag `p2` |
+| A3 | How much does the 50-shot result move with the training seed and with the choice of the 50 photos? | 3 seeds × 3 support draws (the submitted model is seed 0, draw 0): 8 new runs, eval100 → amendment 1: 4 runs (draws 1, 2 at seed 0; seeds 1, 2 at draw 0) |
+| A4 | Learning curve and RescueNet with **one** recipe (the published curve mixes recipes) | 1/5/10/20/100 shots + RescueNet 20/50, recipe below, tag `p2` → amendment 1: + RescueNet 5/10; 1-20 shots on the full test |
 | A5 | Same-label-budget baseline | DeepLabV3-ResNet50 on the same photos (`src/baseline_seg.py`; on the Mac, no Kaggle quota) |
 | F1 | What do the 30 tuning labels buy? | every run decoded with label-free thresholds (`src/prior_decode.py` matching) next to the val30-tuned ones |
 | F2 | Is val30 over-fitted? | the submitted model on `floodnet_val_confirm100` (100 val photos, disjoint from val30) |
@@ -19,7 +24,7 @@ Training: `finetune.py --shot k --n_steps 1000 --amp fp16 --grad_ckpt --freeze_r
 --snap_from 750 --chunk 1 --channel_chunk 1 --gbs 2` (lr 1e-3 cosine), snapshots at 750 and 1000, their weight average
 (`avg_ckpt.py`) is the run's checkpoint. Prediction: fp16, 384 tiles, stride 192. Decode (CPU, `run_decode.py`): guided
 filter r 2 ε 1e-3 → per-class τ tuned on val30 (coordinate ascent, drivable-precision floor .567 as for the submitted
-model) → SAM grow. RescueNet: its published decode rule (`decode_tune.py`: τ + building vote), no SAM.
+model; → amendment 1 item 5: min(.567, the run's own τ .5 value)) → SAM grow. RescueNet: its published decode rule (`decode_tune.py`: τ + building vote), no SAM.
 100 shots: trained on the first 100 photos of the support order, predicted with the first 50 (`--eval_shot 50`; 100
 supports do not fit a T4 at prediction).
 
@@ -36,17 +41,19 @@ Order: `curve` first (it also carries F2, and A4 matters most for the write-up),
 `python kaggle/phase2/make_plan.py preflight <session>` must end with PREFLIGHT OK (toy chain on the Mac), the code
 is committed, and `kaggle/b13/make_kernel.py` builds the kernel from that commit. After each session: download
 (`kaggle/fetch_output.py`), `run_decode.py --sam` per FloodNet run, `phase2_report.py --routing`, refresh the off-site
-backup (`src/backup.py pack` + `release/backup/upload.sh`).
+backup (`src/backup.py pack` + `release/backup/upload.sh`). → amendment 1: `kaggle/phase2/launch_check.py <session>`
+before the push, `kaggle/phase2/post.py <session>` runs every CPU step after the download.
 
 ## Evaluation
 
 - **val30**: only for choosing τ (as before). **eval100**: every run's report split (paired across runs: same photos).
-  **confirm100**: F2 only. **Full test**: not used in Phase 2 (headline unchanged unless a later adoption passes the
-  full-test rule).
+  **confirm100**: F2 only (→ also the router, tier and model choices, sections below). **Full test**: not used in
+  Phase 2 (headline unchanged unless a later adoption passes the full-test rule) → amendment 1: the 1-20-shot curve
+  runs are scored on it, paired with the baseline; the product-model choice is reported on it.
 - Per run: mIoU (τ .5 / label-free / tuned / tuned + SAM), per-class IoU, drivable precision, stranded F1 and
   false-safe rate (router v3, eval100).
 - A3: mean ± sd over the 9 runs, and a two-way split of the variance into support draw, training seed and rest
-  (`phase2_report.py`). The submitted model's place in that distribution is reported as is (it was not chosen among
+  (`phase2_report.py`) → amendment 1: mean ± sd over the 5 runs, sd over draws (seed 0) and over seeds (draw 0). The submitted model's place in that distribution is reported as is (it was not chosen among
   seeds, so there is no selection bias to correct).
 - A4: one point per shot (single run; A3 gives the noise level at 50 shots).
 - Every number is reported, including runs that fail or look worse; a failed run is re-run once if the cause is
