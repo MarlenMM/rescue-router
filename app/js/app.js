@@ -215,6 +215,7 @@ function solve() {
   s.tier = s.blds.map((b, i) => tier(s.status.pred[i], s.sol.cautious.status(b.goals)));
   drawHouses();
   drawHouseList();
+  s.stops = { pred: stopPoints('pred'), gt: stopPoints('gt') };
   drawBase();
   drawCounter();
   if (state.sel) select(state.sel.i, state.sel.side, false);
@@ -336,6 +337,33 @@ function drawBase() {
     L.rectangle([ll(cx * CELL, cy * CELL + CELL), ll(cx * CELL + CELL, cy * CELL)],
       { renderer: baseRend, interactive: false, stroke: false, fillColor: color, fillOpacity: 0.95 }).addTo(groups.base);
   }
+  drawStops();
+}
+
+// ---------- dispatch: where the truck stops for the houses it cannot reach (boat launch or walk-on point) ----------
+const STOP_GROUP_M = 20;                                           // stop points closer than this share one staging spot
+function stopPoints(side) {
+  const s = state.s, solR = s.sol[side], mpc = s.meta.m_per_cell || s.grid.cellM || 1, groups = [];
+  s.blds.forEach((b, i) => {
+    if (s.status[side][i] === TRUCK || s.status[side][i] === ISOLATED) return;
+    const r = solR.route(b.goals);
+    if (!r) return;
+    const k = r.modes.findIndex((m, j) => j > 0 && m !== TRUCK);
+    const cell = r.cells[Math.max(k - 1, 0)];                     // last truck cell (the entry if it starts by boat)
+    const g = groups.find(x => Math.hypot(x.cell[0] - cell[0], x.cell[1] - cell[1]) * mpc <= STOP_GROUP_M);
+    if (g) g.houses.push(i); else groups.push({ cell, houses: [i], boat: r.modes.includes(BOAT) });
+    if (g && r.modes.includes(BOAT)) g.boat = true;
+  });
+  return groups;
+}
+
+function drawStops() {                                            // called by drawBase (same 'Entry points' toggle)
+  const s = state.s, side = state.src === 'gt' ? 'gt' : 'pred';
+  if (!s.stops) return;
+  s.stops[side].forEach((g, n) => {
+    L.marker(cellLL(g.cell), { pane: 'base', interactive: false, keyboard: false, icon: L.divIcon({ className: '',
+      iconSize: [20, 20], iconAnchor: [10, 10], html: `<div class="stop" title="Truck stops here: ${g.boat ? 'boat launch' : 'teams walk on'} for ${g.houses.length} house${g.houses.length > 1 ? 's' : ''}">${String.fromCharCode(65 + n)}</div>` }) }).addTo(groups.base);
+  });
 }
 
 function drawCounter() {
@@ -347,7 +375,9 @@ function drawCounter() {
     return `<div>${label ? `<div class="side">${label}</div>` : ''}<div class="big">${M - n(TRUCK)} <small>/ ${M} houses</small></div>` +
       `<div class="split"><span><b>${n(BOAT)}</b> by boat</span><span><b>${n(FOOT)}</b> on foot</span>` +
       `${none ? `<span><b>${none}</b> no route</span>` : ''}</div>` +
-      (check ? `<div class="split check"><span><b>${check}</b> more look truck-reachable: check first</span></div>` : '') + '</div>';
+      (check ? `<div class="split check"><span><b>${check}</b> more look truck-reachable: check first</span></div>` : '') +
+      (s.stops && s.stops[side].length ? `<div class="split stops"><span>truck stops at <b>${s.stops[side].length}</b> point${s.stops[side].length > 1 ? 's' : ''} (` +
+        s.stops[side].map((g, n) => `${String.fromCharCode(65 + n)}: ${g.houses.length}`).join(', ') + ' houses)</span></div>' : '') + '</div>';
   };
   const hint = state.picking ? '<p class="hint pick">Tap where the rescue team enters (road, yard or water).</p>'
     : state.entryMsg ? `<p class="hint pick">${state.entryMsg}</p>`
@@ -505,6 +535,7 @@ function setSource(src) {
   panes.gt.style.display = src === 'pred' ? 'none' : '';
   updateClip();
   if (state.s) {
+    drawBase();
     drawCounter();
     drawHouseList();
     if (state.sel) {
@@ -658,7 +689,8 @@ addEventListener('keydown', (e) => {
 function houseCsv() {
   const s = state.s, q = (v) => `"${String(v).replace(/"/g, '""')}"`;
   const rows = [['photo', 'house', 'class', 'status', 'tier', 'minutes', 'truck_m', 'boat_m', 'foot_m', 'x_px', 'y_px',
-    ...(state.nolabels ? [] : ['labelled_map_status'])]];
+    'truck_stop', ...(state.nolabels ? [] : ['labelled_map_status'])]];
+  const stopOf = (i) => { const n = (s.stops ? s.stops.pred : []).findIndex(g => g.houses.includes(i)); return n < 0 ? '' : String.fromCharCode(65 + n); };
   s.blds.forEach((b, i) => {
     const st = s.status.pred[i], tr = s.tier[i];
     const solR = tr === 'CONFIDENT_TRUCK' ? s.sol.cautious : s.sol.pred;
@@ -666,7 +698,7 @@ function houseCsv() {
     const tierWord = tr === 'CONFIDENT_TRUCK' ? 'confident' : tr === 'PROBABLE_TRUCK' ? 'check first' : '';
     rows.push([`${DATASET[s.ds].name} ${s.sc.id}`, b.id, CLASS_LABEL[s.ds][b.cls], WORD[st], tierWord,
       e ? Math.max(1, Math.round(e.minutes)) : '', ...(e ? e.metres.map(v => Math.round(v)) : ['', '', '']),
-      Math.round(b.centroid[0]), Math.round(b.centroid[1]), ...(state.nolabels ? [] : [WORD[s.status.gt[i]]])]);
+      Math.round(b.centroid[0]), Math.round(b.centroid[1]), stopOf(i), ...(state.nolabels ? [] : [WORD[s.status.gt[i]]])]);
   });
   return rows.map(r => r.map(q).join(',')).join('\r\n') + '\r\n';
 }
