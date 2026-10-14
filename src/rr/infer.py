@@ -13,6 +13,8 @@ import time
 
 import torch
 
+from rr import device as D
+
 
 def tile_offsets(size, tile, stride):
     offs = list(range(0, max(size - tile, 0) + 1, stride))
@@ -26,7 +28,8 @@ AMP_DTYPES = {'none': torch.float32, 'fp16': torch.float16, 'bf16': torch.bfloat
 
 def amp_context(amp):
     """Autocast for --amp; 'none' = fp32 autocast, which is what the starter's inference uses."""
-    return torch.autocast('cuda', dtype=AMP_DTYPES[amp])
+    return torch.autocast(D.DEVICE, dtype=AMP_DTYPES[amp], 
+                          enabled=D.DEVICE == 'cuda' or amp != 'none')   # fp32 autocast exists on CUDA only
 
 
 def _inference_fn(model, amp):
@@ -50,11 +53,11 @@ def encode_support(model, verbose=False, amp='none'):
     model.model.reset_support()
     model.support_data = model.prepare_support_data()
     task = model.config.task
-    dummy = torch.zeros(1, 3, *model.config.img_size, device='cuda')
+    dummy = torch.zeros(1, 3, *model.config.img_size, device=D.DEVICE)
     t0 = time.time()
     with torch.no_grad(), amp_context(amp):
         model.encode_support(dummy, task, verbose)
-    torch.cuda.synchronize()
+    D.sync()
     return time.time() - t0
 
 
@@ -69,10 +72,10 @@ def tiled_predict(model, X, tile=384, stride=192, batch=6, amp='none'):
     _, H, W = X.shape
     ys, xs = tile_offsets(H, tile, stride), tile_offsets(W, tile, stride)
     offs = [(y, x) for y in ys for x in xs]
-    Xg = X.cuda()
+    Xg = X.to(D.DEVICE)
     tiles = torch.stack([Xg[:, y:y + tile, x:x + tile] for y, x in offs])
-    w = gaussian_window(tile, device='cuda')
-    out, wsum = None, torch.zeros(1, H, W, device='cuda')
+    w = gaussian_window(tile, device=D.DEVICE)
+    out, wsum = None, torch.zeros(1, H, W, device=D.DEVICE)
     infer = _inference_fn(model, amp)
     final, learner.postprocess_final = learner.postprocess_final, (lambda y: y)
     try:
@@ -81,7 +84,7 @@ def tiled_predict(model, X, tile=384, stride=192, batch=6, amp='none'):
                                for i in range(0, len(tiles), batch)])
     finally:
         learner.postprocess_final = final
-    out = torch.zeros(preds.shape[1], H, W, device='cuda')
+    out = torch.zeros(preds.shape[1], H, W, device=D.DEVICE)
     for p, (y, x) in zip(preds, offs):
         out[:, y:y + tile, x:x + tile] += p * w
         wsum[:, y:y + tile, x:x + tile] += w
@@ -153,9 +156,9 @@ def add_self_support(model, X, P, tau, hi=0.7, lo=0.2, amp='none', size=384):
     Xc, Yc, Mc = (t[:, y:y + size, x:x + size] for t in (X, Y, M))
     T = P.shape[0]
     mm = model.model
-    Xs = Xc[None, None, None].expand(1, T, 1, *Xc.shape).cuda()
-    Ys = Yc[None, :, None, None].cuda()
-    Ms = Mc[None, :, None, None].cuda()
+    Xs = Xc[None, None, None].expand(1, T, 1, *Xc.shape).to(D.DEVICE)
+    Ys = Yc[None, :, None, None].to(D.DEVICE)
+    Ms = Mc[None, :, None, None].to(D.DEVICE)
     Y_in = torch.where(Ms.bool(), Ys, torch.ones_like(Ys) * model.config.mask_value)
     saved = (mm.W_Ss, mm.Z_Ss)
     with torch.no_grad(), amp_context(amp):

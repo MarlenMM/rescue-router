@@ -24,6 +24,7 @@ import torch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+from rr import device as D  # noqa: E402
 from finetune import NAMES, SUPPORT_SPLIT, setup_chameleon  # noqa: E402
 
 
@@ -49,6 +50,7 @@ def main():
     variants = json.load(open(a.variants)) if os.path.exists(a.variants) else json.loads(a.variants)
     sys.path.insert(0, a.chameleon)
     from rr.data import build_run_folder, load_query, read_ids
+    from rr.runs import support_seed_of
     from rr.infer import compile_encoder, load_finetuned_weights, predict_views
     from rr.metrics import WET, confusion, decode, gt_classes, summarize
 
@@ -56,7 +58,7 @@ def main():
     run_id = os.path.splitext(os.path.basename(a.ckpt))[0]
     sel = run_id.split('_')[3] if len(run_id.split('_')) > 3 else 'stratified'
     shot = ck.eval_shot if (getattr(ck, 'eval_shot', 0) or 0) > 0 else ck.shot
-    supports = read_ids(os.path.join(a.drive, 'supports', f'{a.dataset}_{sel}_s{ck.seed}.txt'))[:shot]
+    supports = read_ids(os.path.join(a.drive, 'supports', f'{a.dataset}_{sel}_s{support_seed_of(ck)}.txt'))[:shot]
     data_root = os.path.join(a.data, f'{a.dataset}_{a.res}')
     run_root = build_run_folder(os.path.join(a.runs, f'{run_id}_sweep'), data_root, supports,
                                 split_support=SUPPORT_SPLIT[a.dataset])
@@ -95,12 +97,12 @@ def main():
                 print(f'[{name}] compiled {compile_encoder(model)} encoder blocks', flush=True)
                 compiled = True
             scales = tuple(float(x) for x in v.get('scales', [1.0]))
-            torch.cuda.reset_peak_memory_stats()
+            D.reset_peak()
             t0 = time.time()
             Ps, labs, t_sup = predict_views(model, lambda i: load_query(data_root, a.split, i), ids, v.get('views', 1),
                                             v.get('crop_weights'), scales, v.get('stride', 192), a.amp,
                                             self_support=v.get('self_support'))
-            torch.cuda.synchronize()
+            D.sync()
             dt = time.time() - t0 - t_sup
             cm = np.zeros((6, 6), np.int64)
             probs = []
@@ -111,14 +113,14 @@ def main():
             res.update(run_id=run_id, variant=v, split=a.split_file, ckpt=os.path.basename(cur_ckpt), tau=a.tau,
                        n_images=len(ids), amp=a.amp, support_encode_s=round(t_sup, 2),
                        s_per_image=round(dt / max(len(ids), 1), 2),
-                       peak_gb=round(torch.cuda.max_memory_allocated() / 1024 ** 3, 2), gpu=torch.cuda.get_device_name(0))
+                       peak_gb=round(D.peak_gb(), 2), gpu=D.name())
             np.savez_compressed(f_npz, probs=np.stack(probs), ids=np.array(ids), cm=cm)
             json.dump(res, open(os.path.join(a.drive, 'metrics', f'{tag}.json'), 'w'), indent=1)
             print(f'[{name}] miou@.5 {res["miou"]:.4f}  {res["s_per_image"]} s/photo  peak {res["peak_gb"]} GB', flush=True)
             del Ps, probs
         except Exception:
             print(f'[{name}] FAILED\n{traceback.format_exc()}', flush=True)
-            torch.cuda.empty_cache()
+            D.empty_cache()
             model.model.reset_support()
 
 
