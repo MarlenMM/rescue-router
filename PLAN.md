@@ -764,6 +764,36 @@ locally (`python3 -m http.server 8766 --directory docs`).
 **Suggested order:** Phase 1 (CPU, ~1–2 days): E1, E2, A1, A2, F7 fixes, B3. Phase 2 (GPU week 1, ~22 GPU-h): A3, A4,
 A5. Phase 3 (GPU week 2): B1, B2, B4, D1. Phase 4: C1, C2, D2–D4. Phase 5 (after the grade): F-1…F-3, demo republish.
 
+### 16.4 Progress log
+- **14 Oct, Phase 1 (CPU), done:**
+  - **F4 backups:** `src/backup.py` packs results/ (4.3 GB), the 3 data tars, the submitted zip and the untracked
+    project files (patched starter, course PDFs, slides PPTX, prompts) into 6 parts (6.3 GB) with a committed
+    SHA-256 manifest (`release/backup/`, 1,139 files); `release/backup/upload.sh` sends them to the private Kaggle
+    dataset `marlenmelis/rr-backup` and the private release `backup-2026-10-14` of MarlenMM/rescue-router. Verified:
+    local restore bit-exact; GitHub's asset digests = our sums; one Kaggle part downloaded and hashed. SAM weights
+    are public (URL + hash in `EXTERNAL.tsv`). **Refresh after each GPU batch** (`pack`, then `upload.sh`).
+  - **F5 config:** `src/rr/paths.py` (`RR_DATA`, `RR_SAM_WEIGHTS`). **E1:** `pyproject.toml` + `uv.lock` (CPU torch
+    wheels on Linux; `.venv` is a symlink to `~/.venvs/rr-uv`, outside iCloud), `requirements-gpu.txt` (torch
+    2.11.0 image + the pip line the GPU scripts run). **E2:** GitHub Actions (ruff, pytest, JS parity on 200 scenes),
+    green. **F7:** unused imports, resume assert in finetune.
+  - **Splits:** 6 files listed in `splits/SHA256SUMS` were never committed (Drive only): rebuilt from the local labels by
+    `src/splits_local.py regen`, each matching its published hash (incl. **support orders s1/s2 for A3**).
+    **F2:** `splits/floodnet_val_confirm100.txt` (100 val photos disjoint from val30, 39 with a flooded class; same
+    rule, which reproduces val30 exactly); confirmation only. Needs a GPU pass (~30 min) per model.
+  - **A1 wording:** README, viewer About, Gradio headers, app README: 50 training + 30 tuning labels. The 50-only
+    variant needs GPU (cross-validated thresholds on the supports) → Phase 2.
+  - **A2:** `false_safe_rate` (houses shown truck-reachable that are not) in `router.summarize_routing`, routing.md and
+    the CIs: FloodNet 50 full test **.111 [.054, .176]**, eval100 .119 (first model .108), RescueNet 20 .026. Also
+    worth stating: 25 % of the final model's routes are infeasible on the labelled map (eval100, λ 5).
+  - **B3 calibration** (`src/calibrate.py`, `report/calibration/`, rebuild step `calibration`): per-class Platt on
+    val30 halves the ECE (full test .033 → .019; water .079 → .025, its raw p is too low). Plain 0.5 on calibrated
+    probabilities: full test .430 (raw .279, tuned .503, both without SAM): about 2/3 of the tuning gain is
+    calibration; the rest is IoU-optimal thresholds (dry buildings .17 → .47). Not adopted for the decode (tuned is
+    better); candidate for the viewer's water-probability layer and the router's risk term (C2).
+  - All published numbers unchanged (`rebuild_all.py --check`).
+  - **Phase 1 left:** pre-commit hook (optional), F6 LICENSE (Marlen's choice of licence), write-up source wording
+    (the submitted PDF stays as submitted; the tech report F-3 replaces it).
+
 ## 15. Status / handoff (updated Wed 7 Oct, 18:15 KST)
 
 ### Quick summary (read this first; details below)

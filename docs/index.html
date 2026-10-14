@@ -111,7 +111,7 @@
 
     <section class="about">
       <h2>About</h2>
-      <p>A drone photo is mapped into five classes by <b>Chameleon</b>, adapted from only <b>50 labelled photos</b> (FloodNet) or 20 (RescueNet).
+      <p>A drone photo is mapped into five classes by <b>Chameleon</b>, adapted from only <b>50 labelled photos</b> (FloodNet) or 20 (RescueNet); 30 more labelled validation photos per dataset chose the checkpoint, the decode thresholds and the router settings.
         A router on 4×4-pixel cells then finds the cheapest way from the entry point to each house: truck on dry ground
         (roads, or yards at 4× cost; never where water is likely), then a boat across water, then the last stretch on foot
         (never back into a vehicle). Vehicles have a width: a truck needs about 2.5 m between buildings and a boat

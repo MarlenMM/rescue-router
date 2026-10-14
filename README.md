@@ -5,7 +5,9 @@ Few-shot flood mapping from drone photos, and rescue routes on the predicted map
 
 **Track A (segmentation).** [Chameleon](https://github.com/GitGyun/chameleon) (Kim et al., ECCV 2024), meta-trained
 by the course, is adapted with **50 labelled FloodNet photos** to five classes: clear road, flooded road, flooded
-building, dry building, water. On the full 448-photo FloodNet test set the final model reaches **mIoU .507 [.474, .538]**
+building, dry building, water. **Label budget:** 30 more labelled validation photos (val30) chose the checkpoint, the
+decode thresholds, the router settings and every Batch 13 idea, so the system has seen 80 labelled photos in all; with
+no tuning (plain threshold 0.5) the final model scores .278. On the full 448-photo FloodNet test set the final model reaches **mIoU .507 [.474, .538]**
 (bootstrap 95 % CI) with its decode tuned on 30 validation photos; our first model reached .472, and a round of 36
 improvement ideas tested on the validation photos only (Batch 13: a 1,000-step schedule, a weight average of two
 snapshots, a guided-filter decode and SAM to redraw building outlines; `writeup/batch13_improvements.md`) added
@@ -16,8 +18,9 @@ below full supervision; flooded roads are the gap (IoU .31 vs .82). Learning cur
 **Track B (routing).** A router on 4×4-pixel cells sends a truck along dry roads, then a boat across water, then a
 walk to each house (never back into a vehicle), with vehicle widths, parked cars, tree canopy and a corner rule. On
 the predicted maps it finds the houses that cannot be reached by road with **F1 .752** on the full FloodNet test
-(.819 on eval100; RescueNet .818; the first model's .759 / .835 are within noise of these). Each truck-reachable house
-gets a confidence tier: all 208 "confident" houses on FloodNet eval100 were truly truck-reachable; the others say
+(.819 on eval100; RescueNet .818; the first model's .759 / .835 are within noise of these). The dangerous error is
+the **false-safe rate**: 11 % [5 %, 18 %] of the houses it shows as truck-reachable are not (full test; RescueNet 3 %),
+which is why each truck-reachable house gets a confidence tier: all 208 "confident" houses on FloodNet eval100 were truly truck-reachable; the others say
 "check first" (79 %). The "labelled map" these numbers
 compare with is the same router run on the human labels: the datasets label pixels, not reachability.
 

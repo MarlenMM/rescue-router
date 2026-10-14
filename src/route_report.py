@@ -14,8 +14,8 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-COLS = ['stranded_precision', 'stranded_recall', 'stranded_f1', 'reach_agreement', 'rsv_mean', 'unsafe_route_rate',
-        'cost_ratio_median', 'infeasible_rate']
+COLS = ['stranded_precision', 'stranded_recall', 'stranded_f1', 'false_safe_rate', 'reach_agreement', 'rsv_mean',
+        'unsafe_route_rate', 'cost_ratio_median', 'infeasible_rate']
 
 
 def main():
@@ -29,8 +29,8 @@ def main():
     runs = sorted((json.load(open(f)) for f in glob.glob(os.path.join(a.results, 'decode', '*.json'))
                    if '_tta' not in os.path.basename(f)),                 # test-time flips: own report (src/tta.py)
                   key=lambda d: (d['dataset'], int(d['run'].split('_')[1][:-4])))
-    lines = ['| run | decode | truck cost | stranded P | stranded R | stranded F1 | status agreement | RSV | unsafe routes '
-             '| cost ratio (median) | infeasible |', '|' + '---|' * 11]
+    lines = ['| run | decode | truck cost | stranded P | stranded R | stranded F1 | false safe | status agreement | RSV '
+             '| unsafe routes | cost ratio (median) | infeasible |', '|' + '---|' * 12]
     for d in runs:
         run, ds = d['run'], d['dataset']
         dec = os.path.join(a.out, f'decode_{run}.json')

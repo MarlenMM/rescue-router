@@ -364,3 +364,12 @@ def test_eta_counts_metres_speeds_and_handovers():
     assert e['metres'] == [1.0, 2.0, 1.0]
     want = 1 / (20 / 0.06) + 2 / (6 / 0.06) + 1 / (3 / 0.06) + 5 + 1   # km/h -> m/min = v * 1000 / 60
     assert e['minutes'] == pytest.approx(want)
+
+
+def test_false_safe_rate():
+    # rows = labelled-map status, cols = predicted status (TRUCK, BOAT, FOOT, ISOLATED)
+    cm = np.array([[436, 21, 7, 6], [50, 69, 28, 1], [9, 28, 73, 7], [0, 0, 5, 0]])
+    assert R.false_safe_from(cm) == 59 / 495
+    s = R.summarize_routing(cm, [])
+    assert s['n_false_safe'] == 59 and s['false_safe_rate'] == 59 / 495
+    assert R.false_safe_from(np.zeros((4, 4))) == 0.0
