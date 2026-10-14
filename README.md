@@ -47,7 +47,11 @@ uploaded photo.
 | `kaggle/` | the Kaggle GPU notebooks (training queue, checkpoint selection, test-time flips, live checks, Gradio share link) |
 | `splits/`, `supports/` | fixed evaluation splits and the support (training) photo lists, with SHA-256 sums |
 | `demo/uploads/` | three FloodNet test photos (not in eval100) for the live-upload demo |
-| `PLAN.md` | the project plan and the full log of decisions and results (§15 "Quick summary" first) |
+| `experiments/phase2/` | the pre-registered protocol of the next GPU round |
+| `kaggle/phase2/` | its session plans, Kaggle kernel builder and the local pre-flight |
+| `release/backup/` | off-site backup manifest (SHA-256 of every backed-up file) and upload script |
+| `MODEL_CARD.md`, `DATA.md` | what the model is, how far to trust it; data sources, licences and splits |
+| `PLAN.md` | the project plan and the full log of decisions and results (§16 first since 14 Oct) |
 
 ## Since submission (14 Oct 2026)
 
