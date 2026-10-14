@@ -33,7 +33,8 @@ CANDIDATES = (0.25, 0.2, 0.15, 0.1, 0.05)
 TARGET = 0.99
 RUNS = {'floodnet': 'floodnet_50shot_s0_stratified', 'rescuenet': 'rescuenet_20shot_s0_stratified'}
 SPLITS = {'val30': ('{ds}_val_tune30', 'val', '{run}_{ds}_val_tune30.npz'),
-          'eval100': ('{ds}_test_eval100', 'test', '{run}_{ds}_test_eval100_fp16.npz')}
+          'eval100': ('{ds}_test_eval100', 'test', '{run}_{ds}_test_eval100_fp16.npz'),
+          'confirm100': ('{ds}_val_confirm100', 'val', '{run}_{ds}_val_confirm100_fp16.npz')}   # FloodNet, Phase 2
 
 
 def collect(ds, split, a, gates):
@@ -96,7 +97,10 @@ def main():
     ap.add_argument('--repo', default=os.path.dirname(HERE))
     ap.add_argument('--out', default='results/routing/tiers')
     ap.add_argument('--fig', default='results/kaggle_v2/report/figures/calibration_pwet.png')
+    ap.add_argument('--choose_on', default='val30',
+                    help='splits whose houses choose the cautious gate (PLAN §16: val30,confirm100 once predicted)')
     a = ap.parse_args()
+    choose = a.choose_on.split(',')
     os.makedirs(a.out, exist_ok=True)
     out = dict(target=TARGET, gates={}, tiers={}, calibration={})
     md = []
@@ -105,18 +109,25 @@ def main():
         g_t = PRED_OFFROAD_MAXWET[ds]
         cands = tuple(g for g in CANDIDATES if g < g_t)
         for sp in SPLITS:
+            sf, _, npz = (x.format(ds=ds, run=RUNS[ds]) for x in SPLITS[sp])
+            if sp == 'confirm100' and not os.path.exists(os.path.join(a.results, 'preds', npz)):
+                continue                                             # until Phase 2 predicts it
             data[(ds, sp)] = collect(ds, sp, a, (g_t,) + cands)
-        rows, sweep = data[(ds, 'val30')][0], []
-        for g in cands:                                              # choose the cautious gate on this val30
+        rows, sweep = [r for sp in choose if (ds, sp) in data for r in data[(ds, sp)][0]], []
+        for g in cands:                                              # choose the cautious gate on these houses
             t = tier_table(rows, g_t, g)['CONFIDENT_TRUCK']
             sweep.append(dict(gate=g, n=t['n'], share=t['gt_truck_share']))
         ok = [s for s in sweep if s['share'] is not None and s['share'] >= TARGET]
         g_c = max(s['gate'] for s in ok) if ok else max(sweep, key=lambda s: (s['share'] or 0, s['gate']))['gate']
-        assert g_c == PRED_CAUTIOUS_MAXWET[ds], f'{ds}: chosen cautious gate {g_c}, route_eval says {PRED_CAUTIOUS_MAXWET[ds]}'
+        if choose == ['val30']:
+            assert g_c == PRED_CAUTIOUS_MAXWET[ds], f'{ds}: chosen cautious gate {g_c}, route_eval says {PRED_CAUTIOUS_MAXWET[ds]}'
+        elif g_c != PRED_CAUTIOUS_MAXWET[ds]:
+            print(f'{ds}: cautious gate chosen on {a.choose_on}: {g_c} (published {PRED_CAUTIOUS_MAXWET[ds]}); '
+                  'if adopted, update route_eval.PRED_CAUTIOUS_MAXWET and rebuild', flush=True)
         out['gates'][ds] = dict(tuned=g_t, cautious=g_c, reached_target=bool(ok), val30_sweep=sweep)
-        md += [f'**{ds}**: tuned gate {g_t}; cautious gate chosen on val30: **{g_c}** '
+        md += [f'**{ds}**: tuned gate {g_t}; cautious gate chosen on {a.choose_on}: **{g_c}** '
                + ('(largest candidate with confident-truck share >= 99 %)' if ok else '(no candidate reaches 99 %: highest share)'),
-               '', '| gate (val30 sweep) | confident-truck houses | truly truck-reachable |', '|---|---|---|']
+               '', f'| gate ({a.choose_on} sweep) | confident-truck houses | truly truck-reachable |', '|---|---|---|']
         md += [f"| {s['gate']} | {s['n']} | {'–' if s['share'] is None else f'{s['share']:.1%}'} |" for s in sweep]
         md.append('')
     md += ['| run | split | tier | houses | truly truck-reachable (labelled map) | labelled map: truck / boat / foot / none |',
