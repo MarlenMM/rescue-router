@@ -2,6 +2,7 @@
 // Scenes come from src/export_web_assets.py; routing runs in the browser with js/router.js.
 
 import { sceneGrids, parseScene, eta, tier, TRUCK, BOAT, FOOT, ISOLATED } from './router.js';
+import { t, LANG, DEFAULT_LANG, setLang } from './i18n.js';
 
 const CELL = 4;
 const KIND = ['truck', 'boat', 'foot', 'isolated'];
@@ -166,13 +167,7 @@ async function loadScene(key) {
   state.s = { sc, dir, meta, grid, blds, W, H, ds: meta.dataset };
   if (sc.dataset !== state.ds) { state.ds = sc.dataset; drawBrowse(); }
   markPressed();
-  $('caption').textContent = `${DATASET[meta.dataset].event} · ${sc.caption || `Test photo ${sc.id}: ` +
-    (!sc.n_buildings ? 'no houses in the labelled map' : sc.n_disagree
-      ? `${sc.n_disagree} of ${sc.n_buildings} houses differ from the labelled map` : `all ${sc.n_buildings} houses agree with the labelled map`)}`;
-  const shots = meta.run.match(/_(\d+)shot/)[1];
-  const ious = Object.values(meta.iou).filter(v => v != null);
-  $('model').innerHTML = `${DATASET[meta.dataset].name} · Chameleon adapted from <b>${shots}</b> labelled photos · ` +
-    (ious.length ? `this photo: mean IoU ${fmt(ious.reduce((a, b) => a + b, 0) / ious.length)}` : 'uploaded photo: no labels to score it');
+  drawCaption();
   for (const k of Object.keys(groups)) groups[k].clearLayers();
   const bounds = [[0, 0], [H, W]];
   L.imageOverlay(dir + 'photo.jpg', bounds).addTo(groups.photo);
@@ -190,6 +185,24 @@ async function loadScene(key) {
   $('routeCard').hidden = true;
   solve();
   fit();
+}
+
+function drawCaption() {
+  const { sc, meta } = state.s;
+  const ko = LANG === 'ko';
+  $('caption').textContent = `${t(DATASET[meta.dataset].event)} · ${(ko && !meta.upload ? '' : sc.caption) || (ko ? `테스트 사진 ${sc.id}: ` +
+    (!sc.n_buildings ? '라벨 지도에 가구 없음' : sc.n_disagree ? `가구 ${sc.n_buildings}곳 중 ${sc.n_disagree}곳이 라벨 지도와 다름`
+      : `가구 ${sc.n_buildings}곳 모두 라벨 지도와 일치`) : `Test photo ${sc.id}: ` +
+    (!sc.n_buildings ? 'no houses in the labelled map' : sc.n_disagree
+      ? `${sc.n_disagree} of ${sc.n_buildings} houses differ from the labelled map` : `all ${sc.n_buildings} houses agree with the labelled map`))}`;
+  const shots = meta.run.match(/_(\d+)shot/)[1];
+  const ious = Object.values(meta.iou).filter(v => v != null);
+  const miouTxt = ious.length ? fmt(ious.reduce((a, b) => a + b, 0) / ious.length) : null;
+  $('model').innerHTML = LANG === 'ko'
+    ? `${DATASET[meta.dataset].name} · 라벨 사진 <b>${shots}</b>장(+조정용 30장)으로 적응한 Chameleon · ` +
+      (miouTxt ? `이 사진: 평균 IoU ${miouTxt}` : '업로드 사진: 채점할 라벨 없음')
+    : `${DATASET[meta.dataset].name} · Chameleon adapted from <b>${shots}</b> labelled photos (+30 for tuning) · ` +
+      (miouTxt ? `this photo: mean IoU ${miouTxt}` : 'uploaded photo: no labels to score it');
 }
 
 function fit() {
@@ -281,19 +294,19 @@ function drawHouses() {
 // ---------- house list (keyboard access to every house) ----------
 function drawHouseList() {
   const s = state.s, side = state.src === 'gt' ? 'gt' : 'pred', box = $('houses');
-  $('housesNote').textContent = s.blds.length ? `${s.blds.length} · ${SIDE[side].toLowerCase()}` : '';
+  $('housesNote').textContent = s.blds.length ? `${s.blds.length} · ${t(SIDE[side]).toLowerCase()}` : '';
   box.innerHTML = '';
   s.blds.forEach((b, i) => {
     const st = s.status[side][i], tr = side === 'pred' ? s.tier[i] : null;
     const kind = tr === 'PROBABLE_TRUCK' ? 'check' : KIND[st];
-    const word = tr === 'PROBABLE_TRUCK' ? 'truck, check first' : tr === 'CONFIDENT_TRUCK' ? 'truck (confident)' : WORD[st];
+    const word = t(tr === 'PROBABLE_TRUCK' ? 'truck, check first' : tr === 'CONFIDENT_TRUCK' ? 'truck (confident)' : WORD[st]);
     const dis = s.status.pred[i] !== s.status.gt[i];
     const el = document.createElement('button');
     el.setAttribute('role', 'option');
     el.dataset.i = i;
-    el.innerHTML = `<span class="st ${kind}" aria-hidden="true">${SVG[kind]}</span><span class="what">House ${b.id}: ${word}` +
-      `<br><span class="sub">${CLASS_LABEL[s.ds][b.cls]}</span></span>` +
-      (dis ? `<span class="dis" title="Prediction and labelled map disagree">≠ ${WORD[s.status[side === 'pred' ? 'gt' : 'pred'][i]]}</span>` : '');
+    el.innerHTML = `<span class="st ${kind}" aria-hidden="true">${SVG[kind]}</span><span class="what">${t('House')} ${b.id}: ${word}` +
+      `<br><span class="sub">${t(CLASS_LABEL[s.ds][b.cls])}</span></span>` +
+      (dis ? `<span class="dis" title="Prediction and labelled map disagree">≠ ${t(WORD[s.status[side === 'pred' ? 'gt' : 'pred'][i]])}</span>` : '');
     el.setAttribute('aria-label', `House ${b.id}: ${word}, ${CLASS_LABEL[s.ds][b.cls]}` +
       (dis ? `; the ${side === 'pred' ? 'labelled map' : 'prediction'} says ${WORD[s.status[side === 'pred' ? 'gt' : 'pred'][i]]}` : ''));
     el.addEventListener('click', () => { if (base()) { select(i, side); writeHash(); } });
@@ -325,7 +338,8 @@ $('houses').addEventListener('keydown', (e) => {
 function drawBase() {
   const s = state.s, b = base();
   groups.base.clearLayers();
-  $('entryMode').textContent = state.entry ? `chosen (${b.mode === 'BOAT' ? 'boat' : 'truck'})` : 'auto: largest road or dry land at the edge';
+  $('entryMode').textContent = LANG === 'ko' ? (state.entry ? `직접 선택 (${b.mode === 'BOAT' ? '보트' : '트럭'})` : '자동: 가장자리의 가장 큰 도로 또는 마른 땅')
+    : state.entry ? `chosen (${b.mode === 'BOAT' ? 'boat' : 'truck'})` : 'auto: largest road or dry land at the edge';
   if (!b || !$('tBase').checked) return;
   const color = b.mode === 'BOAT' ? getVar('--accent') : '#ffffff';
   if (state.entry) {
@@ -362,7 +376,7 @@ function drawStops() {                                            // called by d
   if (!s.stops) return;
   s.stops[side].forEach((g, n) => {
     L.marker(cellLL(g.cell), { pane: 'base', interactive: false, keyboard: false, icon: L.divIcon({ className: '',
-      iconSize: [20, 20], iconAnchor: [10, 10], html: `<div class="stop" title="Truck stops here: ${g.boat ? 'boat launch' : 'teams walk on'} for ${g.houses.length} house${g.houses.length > 1 ? 's' : ''}">${String.fromCharCode(65 + n)}</div>` }) }).addTo(groups.base);
+      iconSize: [20, 20], iconAnchor: [10, 10], html: `<div class="stop" title="${LANG === 'ko' ? `트럭 정차: ${g.boat ? '보트 출발' : '도보 출발'}, 가구 ${g.houses.length}곳` : `Truck stops here: ${g.boat ? 'boat launch' : 'teams walk on'} for ${g.houses.length} house${g.houses.length > 1 ? 's' : ''}`}">${String.fromCharCode(65 + n)}</div>` }) }).addTo(groups.base);
   });
 }
 
@@ -372,19 +386,20 @@ function drawCounter() {
     const st = s.status[side], n = (k) => st.filter(v => v === k).length;
     const none = n(ISOLATED);
     const check = side === 'pred' ? s.tier.filter(t => t === 'PROBABLE_TRUCK').length : 0;
-    return `<div>${label ? `<div class="side">${label}</div>` : ''}<div class="big">${M - n(TRUCK)} <small>/ ${M} houses</small></div>` +
-      `<div class="split"><span><b>${n(BOAT)}</b> by boat</span><span><b>${n(FOOT)}</b> on foot</span>` +
-      `${none ? `<span><b>${none}</b> no route</span>` : ''}</div>` +
-      (check ? `<div class="split check"><span><b>${check}</b> more look truck-reachable: check first</span></div>` : '') +
-      (s.stops && s.stops[side].length ? `<div class="split stops"><span>truck stops at <b>${s.stops[side].length}</b> point${s.stops[side].length > 1 ? 's' : ''} (` +
-        s.stops[side].map((g, n) => `${String.fromCharCode(65 + n)}: ${g.houses.length}`).join(', ') + ' houses)</span></div>' : '') + '</div>';
+    const ns = s.stops ? s.stops[side].length : 0, list = ns ? s.stops[side].map((g, k) => `${String.fromCharCode(65 + k)}: ${g.houses.length}`).join(', ') : '';
+    return `<div>${label ? `<div class="side">${t(label)}</div>` : ''}<div class="big">${M - n(TRUCK)} <small>/ ${M} ${t('houses')}</small></div>` +
+      `<div class="split"><span><b>${n(BOAT)}</b> ${t('by boat')}</span><span><b>${n(FOOT)}</b> ${t('on foot')}</span>` +
+      `${none ? `<span><b>${none}</b> ${t('no route')}</span>` : ''}</div>` +
+      (check ? `<div class="split check"><span><b>${check}</b> ${t('more look truck-reachable: check first')}</span></div>` : '') +
+      (ns ? `<div class="split stops"><span>${LANG === 'ko' ? `트럭 정차 지점 <b>${ns}</b>곳 (${list} 가구)`
+        : `truck stops at <b>${ns}</b> point${ns > 1 ? 's' : ''} (${list} houses)`}</span></div>` : '') + '</div>';
   };
-  const hint = state.picking ? '<p class="hint pick">Tap where the rescue team enters (road, yard or water).</p>'
-    : state.entryMsg ? `<p class="hint pick">${state.entryMsg}</p>`
-      : state.sel ? '' : '<p class="hint">Tap a house to send a rescue team.</p>';
-  $('counter').innerHTML = !M ? '<div class="lbl">No houses in this photo</div><p class="hint">Try the next photo: › (or the N key).</p>'
-    : !base() ? '<div class="lbl">No entry point in this photo: choose one</div>' + hint
-    : '<div class="lbl">Unreachable by road</div>' + (state.src === 'swipe'
+  const hint = state.picking ? `<p class="hint pick">${t('Tap where the rescue team enters (road, yard or water).')}</p>`
+    : state.entryMsg ? `<p class="hint pick">${t(state.entryMsg)}</p>`
+      : state.sel ? '' : `<p class="hint">${t('Tap a house to send a rescue team.')}</p>`;
+  $('counter').innerHTML = !M ? `<div class="lbl">${t('No houses in this photo')}</div><p class="hint">${t('Try the next photo: › (or the N key).')}</p>`
+    : !base() ? `<div class="lbl">${t('No entry point in this photo: choose one')}</div>` + hint
+    : `<div class="lbl">${t('Unreachable by road')}</div>` + (state.src === 'swipe'
       ? `<div class="duo">${block('pred', 'Prediction')}${block('gt', 'Labelled map')}</div>`
       : block(state.src, state.src === 'gt' ? 'Labelled map' : '')) + hint;
 }
@@ -409,27 +424,30 @@ function select(i, side, animate = true) {
   if (r) {
     const steps = [0, 0, 0];
     for (let k = 1; k < r.modes.length; k++) steps[r.modes[k]]++;
-    const parts = steps.map((n, m) => (n ? `${LEG[m].name} <b>${n}</b>` : null)).filter(Boolean);
+    const parts = steps.map((n, m) => (n ? `${t(LEG[m].name)} <b>${n}</b>` : null)).filter(Boolean);
     const e = eta(r, solR.grid, s.grid.eta, s.meta.m_per_cell);
     const km = (v) => (v >= 1000 ? `${(v / 1000).toFixed(1)} km` : `${Math.round(v / 10) * 10} m`);
-    const legs = e.metres.map((v, m) => (v > 0 ? `${LEG[m].name} ${km(v)}` : null)).filter(Boolean);
-    body += `<p class="eta">≈ <b>${Math.max(1, Math.round(e.minutes))} min</b> · ${legs.length ? legs.join(' → ') : 'at the entry point'}</p>`;
+    const legs = e.metres.map((v, m) => (v > 0 ? `${t(LEG[m].name)} ${km(v)}` : null)).filter(Boolean);
+    body += `<p class="eta">≈ <b>${Math.max(1, Math.round(e.minutes))} ${LANG === 'ko' ? '분' : 'min'}</b> · ${legs.length ? legs.join(' → ') : t('at the entry point')}</p>`;
     body += `<div class="legs">${steps.map((n, m) => `<span style="flex:${n};background:${LEG[m].color}"></span>`).join('')}</div>`;
-    body += `<p class="gtline">Route cost ${r.cost.toFixed(0)} (${parts.length ? parts.join(' → ') + ' cells' : 'no steps'})</p>`;
+    body += `<p class="gtline">${t('Route cost')} ${r.cost.toFixed(0)} (${parts.length ? parts.join(' → ') + ' ' + t('cells') : t('no steps')})</p>`;
   } else {
-    body += '<p>No truck, boat or walking route from the entry point on this map.</p>';
+    body += `<p>${t('No truck, boat or walking route from the entry point on this map.')}</p>`;
   }
   const agree = st === stO || state.nolabels;
-  if (!state.nolabels) body += `<p class="${agree ? 'gtline' : 'mismatch'}">${SIDE[other]}: ${WORD[stO]}${agree ? ' ✓' : ` (${SIDE[side].toLowerCase()} says ${WORD[st]})`}</p>`;
-  body += `<p class="gtline">${state.nolabels ? 'Predicted' : 'Label'}: ${CLASS_LABEL[s.ds][b.cls]} · ${SIDE[side]}${state.lam ? ', risk-aware truck' : ', shortest truck'}</p>`;
+  if (!state.nolabels) body += `<p class="${agree ? 'gtline' : 'mismatch'}">${t(SIDE[other])}: ${t(WORD[stO])}${agree ? ' ✓' : LANG === 'ko' ? ` (${t(SIDE[side])}: ${t(WORD[st])})` : ` (${SIDE[side].toLowerCase()} says ${WORD[st]})`}</p>`;
+  body += `<p class="gtline">${t(state.nolabels ? 'Predicted' : 'Label')}: ${t(CLASS_LABEL[s.ds][b.cls])} · ${t(SIDE[side])}, ${t(state.lam ? 'risk-aware truck' : 'shortest truck')}</p>`;
   const ts = s.meta.tier_stats, pct = (v) => `${Math.round(100 * v)} %`;
-  let kind = KIND[st], title = TITLE[st];
+  let kind = KIND[st], title = t(TITLE[st]);
+  const ko = LANG === 'ko';
   if (tr === 'CONFIDENT_TRUCK') {
-    title = 'Truck can reach it: confident';
-    if (ts) body = `<p class="tierline">Safe route: avoids land that may be wet. On the test photos ${pct(ts.confident)} of such houses were truly truck-reachable.</p>` + body;
+    title = t('Truck can reach it: confident');
+    if (ts) body = (ko ? `<p class="tierline">안전 경로: 젖었을 수 있는 땅을 피합니다. 테스트 사진에서 이런 가구의 ${pct(ts.confident)}가 실제로 트럭 도달 가능했습니다.</p>`
+      : `<p class="tierline">Safe route: avoids land that may be wet. On the test photos ${pct(ts.confident)} of such houses were truly truck-reachable.</p>`) + body;
   } else if (tr === 'PROBABLE_TRUCK') {
-    kind = 'check'; title = 'Probably reachable by truck: check first';
-    if (ts) body = `<p class="tierline warn">The only truck route crosses land that may be wet. On the test photos only ${pct(ts.probable)} of such houses were truly truck-reachable (confident tier: ${pct(ts.confident)}). Confirm by drone or radio before sending a truck.</p>` + body;
+    kind = 'check'; title = t('Probably reachable by truck: check first');
+    if (ts) body = (ko ? `<p class="tierline warn">유일한 트럭 경로가 젖었을 수 있는 땅을 지납니다. 테스트 사진에서 이런 가구는 ${pct(ts.probable)}만 실제로 트럭 도달 가능했습니다(확실 등급: ${pct(ts.confident)}). 트럭을 보내기 전에 드론이나 무전으로 확인하세요.</p>`
+      : `<p class="tierline warn">The only truck route crosses land that may be wet. On the test photos only ${pct(ts.probable)} of such houses were truly truck-reachable (confident tier: ${pct(ts.confident)}). Confirm by drone or radio before sending a truck.</p>`) + body;
   }
   // on disagreement, the other map's route as a dashed ghost (under this map's route)
   const rO = agree ? null : s.sol[other].route(b.goals);
@@ -438,8 +456,8 @@ function select(i, side, animate = true) {
       lineCap: 'round', lineJoin: 'round' }).addTo(groups.route);
     L.polyline(rO.cells.map(cellLL), { renderer: rend.route, color: getVar('--disagree'), weight: 3, opacity: 0.95,
       dashArray: '7 6', interactive: false, lineCap: 'butt', lineJoin: 'round' }).addTo(groups.route);
-    const mO = [...new Set(rO.modes.slice(1))].map(m => LEG[m].name).join(' → ');
-    body += `<p class="gtline"><span class="line ghostline"></span> ${SIDE[other]} route: ${mO || 'at the entry point'}</p>`;
+    const mO = [...new Set(rO.modes.slice(1))].map(m => t(LEG[m].name)).join(' → ');
+    body += `<p class="gtline"><span class="line ghostline"></span> ${t(SIDE[other])} ${LANG === 'ko' ? '경로' : 'route'}: ${mO || t('at the entry point')}</p>`;
   }
   card.innerHTML = `<h3><span class="st ${kind}" style="width:20px;height:20px">${SVG[KIND[st]]}</span>${title}</h3>${body}`;
   card.hidden = false;
@@ -575,7 +593,7 @@ function drawLegend() {
   const m = state.s.meta;
   const cols = classColors();
   $('legend').innerHTML = m.class_names.map((n, c) =>
-    `<li><span class="sw" style="background:rgb(${cols[c].join(',')})"></span>${n}</li>`).join('');
+    `<li><span class="sw" style="background:rgb(${cols[c].join(',')})"></span>${t(n)}</li>`).join('');
 }
 
 // ---------- colour-blind palette ----------
@@ -714,8 +732,8 @@ $('copyLink').addEventListener('click', async () => {
   writeHash();
   let ok = true;
   try { await navigator.clipboard.writeText(location.href); } catch { ok = false; }
-  $('copyLink').textContent = ok ? 'Link copied' : 'Copy the address bar';
-  setTimeout(() => { $('copyLink').textContent = 'Copy link to this view'; }, 1800);
+  $('copyLink').textContent = t(ok ? 'Link copied' : 'Copy the address bar');
+  setTimeout(() => { $('copyLink').textContent = t('Copy link to this view'); }, 1800);
 });
 $('opacity').addEventListener('input', () => { $('tClasses').checked = true; setOpacities(); });
 $('tClasses').addEventListener('change', setOpacities);
@@ -739,7 +757,7 @@ addEventListener('hashchange', applyHash);                          // back/forw
 function readHash() {
   const h = decodeURIComponent(location.hash.slice(1));
   const q = new URLSearchParams(h.includes('=') ? h : `s=${h}`);   // old links: #floodnet_7241
-  return Object.fromEntries(['s', 'h', 'e', 'm', 'l', 'r', 'cb'].map(k => [k, q.get(k)]));
+  return Object.fromEntries(['s', 'h', 'e', 'm', 'l', 'r', 'cb', 'lang'].map(k => [k, q.get(k)]));
 }
 
 function writeHash(push = false) {
@@ -751,6 +769,7 @@ function writeHash(push = false) {
   if (state.layer !== 'classes') q.push(`l=${state.layer}`);
   if (!state.lam) q.push('r=0');
   if (state.cb) q.push('cb=1');
+  if (LANG !== DEFAULT_LANG) q.push(`lang=${LANG}`);
   const url = `#${q.join('&')}`;
   if (url !== location.hash) history[push ? 'pushState' : 'replaceState'](null, '', url);
 }
@@ -760,6 +779,7 @@ async function applyHash() {
   if (!state.s || (p.s && p.s !== state.key)) await loadScene(p.s);
   if (p.r != null && (p.r !== '0') !== Boolean(state.lam)) { $('tRisk').checked = p.r !== '0'; state.lam = p.r === '0' ? 0 : 5; solve(); }
   if (p.l) setLayer(p.l);
+  if (p.lang && p.lang !== LANG && ['en', 'ko'].includes(p.lang)) relabel(p.lang);
   if (p.cb != null && (p.cb === '1') !== state.cb) { state.cb = p.cb === '1'; $('tCb').checked = state.cb; await applyPalette(); }
   if (p.m && ['pred', 'gt', 'swipe'].includes(p.m)) setSource(p.m);
   if (p.e) {
@@ -773,7 +793,18 @@ async function applyHash() {
   writeHash();
 }
 
+// ---------- language (English / 한국어) ----------
+function relabel(lang) {
+  setLang(lang);
+  $('langBtn').textContent = LANG === 'ko' ? 'English' : '한국어';
+  if (!state.s) return;
+  drawCaption(); drawLegend(); drawBase(); drawCounter(); drawHouseList();
+  if (state.sel) select(state.sel.i, state.sel.side, false);
+}
+$('langBtn').addEventListener('click', () => { relabel(LANG === 'ko' ? 'en' : 'ko'); writeHash(); });
+
 (async () => {
+  relabel(LANG);
   if (innerWidth <= 760) { $('panel').classList.add('collapsed'); $('sheetToggle').setAttribute('aria-expanded', 'false'); }
   await loadIndex();
   drawBrowse();

@@ -1,0 +1,131 @@
+// Korean interface (PLAN §16, D4). Keys are the English strings, so English needs no table and stays exactly as before.
+// Language: &lang=ko / &lang=en in the address, else the browser's language; the header button switches it.
+
+const KO = {
+  // static page (index.html, data-i18n)
+  'Loading…': '불러오는 중…',
+  'Controls': '설정',
+  'Showcase': '대표 장면',
+  'All test photos': '전체 테스트 사진',
+  'Sort': '정렬',
+  'by photo id': '사진 번호순',
+  'most houses cut off': '고립 가구 많은 순',
+  'most disagreements': '불일치 많은 순',
+  'lowest mean IoU': '평균 IoU 낮은 순',
+  'Copy link to this view': '이 화면 링크 복사',
+  'Map': '지도',
+  'Prediction': '예측',
+  'Labelled map': '라벨 지도',
+  'Swipe': '비교',
+  'Classes': '클래스',
+  'Water probability': '물 확률',
+  'Overlay': '오버레이',
+  'House status': '가구 상태',
+  'Disagreements with the labelled map': '라벨 지도와의 불일치',
+  'Entry points': '진입 지점',
+  'Risk-aware truck (avoid likely water)': '위험 회피 트럭 (물 가능성 지역 회피)',
+  'Colour-blind palette': '색각 이상 팔레트',
+  'Houses': '가구',
+  'Download house list (CSV)': '가구 목록 내려받기 (CSV)',
+  'Entry point': '진입 지점',
+  'Rescue team enters:': '구조대 진입:',
+  'Choose on map': '지도에서 선택',
+  'Auto': '자동',
+  'Legend': '범례',
+  'Reachable by truck (confident)': '트럭으로 도달 가능 (확실)',
+  'Probably by truck: check first': '트럭 가능성 있음: 먼저 확인',
+  'Boat needed': '보트 필요',
+  'Last stretch on foot': '마지막 구간 도보',
+  'No route: air team': '경로 없음: 항공 구조',
+  'Truck': '트럭', 'Boat': '보트', 'Foot': '도보',
+  'Route on the other map, when they disagree': '두 지도가 다를 때 다른 지도의 경로',
+  'Entry point (truck or boat)': '진입 지점 (트럭 또는 보트)',
+  'About': '소개',
+  'Previous photo': '이전 사진', 'Next photo': '다음 사진', 'Dataset': '데이터셋', 'Sort the test photos': '테스트 사진 정렬',
+  'Test photos': '테스트 사진', 'Map source': '지도 종류', 'Overlay opacity': '오버레이 불투명도',
+  'Houses in this photo: arrow keys to move, Enter to send a team': '이 사진의 가구: 화살표 키로 이동, Enter로 구조대 보내기',
+  'Drone photo with flood map': '침수 지도가 표시된 드론 사진',
+  'Drag to compare the prediction and the labelled map': '끌어서 예측과 라벨 지도 비교',
+  'The same router on the human labels': '사람이 만든 라벨에 같은 경로 탐색기를 적용한 결과',
+  "The model's water probability per cell (prediction only)": '셀별 모델의 물 확률 (예측만)',
+  'Every house of this photo with its status, tier, minutes and metres per mode (prediction; labelled map alongside)':
+    '이 사진의 모든 가구: 상태, 신뢰 등급, 소요 시간(분), 수단별 거리(m) (예측; 라벨 지도 함께)',
+  'About text': `드론 사진의 각 픽셀을 <b>Chameleon</b>이 다섯 가지 클래스로 분류합니다. 학습에는 라벨이 있는 사진
+    <b>50장</b>(FloodNet) 또는 20장(RescueNet)만 사용했고, 데이터셋마다 라벨이 있는 검증 사진 30장으로 체크포인트,
+    임계값, 경로 설정을 골랐습니다. 이어서 4×4 픽셀 셀 위에서 경로 탐색기가 진입 지점에서 각 가구까지 가장 싼 길을
+    찾습니다: 마른 땅은 트럭(도로, 또는 비용 4배의 마당; 물일 가능성이 높은 곳은 제외), 물은 보트, 마지막 구간은 도보
+    (다시 차량으로 돌아가지 않음). 차량에는 폭이 있어 트럭은 건물 사이 약 2.5 m, 보트는 약 1.6 m가 필요하므로 두 집
+    사이 틈은 지나가지 못하고 사람은 걸어서 지나갈 수 있습니다. 라벨 지도는 사람이 만든 라벨에 같은 경로 탐색기를 적용한
+    것입니다: 데이터셋은 픽셀에 라벨을 달았을 뿐, 도달 가능성에 라벨을 단 것이 아닙니다.`,
+  'About confidence': `신뢰도: 예측 지도를 두 번 경로 탐색합니다. 보통 규칙(FloodNet은 p_wet &lt; 0.3, RescueNet은 0.2인
+    땅만 도로 밖 주행 허용)과 신중한 규칙(p_wet &lt; 0.05 / 0.15)입니다. 신중한 지도에서도 트럭이 닿는 가구는 '확실'
+    (FloodNet 테스트 사진에서 100 % 실제로 트럭 도달 가능)이고, 나머지는 '먼저 확인'(79 %)으로 표시합니다. 트럭으로
+    도달 가능하다고 표시된 가구의 약 11 %는 실제로는 그렇지 않았습니다(대부분 모델이 놓친 물을 지나는 경로). 소요 시간과
+    거리는 대략적인 추정입니다(도로 트럭 20 km/h, 도로 밖 5, 보트 6, 도보 3; 축척은 사진 속 자동차 기준).`,
+  'About numbers': `FloodNet 50-shot: 전체 448장 테스트에서 mIoU .51 (라벨 1,445장으로 학습한 PSPNet: 같은 클래스에서 .85).
+    대표 장면 하나는 정직한 실패 사례입니다: 얕은 물을 마른 땅으로 읽었습니다.`,
+  'About browse': `8개 대표 장면 외에 평가 세트의 테스트 사진 200장(FloodNet 100, RescueNet 100) 전체를 볼 수 있으며,
+    우리가 고른 것이 아닙니다. 주황색 숫자는 예측 지도에서 트럭이 닿지 못하는 가구 수, 분홍색 점은 예측과 라벨 지도가 다른
+    사진입니다. '물 확률'은 모델이 셀마다 믿는 값을 보여 줍니다. 주소창에 장면, 가구, 진입 지점, 보기가 저장되므로 링크를
+    열면 같은 화면이 열립니다.`,
+  // dynamic (app.js)
+  'truck': '트럭', 'boat': '보트', 'on foot': '도보', 'no route': '경로 없음',
+  'Truck can reach it': '트럭으로 도달 가능', 'Truck can reach it: confident': '트럭으로 도달 가능: 확실',
+  'Boat needed': '보트 필요', 'No route: send an air team': '경로 없음: 항공 구조대 투입',
+  'Probably reachable by truck: check first': '트럭으로 도달 가능성 있음: 먼저 확인',
+  'truck, check first': '트럭, 먼저 확인', 'truck (confident)': '트럭 (확실)',
+  'flooded building': '침수 건물', 'dry building': '미침수 건물', 'intact building': '온전한 건물', 'damaged building': '피해 건물',
+  'Unreachable by road': '도로로 도달 불가', 'houses': '가구', 'by boat': '보트', 'no route ': '경로 없음',
+  'more look truck-reachable: check first': '가구는 트럭 가능해 보임: 먼저 확인',
+  'No houses in this photo': '이 사진에는 가구가 없습니다', 'Try the next photo: › (or the N key).': '다음 사진을 보세요: › (또는 N 키).',
+  'No entry point in this photo: choose one': '이 사진에는 진입 지점이 없습니다: 직접 고르세요',
+  'Tap a house to send a rescue team.': '가구를 눌러 구조대를 보내세요.',
+  'Tap where the rescue team enters (road, yard or water).': '구조대가 진입할 곳을 누르세요 (도로, 마당 또는 물).',
+  'That is a building: tap a road, a yard or water.': '건물입니다: 도로, 마당 또는 물을 누르세요.',
+  'truck stops at': '트럭 정차 지점', 'point': '곳', 'points': '곳',
+  'No truck, boat or walking route from the entry point on this map.': '이 지도에서는 진입 지점에서 트럭, 보트, 도보 경로가 없습니다.',
+  'at the entry point': '진입 지점',
+  'Link copied': '링크 복사됨', 'Copy the address bar': '주소창을 복사하세요',
+  'House': '가구', 'Predicted': '예측', 'Label': '라벨',
+  'risk-aware truck': '위험 회피 트럭', 'shortest truck': '최단 트럭',
+  'road clear': '통행 가능 도로', 'road flooded': '침수 도로', 'building flooded': '침수 건물', 'building dry': '미침수 건물',
+  'road blocked': '막힌 도로', 'building intact': '온전한 건물', 'building damaged': '피해 건물', 'water': '물',
+  'Hurricane Harvey, Texas 2017': '허리케인 하비, 텍사스 2017', 'Hurricane Michael, Florida 2018': '허리케인 마이클, 플로리다 2018',
+  'Route cost': '경로 비용', 'cells': '셀', 'no steps': '이동 없음',
+  'Previous photo (P)': '이전 사진 (P)', 'Next photo (N)': '다음 사진 (N)',
+};
+
+const params = () => new URLSearchParams(location.hash.slice(1));
+
+export const DEFAULT_LANG = (navigator.language || '').toLowerCase().startsWith('ko') ? 'ko' : 'en';
+export let LANG = ['en', 'ko'].includes(params().get('lang')) ? params().get('lang') : DEFAULT_LANG;
+
+export function t(s) {
+  return LANG === 'ko' && KO[s] !== undefined ? KO[s] : s;
+}
+
+export function setLang(lang) {
+  LANG = lang;
+  document.documentElement.lang = lang;
+  applyStatic();
+}
+
+/** translate the static page: data-i18n (text), data-i18n-html (HTML), data-i18n-attr="attr:key|attr:key" */
+export function applyStatic() {
+  for (const el of document.querySelectorAll('[data-i18n]')) {
+    el.dataset.en ??= el.textContent;
+    el.textContent = t(el.dataset.en);
+  }
+  for (const el of document.querySelectorAll('[data-i18n-html]')) {
+    el.dataset.en ??= el.innerHTML;
+    el.innerHTML = LANG === 'ko' && KO[el.dataset.i18nHtml] ? KO[el.dataset.i18nHtml] : el.dataset.en;
+  }
+  for (const el of document.querySelectorAll('[data-i18n-attr]')) {
+    for (const pair of el.dataset.i18nAttr.split('|')) {
+      const attr = pair.split(':')[0];
+      const key = `en_${attr.replace(/-/g, '_')}`;
+      el.dataset[key] ??= el.getAttribute(attr) || '';
+      el.setAttribute(attr, t(el.dataset[key]));
+    }
+  }
+}
