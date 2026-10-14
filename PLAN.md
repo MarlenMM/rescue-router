@@ -882,6 +882,15 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
   (water .098 both; `report/transfer.md`). On the two unseen OpenAerialMap photos (no labels) the baseline finds the
   flat roofs Chameleon missed but reads parts of Vijayawada's brown floodwater street as clear road, which Chameleon
   got right (`results/baselines/report/oam_baseline_vijayawada_jamaica.jpg`; anecdotal, 2 photos).
+- **Pre-flights (14 Oct 22:45, MPS, toy size, the amended plans): `curve` OK (9 of 10 groups, 36 steps; the 50-support
+  prediction swaps on this Mac as before), `var` OK (4 groups, 16 steps).** `kaggle/phase2/launch_check.py <session>`
+  checks the whole launch list read-only; rebuild the kernel from HEAD right before a push.
+- **If the product moves to the baseline** (Marlen's decision after confirm100): the registered rules applied to it on
+  val30 ∪ confirm100 keep the off-road gate 0.3 (pooled F1 .896; `results/baselines/report/router_sweep/`; gate 0.1
+  would halve its eval100 false safe, .061 → .033, at the same F1, but the rule chooses on val30 ∪ confirm100), and no
+  cautious gate reaches the 99 % target: 0.05 gives 409 "confident" eval100 houses at 97.3 % (Chameleon: 208 at 100 %;
+  `results/baselines/report/tiers/`). Its confident tier would need another safeguard first. CPU uploads:
+  `gradio_app.py / gradio_viewer.py --live_baseline <ckpt>` (tested end to end).
 - **Proposed, needs Marlen's OK (downloads):** an offline mode for the viewer: the chosen small baseline exported to ONNX
   (needs the `onnx` / `onnxscript` Python packages) and run in the browser with onnxruntime-web (vendored, ~10-20 MB),
   then decode → routing grids → the existing JS router, all on the device: no GPU server, no photo upload, works
