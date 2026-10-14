@@ -16,7 +16,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--slug', required=True)
     ap.add_argument('--plan', required=True)
-    ap.add_argument('--sources', default='')
+    ap.add_argument('--sources', default='', help='kernel outputs to mount')
+    ap.add_argument('--datasets', default='', help='datasets to mount (small private ones mount reliably)')
     ap.add_argument('--start_limit', type=float, default=3.0)
     ap.add_argument('--setup', default='', help='python lines run after setup (e.g. copy inputs)')
     a = ap.parse_args()
@@ -35,7 +36,7 @@ def main():
     os.makedirs(out, exist_ok=True)
     open(os.path.join(out, 'run_b13_kaggle.py'), 'w').write(s)
     meta = dict(id=f'marlenmelis/{a.slug}', title=a.slug, code_file='run_b13_kaggle.py', language='python', kernel_type='script',
-                is_private=True, enable_gpu=True, enable_internet=True, machine_shape='NvidiaTeslaT4', dataset_sources=[],
+                is_private=True, enable_gpu=True, enable_internet=True, machine_shape='NvidiaTeslaT4', dataset_sources=[x for x in a.datasets.split(',') if x],
                 competition_sources=[], kernel_sources=['marlenmelis/rr-fetch-data'] + [x for x in a.sources.split(',') if x],
                 model_sources=[])
     json.dump(meta, open(os.path.join(out, 'kernel-metadata.json'), 'w'), indent=1)

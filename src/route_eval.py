@@ -58,9 +58,13 @@ def main():
     ap.add_argument('--point_vehicles', action='store_true',
                     help='no vehicle widths, car closing, canopy or corner rule (the router before 6 Oct Batch 1)')
     ap.add_argument('--router', default='{}', help='JSON overrides of router parameters (ablations), both maps')
+    ap.add_argument('--router_pred', default='{}',
+                    help='JSON overrides for the predicted map only (safety rules; the labelled-map reference unchanged)')
     ap.add_argument('--ring', type=int, default=2)
     ap.add_argument('--min_area', type=int, default=150)
     ap.add_argument('--out', default=None)
+    ap.add_argument('--calibration', default=None,
+                    help='calibration.json (calibrate.py): the router sees Platt-scaled probabilities (risk, gate, boat)')
     a = ap.parse_args()
     if a.offroad_maxwet is None:
         a.offroad_maxwet = PRED_OFFROAD_MAXWET[a.dataset]
@@ -76,6 +80,9 @@ def main():
     if a.decode:
         dec = json.load(open(a.decode))
     lams = [float(x) for x in a.lams.split(',')]
+    cal = json.load(open(a.calibration))['platt'] if a.calibration else None
+    if cal is not None:
+        from calibrate import apply_platt
 
     NS = len(R.STATUS)
     cm_gt = np.zeros((NS, NS), np.int64)
@@ -105,9 +112,12 @@ def main():
             probs = P[i]
             pred = decode_photo(probs.astype(np.float32) / 255, dec, img=photo(a.data, a.dataset, split, i),
                                 split_file=a.split_file, photo_id=i, root=a.repo)
+            if cal is not None:
+                probs = np.round(apply_platt(probs.astype(np.float32) / 255, cal) * 255).astype(np.uint8)
             pc, pp = R.cell_classes(pred), R.cell_probs(probs)
             for lam in lams:
-                cm, recs = R.route_metrics(R.Grid(pc, pp, a.dataset, lam=lam, offroad=a.offroad or None, foot_cost=foot, **phys,
+                cm, recs = R.route_metrics(R.Grid(pc, pp, a.dataset, lam=lam, offroad=a.offroad or None, foot_cost=foot,
+                                                  **{**phys, **json.loads(a.router_pred)},
                                            offroad_maxwet=None if a.offroad_maxwet < 0 else a.offroad_maxwet), ggrid[lam], base, blds)
                 acc[lam][0][...] += cm
                 acc[lam][1].extend(dict(r, image=i) for r in recs)
@@ -123,6 +133,7 @@ def main():
                                                          'offroad_maxwet': None if a.offroad_maxwet < 0 else a.offroad_maxwet,
                                                          'foot_cost': None if a.foot_cost < 0 else a.foot_cost,
                                                          **(R.POINT_VEHICLES if a.point_vehicles else {}), **json.loads(a.router)},
+               router_pred=json.loads(a.router_pred),
                gt_status_counts=dict(zip(R.STATUS, gt_counts.tolist())),
                base_mode_counts={m: sum(r['base'] == m for r in per_img) for m in ('TRUCK', 'BOAT', None)},
                gt_vs_gt_agreement=float(np.trace(cm_gt) / max(cm_gt.sum(), 1)),

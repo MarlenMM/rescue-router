@@ -59,6 +59,17 @@ backup (`src/backup.py pack` + `release/backup/upload.sh`).
 3. **F2**: if the submitted model's confirm100 mIoU is more than .03 below its val30 (.516), every val30-based claim in
    the write-up is marked as possibly optimistic.
 
+## Router parameters (added 14 Oct, before any confirm100 prediction exists)
+
+val30 cannot choose router parameters: it holds 52 stranded houses and every off-road gate from 0.3 up gives the same
+stranded F1 (.980). Once the curve session has predicted confirm100 with the submitted model, the off-road gate is
+re-chosen on val30 ∪ confirm100 (130 photos) from {none, .5, .3, .2, .15, .1} by max stranded F1, and replaces 0.3 only
+if its false-safe rate on the same photos is not higher; it is then reported on eval100 and the full test with the
+paired bootstrap (`src/router_sweep.py --splits val30,confirm100,eval100`). F2 (segmentation) is unaffected: confirm100
+plays no part in choosing the decode. Not candidates (measured 14 Oct, `results/routing/router_sweep/`): calibrated
+wetness for the router (no change on eval100) and a limit on off-road distance (false safe .119 → .010 but stranded F1
+.819 → .658: a precision/recall trade-off that the confident tier already offers).
+
 ## Deviation log
 
 (none yet)
