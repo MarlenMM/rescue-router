@@ -83,6 +83,11 @@ def _photos(a, pc, fb, sf_c):
         yield Pc, cls_c, {b: pb[b][i].astype(np.float32) / 255 for b in pb}, g
 
 
+def choose_best(order, score, labels):
+    """the registered rule: highest score (6 decimals); ties -> fewer labels, then the earlier (simpler) candidate"""
+    return max(order, key=lambda n: (round(score[n], 6), -labels[n], -order.index(n)))
+
+
 def mix(w, cham, base):
     return base if w == 0 else w * cham + (1 - w) * base
 
@@ -146,8 +151,7 @@ def main():
             res[name]['choice_score'] = summarize(pooled, NAMES, WET['floodnet'])['miou']
         print(name, {k: round(v['miou'], 4) for k, v in res[name].items() if isinstance(v, dict) and 'miou' in v}, flush=True)
     if protocol:
-        order = list(cands)                          # insertion order = tie-break (fewer labels / simpler first)
-        best = max(order, key=lambda n: (round(res[n]['choice_score'], 6), -info[n]['labels'], -order.index(n)))
+        best = choose_best(list(cands), {n: res[n]['choice_score'] for n in cands}, {n: info[n]['labels'] for n in cands})
     else:
         best = max((n for n in cands), key=lambda n: info[n]['val30_tuned'])
     tag = '' if not protocol else '_choice_baselines' if a.baselines_only else '_choice'
