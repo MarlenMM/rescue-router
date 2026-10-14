@@ -14,6 +14,8 @@ runs the whole (small) matching module in fp32 when fp16 autocast is active.
 
 import numpy as np
 
+from rr import device as D
+
 
 class _Interp2d:
     def __init__(self, x, y, z, kind='cubic'):
@@ -46,7 +48,7 @@ def patch_vit_attention_fp16():
         qkv = self.qkv(x, b_idx=b_idx).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)
         if q.dtype == torch.float16:        # under fp16 autocast (x itself may be fp32 after LayerNorm)
-            with torch.autocast('cuda', enabled=False):
+            with torch.autocast(D.DEVICE, enabled=False):
                 attn = ((q.float() * self.scale) @ k.float().transpose(-2, -1)).softmax(dim=-1).to(v.dtype)
         else:                               # original code
             attn = (q @ k.transpose(-2, -1)) * self.scale
@@ -62,6 +64,8 @@ def patch_vit_attention_fp16():
 
 def _fp16_autocast():
     import torch
+    if D.DEVICE != 'cuda':
+        return torch.is_autocast_enabled(D.DEVICE) and torch.get_autocast_dtype(D.DEVICE) == torch.float16
     get = getattr(torch, 'get_autocast_dtype', None)
     dtype = get('cuda') if get else torch.get_autocast_gpu_dtype()
     return torch.is_autocast_enabled() and dtype == torch.float16
@@ -82,7 +86,7 @@ def patch_matching_fp32():
     def forward(self, *args, **kwargs):
         if not _fp16_autocast():
             return orig(self, *args, **kwargs)
-        with torch.autocast('cuda', enabled=False):
+        with torch.autocast(D.DEVICE, enabled=False):
             return orig(self, *up(args), **{k: up(v) for k, v in kwargs.items()})
 
     MatchingModule.forward = forward

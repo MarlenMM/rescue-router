@@ -124,6 +124,10 @@ def main():
     out_dir = os.path.join(a.results, 'decode')
     os.makedirs(out_dir, exist_ok=True)
     vals = sorted(glob.glob(os.path.join(a.results, 'preds', '*_val_tune30.npz')))
+    # runs predicted by predict.py --amp fp16 only (Phase 2): their val30 cache carries the _fp16 suffix; snapshot
+    # caches (_step<N>) are not runs and stay out
+    vals += sorted(f for f in glob.glob(os.path.join(a.results, 'preds', '*_val_tune30_fp16.npz'))
+                   if '_step' not in os.path.basename(f) and f.replace('_fp16.npz', '.npz') not in vals)
     for v in vals:
         run = os.path.basename(v).split('_floodnet_val')[0].split('_rescuenet_val')[0]
         if a.runs and run not in a.runs.split(','):

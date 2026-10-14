@@ -41,6 +41,7 @@ import torch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+from rr import device as D  # noqa: E402
 
 NAMES = {'floodnet': ['road_clear', 'road_flooded', 'bldg_flooded', 'bldg_dry', 'water'],
          'rescuenet': ['road_clear', 'road_blocked', 'bldg_intact', 'bldg_damaged', 'water']}
@@ -53,6 +54,10 @@ def parse():
     ap.add_argument('--shot', type=int, default=20)
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--sel', default='stratified')
+    ap.add_argument('--eval_shot', type=int, default=0,
+                    help='supports used at prediction (default: --shot); e.g. 100-shot training predicts with the first 50')
+    ap.add_argument('--support_seed', type=int, default=-1,
+                    help='support draw supports/<dataset>_<sel>_s<k>.txt (default: --seed; else _sup<k> in the run id)')
     ap.add_argument('--n_steps', type=int, default=2000)
     ap.add_argument('--gbs', type=int, default=2)
     ap.add_argument('--lr', type=float, default=1e-3)
@@ -103,6 +108,8 @@ def parse():
 def setup_chameleon(chameleon_dir, run_root):
     sys.path.insert(0, chameleon_dir)
     os.chdir(chameleon_dir)
+    from rr.device import use_device
+    use_device()                               # non-CUDA: the starter's .cuda() calls go to MPS/CPU
     import starter_utils as su
     from downstream.custom import register_custom
     from rr.compat import patch_matching_fp32, patch_scipy_interp2d, patch_vit_attention_fp16
@@ -130,7 +137,7 @@ def evaluate(model, data_root, split, ids, names, wet, tau=0.5, keep_probs=True,
         cm += confusion(decode(P, tau), gt_classes(lab))
         if keep_probs:
             probs_all.append(np.round(P * 255).astype(np.uint8))
-    torch.cuda.synchronize()
+    D.sync()
     t_img = (time.time() - t0) / max(len(ids), 1)
     model.model.reset_support()
     model.train()
@@ -143,9 +150,10 @@ def main():
     a = parse()
     sys.path.insert(0, a.chameleon)            # rr.data imports chameleon's downstream.custom
     from rr.data import build_run_folder, read_ids
+    from rr.runs import run_name
     from rr.metrics import WET
-    run_id = f'{a.dataset}_{a.shot}shot_s{a.seed}_{a.sel}' + ('' if a.res == 'r768' else f'_{a.res}') \
-        + (f'_{a.tag}' if a.tag else '')
+    run_id = run_name(a.dataset, a.shot, a.seed, a.sel, a.res, a.tag, a.support_seed)
+    sup_seed = a.seed if a.support_seed < 0 else a.support_seed
     for d in ('ckpt', 'metrics', 'logs', 'preds'):
         os.makedirs(os.path.join(a.drive, d), exist_ok=True)
     f_ckpt = os.path.join(a.drive, 'ckpt', f'{run_id}.ckpt')
@@ -161,7 +169,7 @@ def main():
         return
 
     data_root = os.path.join(a.data, f'{a.dataset}_{a.res}')
-    supports = read_ids(os.path.join(a.drive, 'supports', f'{a.dataset}_{a.sel}_s{a.seed}.txt'))[:a.shot]
+    supports = read_ids(os.path.join(a.drive, 'supports', f'{a.dataset}_{a.sel}_s{sup_seed}.txt'))[:a.shot]
     val_file = a.val_split or f'{a.dataset}_val_tune30'
     val_ids = read_ids(os.path.join(a.drive, 'splits', f'{val_file}.txt')) if val_file else []
     val_split = 'val'
@@ -187,7 +195,7 @@ def main():
         extra['separate_alpha'] = True
     if a.lr_pretrained is not None:
         extra['lr_pretrained'] = a.lr_pretrained
-    cfg = su.build_config(stage=1, dataset='custom', n_tasks=5, loss_type='bce', shot=a.shot + len(pseudo), eval_shot=a.shot,
+    cfg = su.build_config(stage=1, dataset='custom', n_tasks=5, loss_type='bce', shot=a.shot + len(pseudo), eval_shot=a.eval_shot or a.shot,
                           img_size=384, base_size=[H, W], global_batch_size=a.gbs, n_steps=a.n_steps, lr=a.lr,
                           lr_schedule=a.lr_schedule,
                           channel_sampling=a.channel_sampling, seed=a.seed, chunk_size=a.chunk,
@@ -198,6 +206,8 @@ def main():
         FloodLearner.pos_weight = [float(w) for w in a.pos_weight.split(',')]
     FloodLearner.dice = a.dice
     model, cfg = su.load_chameleon(cfg, a.mt_ckpt, verbose=False)
+    if sup_seed != a.seed:                      # saved with the checkpoint: predict.py finds the same supports
+        cfg.rr_support_seed = model.config.rr_support_seed = sup_seed
     if a.attn_dropout is not None:
         for attn in model.model.matching_module.matching:
             attn.attn_dropout.p = a.attn_dropout
@@ -224,11 +234,11 @@ def main():
         print(f'[{run_id}] trainable tensors: {sum(v.requires_grad for v in model.parameters())}, '
               f'{sum(v.numel() for v in model.parameters() if v.requires_grad) / 1e6:.2f} M values', flush=True)
     from rr.infer import amp_context
-    scaler = torch.amp.GradScaler('cuda', enabled=a.amp == 'fp16')
+    scaler = torch.amp.GradScaler(D.DEVICE, enabled=a.amp == 'fp16')
     autocast = (lambda: amp_context(a.amp)) if a.amp != 'none' else contextlib.nullcontext
 
-    log = dict(run_id=run_id, code_version=a.code_version, gpu=torch.cuda.get_device_name(0),
-               gpu_mem_gb=round(torch.cuda.get_device_properties(0).total_memory / 1024 ** 3, 1),
+    log = dict(run_id=run_id, code_version=a.code_version, gpu=D.name(),
+               gpu_mem_gb=round(D.total_gb(), 1),
                args=vars(a), supports=supports, val_split=val_file, losses=[], val=[], timing={},
                started=time.strftime('%Y-%m-%d %H:%M:%S'))
     start, st = 0, {}
@@ -257,7 +267,7 @@ def main():
     trained = [(k, v) for k, v in model.named_parameters() if k in names]
     ema = {k: v.detach().float().clone() for k, v in trained} if a.ema else None
     if ema is not None and os.path.exists(f_last) and st.get('ema'):
-        ema = {k: v.cuda() for k, v in st['ema'].items()}
+        ema = {k: v.to(D.DEVICE) for k, v in st['ema'].items()}
 
     def save_ema(step):
         live = {k: v.detach().clone() for k, v in trained}
@@ -272,7 +282,7 @@ def main():
     loader = model.learner.get_train_loader()
     it = iter(loader)
     model.train()
-    torch.cuda.reset_peak_memory_stats()
+    D.reset_peak()
     t_win, run_loss, n_skip = time.time(), [], 0
     for step in range(start, a.n_steps):
         try:
@@ -280,7 +290,7 @@ def main():
         except StopIteration:
             it = iter(loader)
             batch = next(it)
-        batch = to_device(batch, 'cuda')
+        batch = to_device(batch, D.DEVICE)
         if a.accum == 1:
             with autocast():
                 Y_pred, Y_q, M_q, _ = model(batch)
@@ -297,7 +307,7 @@ def main():
                     except StopIteration:
                         it = iter(loader)
                         batch = next(it)
-                    batch = to_device(batch, 'cuda')
+                    batch = to_device(batch, D.DEVICE)
                 with autocast():
                     Y_pred, Y_q, M_q, _ = model(batch)
                     loss_j, _ = model.learner.compute_loss(Y_pred, Y_q, M_q)
@@ -316,12 +326,12 @@ def main():
         run_loss.append(loss.item())
         done = step + 1
         if done % a.log_every == 0:
-            torch.cuda.synchronize()
+            D.sync()
             dt = time.time() - t_win
             log['losses'].append(dict(step=done, loss=float(np.mean(run_loss)), s_per_50=round(dt * 50 / a.log_every, 2),
                                       **(dict(scale=scaler.get_scale(), skipped=int(n_skip)) if scaler.is_enabled() else {})))
             log['timing'].setdefault('train_s_per_50_steps', round(dt * 50 / a.log_every, 2))
-            log['timing']['train_peak_gb'] = round(torch.cuda.max_memory_allocated() / 1024 ** 3, 2)
+            log['timing']['train_peak_gb'] = round(D.peak_gb(), 2)
             print(f'[{run_id}] step {done} loss {np.mean(run_loss):.4f} ({dt:.1f}s / {a.log_every} steps, '
                   f'peak {log["timing"]["train_peak_gb"]} GB' +
                   (f', scale {scaler.get_scale():g}, skipped {n_skip})' if scaler.is_enabled() else ')'), flush=True)

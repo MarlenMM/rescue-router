@@ -22,6 +22,8 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from rr.runs import run_name  # noqa: E402
 
 
 def main():
@@ -30,13 +32,14 @@ def main():
     ap.add_argument('--shot', type=int, default=50)
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--sel', default='stratified')
+    ap.add_argument('--support_seed', type=int, default=-1)
     ap.add_argument('--drive', required=True)
     ap.add_argument('--tag', default='')
     ap.add_argument('--min_step', type=int, default=0)
     ap.add_argument('--steps', default='', help='comma list: validate only these steps')
     a, rest = ap.parse_known_args()
     rest = [r for r in rest if r != '--']
-    run_id = f'{a.dataset}_{a.shot}shot_s{a.seed}_{a.sel}' + (f'_{a.tag}' if a.tag else '')
+    run_id = run_name(a.dataset, a.shot, a.seed, a.sel, tag=a.tag, support_seed=a.support_seed)
     val_file = f'{a.dataset}_val_tune30'
     ck = os.path.join(a.drive, 'ckpt')
     step_of = lambda f: int(re.search(r'_step(\d+)\.ckpt$', f).group(1))

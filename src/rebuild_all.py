@@ -64,6 +64,8 @@ STEPS = {
     'tiers': ([py('tiers.py')], ['decode'], 'routing/tiers/: confidence tiers, cautious gate, p_wet calibration'),
     'calibration': ([py('calibrate.py', '--results', R, '--out', f'{REP}/calibration')], ['decode'],
                     'report/calibration/: per-class Platt scaling, ECE, plain-0.5 decode (PLAN §16 B3)'),
+    'prior_decode': ([py('prior_decode.py', '--results', R, '--out', f'{REP}/prior_decode')], ['decode'],
+                     'report/prior_decode/: thresholds from the 50 training labels only (PLAN §16 F1)'),
     'sensitivity': ([py('sensitivity.py')], ['decode'], 'routing/sensitivity/: cost independence, sensitivity, detection'),
     'dupes': ([py('dupes.py')], [], 'report/dupes/: near-duplicate test/support photos'),
     'bootstrap': ([py('bootstrap_ci.py')], ['decode', 'dupes', 'route_report', 'route_full'], 'report/ci/: bootstrap CIs'),

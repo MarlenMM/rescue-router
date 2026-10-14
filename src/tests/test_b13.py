@@ -200,3 +200,12 @@ def test_final_decode_lazy_photo_only_when_needed():
     gf = {'tau': [0.5] * 5, 'gf': [2, 1e-3]}
     decode_photo(P, gf, img=loader)
     assert calls == [1] and needs_photo(gf)
+
+
+def test_run_name_support_seed():
+    from rr.runs import run_name, support_seed_of
+    assert run_name('floodnet', 50, 0) == 'floodnet_50shot_s0_stratified'            # published names unchanged
+    assert run_name('floodnet', 50, 1, support_seed=1) == 'floodnet_50shot_s1_stratified'
+    assert run_name('floodnet', 50, 1, support_seed=2, tag='p2') == 'floodnet_50shot_s1_stratified_sup2_p2'
+    assert support_seed_of(types.SimpleNamespace(seed=3)) == 3
+    assert support_seed_of(types.SimpleNamespace(seed=3, rr_support_seed=1)) == 1

@@ -29,6 +29,7 @@ import torch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+from rr import device as D  # noqa: E402
 from finetune import NAMES, SUPPORT_SPLIT, setup_chameleon  # noqa: E402
 
 
@@ -64,6 +65,7 @@ def main():
     a = ap.parse_args()
     sys.path.insert(0, a.chameleon)
     from rr.data import build_run_folder, load_query, read_ids
+    from rr.runs import support_seed_of
     from rr.infer import compile_encoder, encode_support, predict_multiscale, predict_views, set_support_crop
     from rr.metrics import WET, confusion, decode, gt_classes, summarize
 
@@ -85,7 +87,7 @@ def main():
     if not (a.no_save or a.force) and os.path.exists(os.path.join(a.drive, 'preds', f'{tag}.npz')):
         print(f'[{tag}] cached already, skipping')
         return
-    seed, sel = ck.seed, run_id.split('_')[3] if len(run_id.split('_')) > 3 else 'stratified'
+    seed, sel = support_seed_of(ck), run_id.split('_')[3] if len(run_id.split('_')) > 3 else 'stratified'
     sup_file = a.support_file or os.path.join(a.drive, 'supports', f'{a.dataset}_{sel}_s{seed}.txt')
     supports = read_ids(sup_file)[:shot]
     data_root = os.path.join(a.data, f'{a.dataset}_{a.res}')
@@ -109,13 +111,13 @@ def main():
         ids = ids[:a.limit]
     if a.compile:
         print(f'compiled {compile_encoder(model)} encoder blocks', flush=True)
-    torch.cuda.reset_peak_memory_stats()
+    D.reset_peak()
     dims = {'none': [], 'h': [-1], 'v': [-2], 'hv': [-2, -1]}[a.flip]
     cm, probs = np.zeros((6, 6), np.int64), []
     if a.views == 1:
         set_support_crop(0, crop_w)
         t_sup = encode_support(model, amp=a.amp)
-        sup_peak = torch.cuda.max_memory_allocated() / 1024 ** 3
+        sup_peak = D.peak_gb()
         t0 = time.time()
         for i in ids:
             X, lab = load_query(query_root, a.split, i)
@@ -129,18 +131,18 @@ def main():
         t0 = time.time()
         Ps, labs, t_sup = predict_views(model, lambda i: load_query(query_root, a.split, i), ids, a.views, crop_w,
                                         scales, a.stride, a.amp, dims)
-        sup_peak = torch.cuda.max_memory_allocated() / 1024 ** 3
+        sup_peak = D.peak_gb()
         for P, lab in zip(Ps, labs):
             cm += confusion(decode(P, a.tau), gt_classes(lab))
             probs.append(np.round(P * 255).astype(np.uint8))
-    torch.cuda.synchronize()
+    D.sync()
     res = summarize(cm, NAMES[a.dataset], WET[a.dataset])
     res.update(run_id=run_id, split=a.split_file, query_dataset=a.query_dataset or a.dataset, eval_shot=shot, tau=a.tau, n_images=len(ids), amp=a.amp,
                flip=a.flip, views=a.views, crop_weights=crop_w, stride=a.stride, scales=list(scales), compiled=a.compile,
                support_encode_s=round(t_sup, 2), s_per_image=round((time.time() - t0) / max(len(ids), 1), 2),
                support_peak_gb=round(sup_peak, 2),
-               infer_peak_gb=round(torch.cuda.max_memory_allocated() / 1024 ** 3, 2),
-               gpu=torch.cuda.get_device_name(0))
+               infer_peak_gb=round(D.peak_gb(), 2),
+               gpu=D.name())
     print(json.dumps(res, indent=1), flush=True)
     if not a.no_save:
         os.makedirs(os.path.join(a.drive, 'preds'), exist_ok=True)
