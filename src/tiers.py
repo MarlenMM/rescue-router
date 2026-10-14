@@ -69,7 +69,8 @@ def collect(ds, split, a, gates):
             continue
         blds = R.buildings_from_gt(gt, ds)
         gsol = R.Grid(gcls, gprob, ds).solve(base)
-        psol = {g: R.Grid(pcls, pprob, ds, offroad_maxwet=g).solve(base) for g in gates}
+        psol = {g: R.Grid(pcls, pprob, ds, offroad_maxwet=g[0], offroad_reach=g[1]).solve(base) if isinstance(g, tuple)
+                else R.Grid(pcls, pprob, ds, offroad_maxwet=g).solve(base) for g in gates}     # (gate, reach m) pairs
         for b in blds:
             rows.append(dict(image=i, id=b['id'], gt=gsol.status(b), pred={g: psol[g].status(b) for g in gates}))
     return rows, {k: (np.concatenate(v[0]), np.concatenate(v[1])) for k, v in cal.items()}
@@ -110,7 +111,10 @@ def main():
                     help='splits whose houses choose the cautious gate (PLAN §16: val30,confirm100 once predicted)')
     ap.add_argument('--run', default=None, help='another FloodNet run (e.g. a baseline in results/baselines): FloodNet only')
     ap.add_argument('--argmax', action='store_true', help='decode by argmax (softmax baselines)')
+    ap.add_argument('--reach', default='', help='off-road reach limits in m added to the cautious candidates, e.g. '
+                                                '40,20,10 (PROTOCOL amendment 1 item 7)')
     a = ap.parse_args()
+    a.reach = [float(x) for x in a.reach.split(',') if x]
     if a.run:
         RUNS.clear()
         RUNS['floodnet'] = a.run
@@ -122,6 +126,8 @@ def main():
     for ds in RUNS:
         g_t = PRED_OFFROAD_MAXWET[ds]
         cands = tuple(g for g in CANDIDATES if g < g_t)
+        if a.reach:                                                  # amendment 1 item 7: + off-road reach limits
+            cands = cands + tuple((g, r) for g in cands for r in a.reach)
         for sp in SPLITS:
             sf, _, npz = (x.format(ds=ds, run=RUNS[ds]) for x in SPLITS[sp])
             if sp == 'confirm100' and not os.path.exists(cache_path(a.results, npz)):
@@ -132,7 +138,10 @@ def main():
             t = tier_table(rows, g_t, g)['CONFIDENT_TRUCK']
             sweep.append(dict(gate=g, n=t['n'], share=t['gt_truck_share']))
         ok = [s for s in sweep if s['share'] is not None and s['share'] >= TARGET]
-        g_c = max(s['gate'] for s in ok) if ok else max(sweep, key=lambda s: (s['share'] or 0, s['gate']))['gate']
+        if a.reach:                                                  # the most confident houses at >= 99 %
+            g_c = max(ok, key=lambda s: s['n'])['gate'] if ok else max(sweep, key=lambda s: s['share'] or 0)['gate']
+        else:
+            g_c = max(s['gate'] for s in ok) if ok else max(sweep, key=lambda s: (s['share'] or 0, s['gate']))['gate']
         if choose == ['val30'] and not a.run:
             assert g_c == PRED_CAUTIOUS_MAXWET[ds], f'{ds}: chosen cautious gate {g_c}, route_eval says {PRED_CAUTIOUS_MAXWET[ds]}'
         elif g_c != PRED_CAUTIOUS_MAXWET[ds]:
