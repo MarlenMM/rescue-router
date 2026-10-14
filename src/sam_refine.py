@@ -26,6 +26,7 @@ sys.path.insert(0, HERE)
 from decode_tune import NAMES, load  # noqa: E402
 from postproc_sweep import cleanup, decode_two_step, guided_filter  # noqa: E402
 from rr.metrics import OTHER_IDX, WET, confusion, decode, summarize  # noqa: E402
+from rr.paths import RR_DATA, SAM_WEIGHTS  # noqa: E402
 
 BLD = (2, 3)
 
@@ -71,8 +72,8 @@ def refine(cls, P, masks_for, mode='replace', min_area=50, tau=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--results', default='results/kaggle_v2/rr')
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
-    ap.add_argument('--sam', default=os.path.expanduser('~/rr_data/weights/sam_vit_b_01ec64.pth'))
+    ap.add_argument('--data', default=RR_DATA)
+    ap.add_argument('--sam', default=SAM_WEIGHTS)
     ap.add_argument('--cache', default=None, help='val30 cache (default: the published FloodNet 50-shot one)')
     ap.add_argument('--out', default='results/b13/sam')
     ap.add_argument('--postproc', default='results/b13/postproc', help='postproc_sweep.py output of the same model')

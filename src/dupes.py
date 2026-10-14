@@ -22,6 +22,7 @@ from PIL import Image
 from skimage.feature import ORB, match_descriptors
 from skimage.measure import ransac
 from skimage.transform import ProjectiveTransform
+from rr.paths import RR_DATA
 
 RUNS = {'floodnet': ('floodnet_test_full', 'train', 50), 'rescuenet': ('rescuenet_test_eval100', 'val', 20)}
 MIN_INLIERS, MIN_COVER, TOPK = 25, 0.2, 3
@@ -77,7 +78,7 @@ def verify(fa, fb, shape=(576, 768)):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--repo', default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     ap.add_argument('--out', default='results/kaggle_v2/report/dupes')
     ap.add_argument('--recount', action='store_true')

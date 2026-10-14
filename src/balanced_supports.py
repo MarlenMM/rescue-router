@@ -13,13 +13,14 @@ import os
 
 import numpy as np
 from PIL import Image
+from rr.paths import RR_DATA
 
 NAMES = ['road_clear', 'road_flooded', 'bldg_flooded', 'bldg_dry', 'water']
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data/floodnet_r768'))
+    ap.add_argument('--data', default=os.path.join(RR_DATA, 'floodnet_r768'))
     ap.add_argument('--n', type=int, default=50)
     ap.add_argument('--out', default='supports/floodnet_balanced_s0.txt')
     a = ap.parse_args()

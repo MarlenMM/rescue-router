@@ -40,9 +40,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import router as R  # noqa: E402
 from route_eval import PRED_CAUTIOUS_MAXWET, PRED_OFFROAD_MAXWET  # noqa: E402
-from rr.metrics import decode, gt_classes  # noqa: E402
+from rr.metrics import gt_classes  # noqa: E402
 from rr.final_decode import decode_photo  # noqa: E402
 from viz import COLORS, NAMES, blend, colorize, load_image, load_label  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 RUNS = {'floodnet': 'floodnet_50shot_s0_stratified', 'rescuenet': 'rescuenet_20shot_s0_stratified'}
 LAMS = (5.0, 0.0)
@@ -207,7 +208,7 @@ def tier_stats(ds, path=os.path.join(os.path.dirname(HERE), 'results/routing/tie
                 confident=tt['CONFIDENT_TRUCK']['gt_truck_share'], probable=tt['PROBABLE_TRUCK']['gt_truck_share'])
 
 
-def scene_scale(s, data=os.path.expanduser('~/rr_data')):
+def scene_scale(s, data=RR_DATA):
     """ground size of a routing cell for the distances and minutes shown: from this photo's labelled cars (median
     car 1.8 m wide) when it has >= 2, else the dataset value the router uses (router.PROFILES cell_m)"""
     vid = {'floodnet': 7, 'rescuenet': 6}[s['dataset']]
@@ -238,7 +239,7 @@ def photo_hi(s, data, max_diff=6.0):
     return hi
 
 
-def export(s, out, caption='', data=os.path.expanduser('~/rr_data')):
+def export(s, out, caption='', data=RR_DATA):
     d = os.path.join(out, f"{s['dataset']}_{s['id']}")
     os.makedirs(d, exist_ok=True)
     for old in ('grid.json', 'buildings.json'):                     # pre-Batch-4 format
@@ -291,7 +292,7 @@ def sheet_row(s, caption):
         im = Image.fromarray(blend(s['img'], s[k], s['dataset'], 0.6))
         dr = ImageDraw.Draw(im)
         if s['base'] is not None:
-            h, w = s['grids'][5.0]['gt'].h, s['grids'][5.0]['gt'].w
+            w = s['grids'][5.0]['gt'].w
             for c in s['base'][0]:
                 y, x = divmod(int(c), w)
                 dr.rectangle([x * 4, y * 4, x * 4 + 3, y * 4 + 3], fill=(255, 255, 255))
@@ -313,7 +314,7 @@ def sheet_row(s, caption):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--results', default='results/kaggle_v2/rr')
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--out', default='app/scenes')
     ap.add_argument('--scenes', default=None, help='dataset:id,... (default: the showcase, then all of eval100)')
     ap.add_argument('--showcase', action='store_true', help='only the 8 showcase scenes')

@@ -23,6 +23,7 @@ from b13_final_check import boot_diff  # noqa: E402
 from postproc_sweep import guided_filter  # noqa: E402
 from rr.metrics import WET, confusion, decode, gt_classes, summarize  # noqa: E402
 from sensitivity import detect  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 R = 'results/kaggle_v2/rr'
 FN50 = 'floodnet_50shot_s0_stratified'
@@ -36,7 +37,7 @@ def load(name):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--out', default='results/kaggle_v2/report/b13')
     ap.add_argument('--B', type=int, default=2000)
     a = ap.parse_args()

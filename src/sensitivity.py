@@ -26,8 +26,9 @@ sys.path.insert(0, HERE)
 import router as R  # noqa: E402
 from export_web_assets import building_masks  # noqa: E402
 from route_eval import PRED_OFFROAD_MAXWET  # noqa: E402
-from rr.metrics import decode, gt_classes  # noqa: E402
+from rr.metrics import gt_classes  # noqa: E402
 from rr.final_decode import decode_photo, photo  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 RUNS = {'floodnet': 'floodnet_50shot_s0_stratified', 'rescuenet': 'rescuenet_20shot_s0_stratified'}
 COSTS = [dict(lam=0.0), dict(lam=20.0), dict(boat_cost=1.5), dict(boat_cost=6.0), dict(launch=0.0), dict(launch=200.0),
@@ -107,7 +108,7 @@ def detect(imgs, ds, thr):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--results', default='results/kaggle_v2/rr')
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--out', default='results/routing/sensitivity')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)

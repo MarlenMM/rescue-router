@@ -17,9 +17,10 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from rr.metrics import decode, gt_classes  # noqa: E402
+from rr.metrics import gt_classes  # noqa: E402
 from rr.final_decode import decode_photo, photo  # noqa: E402
 from viz import load_label  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 SUPER = {'road': (0, 1), 'building': (2, 3), 'water': (4,)}
 
@@ -49,7 +50,7 @@ def score(npz, dec, data):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--results', default='results/kaggle_v2/rr')
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--out', default='results/kaggle_v2/report/transfer.md')
     a = ap.parse_args()
     dec_of = lambda run: {k: v for k, v in json.load(open(os.path.join(a.results, 'decode', f'{run}.json')))['chosen'].items()

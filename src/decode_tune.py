@@ -31,6 +31,7 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from rr.metrics import WET, confusion, decode, gt_classes, summarize  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 NAMES = {'floodnet': ['road_clear', 'road_flooded', 'bldg_flooded', 'bldg_dry', 'water'],
          'rescuenet': ['road_clear', 'road_blocked', 'bldg_intact', 'bldg_damaged', 'water']}
@@ -114,7 +115,7 @@ def write_table(results, path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--results', default='results/kaggle_v2/rr')
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--runs', default=None)
     ap.add_argument('--table', default=None, help='write the summary table (markdown) of all decode/*.json and stop')
     a = ap.parse_args()

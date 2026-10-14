@@ -24,6 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from postproc_sweep import cleanup, guided_filter  # noqa: E402
 from rr.metrics import WET, confusion, decode, gt_classes, summarize  # noqa: E402
+from rr.paths import RR_DATA, SAM_WEIGHTS  # noqa: E402
 
 NAMES = ['road_clear', 'road_flooded', 'bldg_flooded', 'bldg_dry', 'water']
 _PUB = '_pub' if os.path.exists('results/kaggle_v2/rr/decode/floodnet_50shot_s0_stratified_pub.json') else ''  # after b13_switch
@@ -64,8 +65,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--new_full', required=True)
     ap.add_argument('--decode', required=True)
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data/floodnet_r768'))
-    ap.add_argument('--sam', default=os.path.expanduser('~/rr_data/weights/sam_vit_b_01ec64.pth'))
+    ap.add_argument('--data', default=os.path.join(RR_DATA, 'floodnet_r768'))
+    ap.add_argument('--sam', default=SAM_WEIGHTS)
     ap.add_argument('--out', default='results/b13/final')
     ap.add_argument('--B', type=int, default=2000)
     a = ap.parse_args()

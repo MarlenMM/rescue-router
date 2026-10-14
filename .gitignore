@@ -7,6 +7,10 @@
 !/PLAN.md
 !/README.md
 !/requirements.txt
+!/requirements-gpu.txt
+!/pyproject.toml
+!/uv.lock
+!/.github/
 !/src/
 !/app/
 !/docs/

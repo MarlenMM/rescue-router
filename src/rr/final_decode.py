@@ -17,6 +17,7 @@ import os
 import numpy as np
 
 from rr.metrics import decode
+from rr.paths import SAM_WEIGHTS
 
 EXTRA = ('gf', 'clean', 'sam', 'classmaps')
 _MAPS = {}
@@ -62,7 +63,7 @@ def sam_predictor(weights=None):
     if 'p' not in _SAM:
         import torch
         from segment_anything import SamPredictor, sam_model_registry
-        weights = weights or os.environ.get('RR_SAM_WEIGHTS', os.path.expanduser('~/rr_data/weights/sam_vit_b_01ec64.pth'))
+        weights = weights or SAM_WEIGHTS
         dev = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
         _SAM['p'] = (SamPredictor(sam_model_registry['vit_b'](checkpoint=weights).to(dev).eval()), dev)
     return _SAM['p']

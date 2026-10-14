@@ -12,7 +12,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import export_web_assets as E  # noqa: E402
 
-DATA = os.path.expanduser('~/rr_data')
+from rr.paths import RR_DATA as DATA  # noqa: E402
 RESULTS = 'results/kaggle_v2/rr'
 
 

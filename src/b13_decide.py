@@ -26,6 +26,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import postproc_sweep as PS  # noqa: E402
 from decode_tune import load  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 REF = dict(tau=0.48354, stacked=0.50382, dp_tau=0.5686, dp_stacked=0.5991)
 COST = {'ctlavg': '2x prediction', 'v2': '2x prediction', 'st128': '2x prediction', 'sc1-1.25': '3x prediction', 'self': '2x prediction',
@@ -80,7 +81,7 @@ def score(path, root, imgs_cache, workers, stacked=True):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--dirs', required=True)
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--out', default='results/b13/decide')
     ap.add_argument('--workers', type=int, default=10)
     a = ap.parse_args()

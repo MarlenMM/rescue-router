@@ -16,9 +16,10 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from rr.metrics import decode, gt_classes  # noqa: E402
+from rr.metrics import gt_classes  # noqa: E402
 from rr.final_decode import decode_photo  # noqa: E402
 from viz import blend, legend_handles, load_image, load_label  # noqa: E402
+from rr.paths import RR_DATA  # noqa: E402
 
 RUN = 'floodnet_50shot_s0_stratified'
 GALLERY = [  # id, tag (PLAN §5.3 categories, + 8 label ambiguity, 9 thin structures)
@@ -101,7 +102,7 @@ def main():
     ap.add_argument('--results', default='results/kaggle_v2/rr')
     ap.add_argument('--routing', default='results/routing')
     ap.add_argument('--failures', default='results/kaggle_v2/report/failures')
-    ap.add_argument('--data', default=os.path.expanduser('~/rr_data'))
+    ap.add_argument('--data', default=RR_DATA)
     ap.add_argument('--out', default='results/kaggle_v2/report/figures')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
