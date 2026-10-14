@@ -25,6 +25,8 @@ supports do not fit a T4 at prediction).
 
 ## Runs and cost (measured T4 costs: 2.6 s/step; 17 s/photo at 50 supports; `kaggle/phase2/make_plan.py cost`)
 
+**Changed by Amendment 1 (below): curve 1-20 shots on the full test + RescueNet 5/10; var = 4 runs (L design).**
+
 | session | runs | quota |
 |---|---|---|
 | `var` | 50 shots, (seed, draw) ∈ {0,1,2}² minus (0,0): train + val30 + eval100 | ~5.6 h |
@@ -84,6 +86,48 @@ baseline, or their probability average w ∈ {0, .25, .5, .75, 1}, `src/ensemble
 by mIoU under the drivable-precision floor, and reported on the full test with the paired bootstrap. The baseline
 curve (5/10/20/100/all 1,445 photos) and its two other support draws run on the Mac (no Kaggle quota) and answer
 where, if anywhere, Chameleon's few-shot adaptation wins.
+
+## Amendment 1 (14 Oct 2026, ~21:30 KST; before any Phase 2 GPU run and before any result of the runs it adds)
+
+After A5 (the same-budget baseline beats Chameleon at 50 shots) the questions that matter are where, if anywhere,
+Chameleon wins (fewer labels, a second disaster) and whether the baseline's lead survives other support draws.
+Changes (`kaggle/phase2/make_plan.py cost`: curve + var 8.8 h of quota instead of 9.8 h):
+
+1. **curve:** the FloodNet 1/5/10/20-shot `p2` runs predict the whole test set (448 photos) instead of eval100, so
+   each point is paired photo by photo with the baseline curve on the full test; their eval100 caches are cut from
+   it on the CPU (`src/subset_cache.py`; bit-exact: on the submitted model's T4 caches the eval100 photos of the
+   full-test cache equal the eval100 cache byte for byte). RescueNet **5 and 10** shots (`p2`) are added: the
+   low-label end on the second disaster. Cost: +3.3 h T4 (+1.7 h of quota on 2×T4).
+2. **var:** the lean "L" design replaces the 3×3 grid: support draws 1 and 2 with training seed 0, and training seeds 1
+   and 2 with draw 0 (4 runs, 2.9 h of quota instead of 5.6 h). Reported: mean ± sd over the three draws (seed 0) and
+   over the three seeds (draw 0), each with the submitted model as the (0, 0) run; the baseline's draws 0-2 (Mac) are
+   paired with Chameleon's by draw. The full grid stays available as session `var_full` (not planned).
+3. **Baseline side (Mac, no quota):** RescueNet 5/10/20/50 shots, FloodNet 1 shot, training seeds 1 and 2 on draw 0 at
+   50 shots, with the same fixed recipe (`src/baseline_seg.py`), so every Chameleon point has a same-photos partner.
+4. **Product-model candidates** added to the "Model choice" rule (same rule: highest mIoU of the confusion summed over
+   val30 + confirm100, `src/ensemble.py --choose_on val30,confirm100`; then reported on the full test with the
+   paired bootstrap):
+   - **self-trained baseline:** teacher = the 50-shot draw-0 baseline; pseudo-labels for the 1,395 unlabelled FloodNet
+     train photos (`src/baseline_pseudo.py`: the four flips averaged, a pixel kept when its class probability is
+     ≥ .9, else ignored); student = the same recipe from COCO weights, 3,000 steps of 8 labelled + 8 pseudo-labelled
+     crops (`--bs 8 --accum 2 --pseudo_frac 0.5`). Uses no labels beyond the 50.
+   - **test-time flips** (four views averaged) of the plain and the self-trained baseline.
+   - **small models** for CPU / in-browser use (DeepLabV3-MobileNetV3, LR-ASPP-MobileNetV3), trained like the
+     self-trained student (50 labels + the same pseudo-labels): candidates only by the same rule; otherwise reported
+     as the speed / accuracy trade-off.
+   None of these settings is tuned on any labelled photo; they are fixed here before the runs.
+5. **Decode floor for runs other than the submitted model** (a fix found before any result): the "Fixed recipe"
+   decode keeps val30 drivable precision ≥ .567 (the first 50-shot model's τ .5 value). Few-shot runs cannot reach
+   that (published τ .5 val30 drivable precision: 1 shot .06, 5 shots .56, 10 .51, 20 .42), so every threshold move
+   would be rejected and their "tuned" decode would stay at τ .5, understating Chameleon exactly where it may win. The
+   floor is therefore min(.567, the run's own τ .5 val30 drivable precision) (`src/run_decode.py`): .567 for the
+   submitted model (unchanged, its thresholds reproduce) and the published curve's own rule (decode_tune.py: never
+   below the run's τ .5 decode) for the others.
+6. **Label errors in FloodNet** (found 14 Oct by the false-safe analysis): 11 test photos and 2 validation photos
+   (val30 7769, confirm100 7762) label large dry lawns or banks as water (`splits/floodnet_label_errors.tsv`,
+   `src/label_audit.py`: visual check of photo and label only, never of a prediction). Every full-test and eval100
+   result is reported on all photos (primary, as published) and without these photos (secondary); choices use all
+   photos as registered.
 
 ## Deviation log
 

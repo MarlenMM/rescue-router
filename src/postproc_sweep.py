@@ -144,12 +144,14 @@ class Scorer:
         self.pool.shutdown()
 
 
-def tune_tau(S, kind='tau', extra=None, grid=TAU_GRID, start=None):
-    """decode_tune.tune's coordinate ascent (3 passes, drivable precision >= P_MIN) for any decoder with a tau."""
+def tune_tau(S, kind='tau', extra=None, grid=TAU_GRID, start=None, floor=None):
+    """decode_tune.tune's coordinate ascent (3 passes, drivable precision >= floor, default P_MIN) for any decoder with
+    a tau. Phase 2 (run_decode.py) passes floor = min(P_MIN, the run's own tau-0.5 val30 drivable precision)."""
     extra = extra or {}
+    floor = P_MIN if floor is None else floor
     tau = list(start or [0.5] * 5)
     best = S(kind, tau=tau, **extra)
-    if best['drivable_precision'] < P_MIN - 1e-9:
+    if best['drivable_precision'] < floor - 1e-9:
         best = dict(best, miou=-1)
     for _ in range(3):
         changed = False
@@ -157,7 +159,7 @@ def tune_tau(S, kind='tau', extra=None, grid=TAU_GRID, start=None):
             for t in grid:
                 cand = tau[:c] + [t] + tau[c + 1:]
                 r = S(kind, tau=cand, **extra)
-                if r['miou'] > best['miou'] + 1e-6 and r['drivable_precision'] >= P_MIN - 1e-9:
+                if r['miou'] > best['miou'] + 1e-6 and r['drivable_precision'] >= floor - 1e-9:
                     best, tau, changed = r, cand, True
         if not changed:
             break
