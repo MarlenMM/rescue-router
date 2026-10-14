@@ -6,10 +6,13 @@
 !/.gitattributes
 !/PLAN.md
 !/README.md
+!/MODEL_CARD.md
+!/DATA.md
 !/requirements.txt
 !/requirements-gpu.txt
 !/pyproject.toml
 !/uv.lock
+!/.pre-commit-config.yaml
 !/.github/
 !/src/
 !/app/

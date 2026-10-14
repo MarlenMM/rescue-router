@@ -654,6 +654,30 @@ addEventListener('keydown', (e) => {
   if (e.key === 'n' || e.key === 'N') step(1);
   else if (e.key === 'p' || e.key === 'P') step(-1);
 });
+// ---------- house list as CSV (for a field team's sheet; same routes and ETAs as the route card) ----------
+function houseCsv() {
+  const s = state.s, q = (v) => `"${String(v).replace(/"/g, '""')}"`;
+  const rows = [['photo', 'house', 'class', 'status', 'tier', 'minutes', 'truck_m', 'boat_m', 'foot_m', 'x_px', 'y_px',
+    ...(state.nolabels ? [] : ['labelled_map_status'])]];
+  s.blds.forEach((b, i) => {
+    const st = s.status.pred[i], tr = s.tier[i];
+    const solR = tr === 'CONFIDENT_TRUCK' ? s.sol.cautious : s.sol.pred;
+    const r = solR.route(b.goals), e = r ? eta(r, solR.grid, s.grid.eta, s.meta.m_per_cell) : null;
+    const tierWord = tr === 'CONFIDENT_TRUCK' ? 'confident' : tr === 'PROBABLE_TRUCK' ? 'check first' : '';
+    rows.push([`${DATASET[s.ds].name} ${s.sc.id}`, b.id, CLASS_LABEL[s.ds][b.cls], WORD[st], tierWord,
+      e ? Math.max(1, Math.round(e.minutes)) : '', ...(e ? e.metres.map(v => Math.round(v)) : ['', '', '']),
+      Math.round(b.centroid[0]), Math.round(b.centroid[1]), ...(state.nolabels ? [] : [WORD[s.status.gt[i]]])]);
+  });
+  return rows.map(r => r.map(q).join(',')).join('\r\n') + '\r\n';
+}
+$('csvHouses').addEventListener('click', () => {
+  if (!state.s || !state.s.blds.length) return;
+  const url = URL.createObjectURL(new Blob([houseCsv()], { type: 'text/csv' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: `rescue_router_${state.s.sc.key}_houses.csv` });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
 $('copyLink').addEventListener('click', async () => {
   writeHash();
   let ok = true;
