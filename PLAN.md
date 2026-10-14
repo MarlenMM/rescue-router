@@ -889,7 +889,9 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
   val30 ∪ confirm100 keep the off-road gate 0.3 (pooled F1 .896; `results/baselines/report/router_sweep/`; gate 0.1
   would halve its eval100 false safe, .061 → .033, at the same F1, but the rule chooses on val30 ∪ confirm100), and no
   cautious gate reaches the 99 % target: 0.05 gives 409 "confident" eval100 houses at 97.3 % (Chameleon: 208 at 100 %;
-  `results/baselines/report/tiers/`). Its confident tier would need another safeguard first. CPU uploads:
+  `results/baselines/report/tiers/`). Its confident tier would need another safeguard first: the reach-limited tier
+  (PROTOCOL amendment 1 item 7, registered before computing) chooses gate .25 + 40 m: 310 houses at 99.0 % on val30 ∪
+  confirm100 but 97.0 % (297) on eval100: it does not hold out of sample (`results/baselines/report/tiers_reach/`). CPU uploads:
   `gradio_app.py / gradio_viewer.py --live_baseline <ckpt>` (tested end to end).
 - **Proposed, needs Marlen's OK (downloads):** an offline mode for the viewer: the chosen small baseline exported to ONNX
   (needs the `onnx` / `onnxscript` Python packages) and run in the browser with onnxruntime-web (vendored, ~10-20 MB),
