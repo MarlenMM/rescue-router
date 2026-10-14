@@ -814,6 +814,21 @@ A5. Phase 3 (GPU week 2): B1, B2, B4, D1. Phase 4: C1, C2, D2–D4. Phase 5 (aft
     + argmax decode; baseline curve 5/10/20/100/all queued on the Mac (`~/rr_local/baseline_queue.sh`); regression
     test of `run_decode`; `decode_tune.py` finds fp16 val30 caches; kernel builder mounts a dataset
     (`marlenmelis/rr-final-ckpt`, staged in `~/rr_push/rr-final-ckpt/`, not uploaded); `var` kernel builds.
+  - **Cycles 3–4.** Pre-flights: `curve` 28/29 steps OK (the last, 50-shot prediction of the submitted model, swaps
+    on the Mac and was stopped: same code path as passed steps), `--eval_shot` < `--shot` verified (trained on 2,
+    predicted with 1). Router sweep: pooled val30 ∪ confirm100 choice coded (ties keep 0.3); tier gate likewise
+    (`tiers.py --choose_on`, default byte-identical). Viewer: truck stop points (boat launch / walk-on, grouped
+    within 20 m: counter, map, CSV), Korean interface (`&lang=ko`, English text unchanged), "+30 for tuning".
+    Kaggle connector unauthenticated: check the quota in the browser before launching.
+  - **A5 result (the big one).** DeepLabV3-ResNet50 (COCO weights) fine-tuned on the **same 50 photos** (3,000 steps,
+    384 crops, no validation labels; 70 min on the Mac's MPS): full test **.581 [.545, .617]** vs Chameleon .507:
+    paired **+.074 [+.045, +.108]**, +.068 [+.039, +.097] without the 14 overlapping test photos; flooded road .451 vs
+    .307; eval100 .558. Routing, full test, paired: stranded F1 **.813 vs .752 (+.060 [+.015, +.115])**, false safe
+    **.081 vs .111 (−.030 [−.053, −.012])**. CPU inference 0.46 s/photo (42 M parameters). val30 ranks the other way
+    (.466 / tuned .470 vs .516); confirm100 .546. Ensemble (`ensemble.py`): val30 picks Chameleon alone (w 1), but on
+    the test every w < 1 is better and the plain baseline best. → protocol: model choice on val30 ∪ confirm100;
+    baseline curve (5/10/20/100/all) + draws 1–2 queued on the Mac (`~/rr_local/baseline_queue*.sh`). README and
+    MODEL_CARD say so.
   - **Phase 2 launch checklist:** commit → preflight `curve` and `var` OK → check Kaggle quota → upload
     `rr-final-ckpt` → `make_plan.py kernel curve` → push → after: fetch, `run_decode.py --sam`, `decode_tune.py`
     (RescueNet), `phase2_report.py --routing`, `router_sweep.py --splits val30,confirm100,eval100`, backup refresh.

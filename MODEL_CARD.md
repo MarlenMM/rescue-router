@@ -36,6 +36,11 @@ Recipe: 1,000 steps, cosine lr 1e-3, batch 2, fp16, 384-px crops of 768×576 pho
 | **false-safe rate** (shown truck-reachable, not truck-reachable on the labels) | **.111** [.054, .176] |
 | "confident truck" houses truly truck-reachable (eval100, 208 houses) | 100 % |
 | RescueNet (Hurricane Michael), 20-shot model, eval100 mIoU / stranded F1 | .421 / .818 |
+| **same 50 photos, DeepLabV3-ResNet50 (COCO), no tuning labels**: mIoU / stranded F1 / false safe | **.581** / .813 / .081 |
+
+The last row (14 Oct) is better than this model on all three (paired intervals exclude zero, `results/baselines/report/`):
+on FloodNet at 50 labels, Chameleon's few-shot adaptation does not beat ordinary fine-tuning of a pretrained segmenter.
+Where it might (fewer labels, another disaster) is being measured.
 
 Training variance (seeds, choice of the 50 photos) is not yet measured: every number is one run (Phase 2, A3).
 

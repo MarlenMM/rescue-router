@@ -73,6 +73,18 @@ plays no part in choosing the decode. Not candidates (measured 14 Oct, `results/
 wetness for the router (no change on eval100) and a limit on off-road distance (false safe .119 → .010 but stranded F1
 .819 → .658: a precision/recall trade-off that the confident tier already offers).
 
+## Model choice (added 14 Oct, before any Phase 2 run; after the A5 baseline result)
+
+The same-budget baseline (DeepLabV3-ResNet50, the same 50 photos, no tuning labels) beats the submitted Chameleon model
+on the full test: mIoU .581 vs .507 (paired +.074 [+.045, +.108]; +.068 without the 14 test photos that overlap a
+training photo), stranded F1 .813 vs .752 (+.060 [+.015, +.115]), false safe .081 vs .111 (−.030 [−.053, −.012]).
+val30 ranks them the other way (.470 vs .516; confirm100: baseline .546): val30 cannot choose between models either.
+So, once the curve session has predicted confirm100 with the submitted Chameleon model, the product model (Chameleon,
+baseline, or their probability average w ∈ {0, .25, .5, .75, 1}, `src/ensemble.py`) is chosen on val30 ∪ confirm100
+by mIoU under the drivable-precision floor, and reported on the full test with the paired bootstrap. The baseline
+curve (5/10/20/100/all 1,445 photos) and its two other support draws run on the Mac (no Kaggle quota) and answer
+where, if anywhere, Chameleon's few-shot adaptation wins.
+
 ## Deviation log
 
 (none yet)

@@ -70,6 +70,8 @@ STEPS = {
                    'routing/false_safe/: why houses are falsely truck-reachable (PLAN §16 A2)'),
     'router_sweep': ([py('router_sweep.py', '--results', R, '--out', f'{RT}/router_sweep')], ['decode', 'calibration'],
                      'routing/router_sweep/: gate x calibrated wetness x off-road reach (information)'),
+    'same_budget': ([py('baseline_report.py'), py('ensemble.py')], ['decode', 'route_full'],
+                  'results/baselines/report/: same-budget baselines vs Chameleon, ensemble (needs results/baselines)'),
     'sensitivity': ([py('sensitivity.py')], ['decode'], 'routing/sensitivity/: cost independence, sensitivity, detection'),
     'dupes': ([py('dupes.py')], [], 'report/dupes/: near-duplicate test/support photos'),
     'bootstrap': ([py('bootstrap_ci.py')], ['decode', 'dupes', 'route_report', 'route_full'], 'report/ci/: bootstrap CIs'),
