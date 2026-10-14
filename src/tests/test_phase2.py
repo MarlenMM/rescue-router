@@ -157,3 +157,14 @@ def test_decode_floor_lets_few_shot_runs_tune():
     assert tau == [0.2] * 5
     high = scorer(0.9)                                                         # 50-shot-like: both rules agree
     assert PS.tune_tau(high)[0] == PS.tune_tau(high, floor=min(PS.P_MIN, 0.9))[0] == [0.2] * 5
+
+
+def test_model_choice_rule():
+    """ensemble.choose_best: best pooled score; ties -> fewer labels, then the simpler (earlier) candidate"""
+    from ensemble import choose_best
+    order = ['chameleon', 'b argmax', 'w=0.0 b', 'w=0.5 b']
+    labels = {'chameleon': 80, 'b argmax': 50, 'w=0.0 b': 80, 'w=0.5 b': 80}
+    assert choose_best(order, {'chameleon': .52, 'b argmax': .50, 'w=0.0 b': .51, 'w=0.5 b': .515}, labels) == 'chameleon'
+    assert choose_best(order, {'chameleon': .52, 'b argmax': .52, 'w=0.0 b': .52, 'w=0.5 b': .5}, labels) == 'b argmax'
+    assert choose_best(order, {'chameleon': .52, 'b argmax': .5, 'w=0.0 b': .5, 'w=0.5 b': .52}, labels) == 'chameleon'
+    assert choose_best(order, {'chameleon': .5, 'b argmax': .5, 'w=0.0 b': .5200001, 'w=0.5 b': .52}, labels) == 'w=0.0 b'
