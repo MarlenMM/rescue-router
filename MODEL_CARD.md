@@ -58,7 +58,9 @@ segmentation needs (widths, tiers, honest uncertainty). The web viewer is a demo
 - Shallow or muddy water read as dry ground is the dangerous error; flooded roads are the weakest class (.31).
 - Adapted on Hurricane Harvey suburbs (Texas, 2017), nadir drone photos at FloodNet's height. Other places look
   different: on unseen OpenAerialMap photos (Vijayawada, Jamaica) water was found well but flat or damaged roofs were
-  mostly missed (`demo/uploads/README.md`).
+  mostly missed (`demo/uploads/README.md`); the same-budget baseline found the roofs but read parts of the flooded
+  street as clear road. With no RescueNet labels, both transfer equally poorly to Hurricane Michael (shared classes,
+  mean IoU .223 vs .226; water .10).
 - Single photos, no georeference: routes start at the image edge, minutes and metres assume FloodNet's ground scale.
 - The "labelled map" the routing is scored against is the same router on human pixel labels, not observed
   reachability.

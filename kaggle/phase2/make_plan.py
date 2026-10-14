@@ -155,8 +155,11 @@ def preflight(name, n_groups):
     for d in ('ckpt', 'metrics', 'logs', 'preds'):
         os.makedirs(os.path.join(out, d), exist_ok=True)
     for sub in ('splits', 'supports'):
-        if not os.path.exists(os.path.join(out, sub)):
-            os.symlink(os.path.join(ROOT, sub), os.path.join(out, sub))
+        link = os.path.join(out, sub)
+        if os.path.islink(link) and os.readlink(link) != os.path.join(ROOT, sub):
+            os.remove(link)                                   # stale, e.g. after the project folder moved (14 Oct)
+        if not os.path.lexists(link):
+            os.symlink(os.path.join(ROOT, sub), link)
     py = os.path.expanduser('~/.venvs/rr-cham/bin/python')
     common = ['--drive', out, '--data', os.path.expanduser('~/rr_data'), '--runs', os.path.expanduser('~/rr_local/runs'),
               '--mt_ckpt', os.path.expanduser('~/rr_data/weights/generalist.ckpt'),
