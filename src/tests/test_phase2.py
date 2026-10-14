@@ -47,7 +47,8 @@ def test_argmax_decode_for_softmax_baselines():
     assert cls[0, 0] == 5 and cls[0, 1] == 4 and cls[1, 0] == 2 and cls[1, 1] == 5
 
 
-RESULTS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'results', 'kaggle_v2', 'rr')
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+RESULTS = os.path.join(REPO, 'results', 'kaggle_v2', 'rr')
 
 
 def test_run_decode_reproduces_the_submitted_thresholds(tmp_path):
@@ -94,7 +95,7 @@ def test_subset_cache_keeps_photos_and_order(tmp_path):
     import pytest
     from rr.paths import RR_DATA
     import subset_cache as SC
-    ids_full = open(os.path.join(os.path.dirname(RESULTS), '..', '..', 'splits', 'floodnet_test_full.txt')).read().split()
+    ids_full = open(os.path.join(REPO, 'splits', 'floodnet_test_full.txt')).read().split()
     if not os.path.isdir(os.path.join(RR_DATA, 'floodnet_r768', 'test', 'labels')):
         pytest.skip('needs the data')
     rng = np.random.default_rng(0)
@@ -111,14 +112,14 @@ def test_subset_cache_keeps_photos_and_order(tmp_path):
         PIL.Image.open = orig
     assert os.path.basename(out) == 'floodnet_5shot_s0_stratified_p2_floodnet_test_eval100_fp16.npz'
     z = np.load(out)
-    ev = open(os.path.join(os.path.dirname(RESULTS), '..', '..', 'splits', 'floodnet_test_eval100.txt')).read().split()
+    ev = open(os.path.join(REPO, 'splits', 'floodnet_test_eval100.txt')).read().split()
     assert list(z['ids']) == ev and res['n_images'] == 100
     pos = {i: k for k, i in enumerate(ids_full)}
     assert all(np.array_equal(z['probs'][k], probs[pos[i]]) for k, i in enumerate(ev))
 
 
 def test_lean_variance_plan_and_full_test_curve():
-    sys.path.insert(0, os.path.join(os.path.dirname(RESULTS), '..', '..', 'kaggle', 'phase2'))
+    sys.path.insert(0, os.path.join(REPO, 'kaggle', 'phase2'))
     import make_plan as MP
     var = [rid for rid, _, _ in MP.session('var')]
     assert var == ['floodnet_50shot_s0_stratified_sup1', 'floodnet_50shot_s0_stratified_sup2',
