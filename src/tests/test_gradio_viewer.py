@@ -47,3 +47,26 @@ def test_export_upload(tmp_path):
         js.write_text(JS % os.path.join(REPO, 'app', 'js', 'router.js'))
         out = subprocess.run(['node', str(js), str(d / 'scene.rrb')], capture_output=True, text=True, check=True).stdout
         assert json.loads(out) == status
+
+
+CKPT = os.path.join(REPO, 'results', 'baselines', 'ckpt', 'baseline_deeplabv3_r50_50shot_s0.pt')
+
+
+@pytest.mark.skipif(not os.path.exists(CKPT), reason='needs the baseline checkpoint')
+def test_cpu_live_baseline_upload(tmp_path):
+    """--live_baseline: an uploaded photo -> CPU baseline -> its argmax decode -> a viewer scene the JS router agrees with"""
+    from PIL import Image
+    import gradio_app as G
+    live = G.BaselineLive(CKPT)
+    photo = G.prep_upload(np.asarray(Image.open(os.path.join(REPO, 'demo', 'uploads', 'floodnet_7307.jpg')).convert('RGB')))
+    probs = live(photo)
+    assert probs.shape == (5, 576, 768) and probs.dtype == np.uint8
+    s = E.build_scene('floodnet', photo, probs, live.decode, gt=None)
+    status = V.export_upload(s, str(tmp_path / 'up' / 'cpu'), 'test', 'baseline')
+    assert len(status) == len(s['buildings']) > 0
+    js = tmp_path / 'check.mjs'
+    js.write_text(JS % os.path.join(REPO, 'app', 'js', 'router.js'))
+    if shutil.which('node'):
+        out = subprocess.run(['node', str(js), str(tmp_path / 'up' / 'cpu' / 'scene.rrb')], capture_output=True, text=True,
+                             check=True).stdout
+        assert json.loads(out) == status
