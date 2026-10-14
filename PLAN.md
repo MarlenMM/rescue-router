@@ -833,6 +833,48 @@ A5. Phase 3 (GPU week 2): B1, B2, B4, D1. Phase 4: C1, C2, D2–D4. Phase 5 (aft
     `rr-final-ckpt` → `make_plan.py kernel curve` → push → after: fetch, `run_decode.py --sam`, `decode_tune.py`
     (RescueNet), `phase2_report.py --routing`, `router_sweep.py --splits val30,confirm100,eval100`, backup refresh.
 
+### 16.5 Pre-Phase-2 review #2 (14–15 Oct night; Marlen: "check and improve everything, in cycles, before Phase 2")
+References kept here: the T4 costs in `kaggle/phase2/make_plan.py` (training 2.6 s/step with `--freeze_rest`, §15
+log 0v; prediction 2.7 / 3.7 / 4.1 / 5.9 / 17 s per photo at 1 / 5 / 10 / 20 / 50 supports, §15 log); the
+pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1 added tonight).
+- **Environment (14 Oct 20:46):** iCloud Drive was switched off and macOS moved the project to
+  `~/iCloud Drive (Archive)/Documents/KAIST/2nd semester/Introduction to AI Computing/AIC200-Project-StructuredPrediction-main`
+  (complete: git clean, 4.3 GB results, no evicted files; the running Mac queue followed the move). The `.venv` symlink
+  (→ `~/.venvs/rr-uv`) was lost and recreated. No code path names the old folder.
+- **Cycle 5 (audit), found and fixed before any Phase 2 result:**
+  1. **Decode floor** (would have biased Phase 2's main comparison): `run_decode.py` kept val30 drivable precision
+     ≥ .567, which few-shot runs never reach, so their "tuned" decode stayed at τ .5 (1 shot: score −1, every move
+     rejected). Floor now min(.567, the run's own τ .5 value): the submitted model's thresholds and the published
+     1-shot thresholds [.8, .3, .1, .8, .1] (val30 .255) reproduce exactly (test `test_decode_floor_lets_few_shot_runs_tune`).
+  2. **Post-processing gaps:** the submitted model's caches were never linked into the Phase 2 folder (the (0, 0) run of
+     `var` and its confirm100 decode would be missing); the protocol's model choice on val30 ∪ confirm100 was not
+     implemented (`ensemble.py` chose on val30 only); a stopped eval100 cut left a truncated cache that a rerun skips;
+     linking the published SAM maps would have let `run_decode` overwrite them. → `kaggle/phase2/post.py` runs every
+     CPU step in order (dry run + end-to-end test on stand-in caches: published runs under Phase 2 names reproduce
+     their published thresholds and scores through run_decode, decode_tune and the reports); atomic cache writes.
+  3. **`baseline_report.py`** compared every baseline with the 50-shot Chameleon model → pairs by shot and support draw
+     (Phase 2 run first, else the published one), on the largest common photo set, with paired routing on eval100 (new:
+     false safe .061 vs .119, −.058 [−.095, −.024]); spreads over draws/seeds; RescueNet.
+  4. **`baseline_seg.py`**: RescueNet, separate training seed / support draw, `--accum`, self-training (`--pseudo`),
+     flips (`--tta`), MobileNetV3 models; labels kept as uint8 (the all-1,445-photos run would have held ~5 GB of
+     int64 labels); default runs bit-exact with the 14 Oct code (test), swapped in atomically while the queue ran.
+- **Phase 2 changes (PROTOCOL amendment 1):** the curve's 1–20-shot runs predict the full test (eval100 cut from it
+  on the CPU, verified byte-identical on the submitted model's T4 caches), RescueNet 5 and 10 added, `var` = lean L
+  design (4 runs; the 3×3 grid kept as `var_full`): **8.8 h of quota instead of 9.8 h**. Baseline partners for every
+  point on the Mac (`~/rr_local/baseline_queue3.sh`, after the two running queues).
+- **FloodNet label errors:** the two photos with the most false-safe houses (9344, 9348: 42 of 105) label dry lawns
+  and river banks as water in FloodNet's raw annotation. Audit of all 578 evaluation photos (`src/label_audit.py`:
+  32 candidates by colour, checked by eye on photo + label only): 11 test photos (2 in eval100) and val30 7769,
+  confirm100 7762 (`splits/floodnet_label_errors.tsv`). Without them (both models, paired): false safe Chameleon
+  .111 → .071, baseline .081 → .036; stranded F1 .752 → .806 / .813 → .870; mIoU gap +.070 [+.039, +.100]. The val30
+  error moved only one threshold (flooded road .25 → .30). Published numbers stay on all photos.
+- **Two-model agreement as a dispatch check** (`src/consensus.py`, exploratory): "both models route a truck" gives 440
+  houses at 94.5 % truly truck-reachable on eval100 vs the baseline alone 457 at 93.9 %; Chameleon's errors are mostly a
+  superset of the baseline's. Not adopted. The baseline's own cautious gate (.05): 409 houses at 97.3 % (Chameleon's
+  cautious tier: 208 at 100 %).
+- **Self-training and small models** (pre-registered, amendment 1 item 4): pseudo-labels for the 1,395 unlabelled
+  FloodNet train photos from the 50-shot baseline (`src/baseline_pseudo.py`), student and MobileNetV3 models in queue 3.
+
 ## 15. Status / handoff (updated Wed 7 Oct, 18:15 KST)
 
 ### Quick summary (read this first; details below)

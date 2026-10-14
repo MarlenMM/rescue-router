@@ -1,0 +1,19 @@
+# FloodNet evaluation photos whose label marks a large dry area as water (src/label_audit.py; visual check of photo and
+# label only, 14 Oct 2026, criterion: >= ~20 % of the photo labelled water shows dry lawn / field / bank with no visible
+# water). Candidates: the 32 photos whose labelled water is >= 30 % vegetation-green. Not errors: olive-green water
+# with a correct outline (7812 7813 7946 7835 7804 7817 7822 7899 7819 7794 7839 7821 7803 7780 8559 10167) and
+# river-bank outlines drawn over the tree line (8478 8486 8494, minor).
+id	split	where
+9344	test	residential lawns and the river banks labelled water (58 % of the photo)
+9348	test	same scene as 9344, next frame
+7743	test	whole frame labelled water; dry ground and structures on the left quarter
+7755	test	whole frame labelled water; grass bank on the left
+7757	test	whole frame labelled water; grass bank on the left third
+7758	test	whole frame labelled water; grass bank on the left quarter
+7759	test	whole frame labelled water except two crowns; grass bank and trees on the left third
+7763	test	whole frame labelled water except crowns; grass bank on the left quarter
+7771	test	whole frame labelled water; mowed lawn on the left 40 %
+7772	test	whole frame labelled water; lawn with a debris pile on the upper left 60 %
+7773	test	same scene as 7772, next frame
+7769	val	(val30, the decode-tuning split) whole frame labelled water; grass bank on the left third
+7762	val	(confirm100) whole frame labelled water except crowns; grass bank on the left third

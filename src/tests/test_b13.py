@@ -37,7 +37,7 @@ from torchvision.transforms import ColorJitter  # noqa: E402
 
 # md5 of FloodDataset.postprocess outputs (20 training crops + the support crop) computed with the code before
 # Batch 13 (torch 2.14.1 CPU, macOS arm64: float kernels differ on other platforms); the defaults must keep giving exactly these tensors and random draws.
-REF_POSTPROCESS = '3e17d523ba2e375091e57c5a63530ce5'
+REF_POSTPROCESS = 'fe82fcfd2b06220f94a3717ea91a2d97'     # one CPU thread (14 Oct; = the published code, which gives 3e17d5... with the default threads)
 
 
 def sample():
@@ -63,14 +63,19 @@ def test_postprocess_defaults_bit_exact():
     X, Y, M = sample()
     h = hashlib.md5()
     d = dataset(eval_mode=False, resize=False)
-    for s in range(20):
-        np.random.seed(s)
-        torch.manual_seed(s)
+    threads = torch.get_num_threads()
+    torch.set_num_threads(1)               # the resampling results depend on the CPU thread count (OMP_NUM_THREADS)
+    try:
+        for s in range(20):
+            np.random.seed(s)
+            torch.manual_seed(s)
+            for t in d.postprocess(X, Y, M):
+                h.update(t.numpy().tobytes())
+        d.eval_mode, d.resize = True, True
         for t in d.postprocess(X, Y, M):
             h.update(t.numpy().tobytes())
-    d.eval_mode, d.resize = True, True
-    for t in d.postprocess(X, Y, M):
-        h.update(t.numpy().tobytes())
+    finally:
+        torch.set_num_threads(threads)
     assert h.hexdigest() == REF_POSTPROCESS
 
 

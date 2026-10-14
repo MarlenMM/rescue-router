@@ -37,6 +37,7 @@ Recipe: 1,000 steps, cosine lr 1e-3, batch 2, fp16, 384-px crops of 768×576 pho
 | "confident truck" houses truly truck-reachable (eval100, 208 houses) | 100 % |
 | RescueNet (Hurricane Michael), 20-shot model, eval100 mIoU / stranded F1 | .421 / .818 |
 | **same 50 photos, DeepLabV3-ResNet50 (COCO), no tuning labels**: mIoU / stranded F1 / false safe | **.581** / .813 / .081 |
+| without the 11 test photos whose labels mark dry lawns as water (`splits/floodnet_label_errors.tsv`): this model's false safe / stranded F1 | .071 / .806 (baseline .036 / .870) |
 
 The last row (14 Oct) is better than this model on all three (paired intervals exclude zero, `results/baselines/report/`):
 on FloodNet at 50 labels, Chameleon's few-shot adaptation does not beat ordinary fine-tuning of a pretrained segmenter.
@@ -50,8 +51,10 @@ Research and teaching: how far few-shot adaptation gets on a new disaster, and w
 segmentation needs (widths, tiers, honest uncertainty). The web viewer is a demonstration of that pipeline.
 
 **Not for operational rescue decisions.** In particular:
-- About one in nine houses shown as truck-reachable is not (false-safe 11 %); in most of these the route crosses
-  water the model left unlabelled. Only the "confident" tier was reliable in testing, and it covers fewer houses.
+- About one in nine houses shown as truck-reachable is not (false-safe 11 %), one in fourteen (7 %) once 11 test
+  photos with labelling errors are set aside (FloodNet marks dry lawns and river banks as water in them; 42 of the 105
+  false-safe houses are in two of these photos); in most of the rest the route crosses water the model left
+  unlabelled. Only the "confident" tier was reliable in testing, and it covers fewer houses.
 - Shallow or muddy water read as dry ground is the dangerous error; flooded roads are the weakest class (.31).
 - Adapted on Hurricane Harvey suburbs (Texas, 2017), nadir drone photos at FloodNet's height. Other places look
   different: on unseen OpenAerialMap photos (Vijayawada, Jamaica) water was found well but flat or damaged roofs were

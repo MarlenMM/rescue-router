@@ -30,6 +30,14 @@
 Near-duplicates: 14 of 448 FloodNet test photos are near-duplicate frames of a support photo (same flight);
 removing them changes mIoU by ≤ .004 (`results/kaggle_v2/report/dupes/`).
 
+Label errors (14 Oct): 11 FloodNet test photos and 2 validation photos (val30 7769, confirm100 7762) label large dry
+lawns or river banks as water, in FloodNet's own annotation (raw class 5; e.g. 9344: 58 % of the photo "water", no
+grass class). Found because two of them (9344, 9348) held 42 of the submitted model's 105 false-safe houses; then every
+evaluation photo whose labelled water is ≥ 30 % vegetation-green (32 candidates, `src/label_audit.py`) was checked by
+eye on the photo and the label only, never on a prediction, so the list favours no model. List with reasons:
+`splits/floodnet_label_errors.tsv`; impact on both models: `results/kaggle_v2/report/label_audit/impact.md`
+(published numbers stay on all photos; results are also given without these photos).
+
 ## Storage
 
 Preprocessed data in `$RR_DATA` (default `~/rr_data`); results in `results/` (not in git). Both are backed up

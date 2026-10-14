@@ -23,9 +23,11 @@ and more safely (false safe 8 % vs 11 %), and runs in 0.5 s per photo on a CPU (
 walk to each house (never back into a vehicle), with vehicle widths, parked cars, tree canopy and a corner rule. On
 the predicted maps it finds the houses that cannot be reached by road with **F1 .752** on the full FloodNet test
 (.819 on eval100; RescueNet .818; the first model's .759 / .835 are within noise of these). The dangerous error is
-the **false-safe rate**: 11 % [5 %, 18 %] of the houses it shows as truck-reachable are not (full test; RescueNet 3 %).
-In 83–87 % of those the truck route crosses water or flooded road that the model left unlabelled and the router took
-for dry yard (`results/routing/false_safe/`), which is why each truck-reachable house gets a confidence tier: all 208 "confident" houses on FloodNet eval100 were truly truck-reachable; the others say
+the **false-safe rate**: 11 % [5 %, 18 %] of the houses it shows as truck-reachable are not (full test; RescueNet 3 %);
+7 % once 11 test photos are set aside whose FloodNet labels mark dry lawns and river banks as water (42 of the 105
+false-safe houses are in two of them, where the model is right; `splits/floodnet_label_errors.tsv`). In most of the
+rest the truck route crosses water or flooded road that the model left unlabelled and the router took for dry yard
+(`results/routing/false_safe/`), which is why each truck-reachable house gets a confidence tier: all 208 "confident" houses on FloodNet eval100 were truly truck-reachable; the others say
 "check first" (79 %). The "labelled map" these numbers
 compare with is the same router run on the human labels: the datasets label pixels, not reachability.
 
@@ -56,15 +58,24 @@ uploaded photo.
 | `MODEL_CARD.md`, `DATA.md` | what the model is, how far to trust it; data sources, licences and splits |
 | `PLAN.md` | the project plan and the full log of decisions and results (§16 first since 14 Oct) |
 
-## Since submission (14 Oct 2026)
+## Since submission (14–15 Oct 2026)
 
 The submitted state is tag `submitted-2026-10-08`; the public demo stays frozen until grading (`release/DEMO_FROZEN`).
-Work since then (PLAN §16): off-site backup of results and data (`src/backup.py`), configurable paths (`RR_DATA`),
-`pyproject.toml` + `uv.lock`, CI, the Chameleon scripts run on Apple MPS / CPU for pre-flight checks (`RR_DEVICE`),
-per-run decode and reports for the next GPU round (`src/run_decode.py`, `src/phase2_report.py`, pre-registered in
-`experiments/phase2/PROTOCOL.md`), a same-budget supervised baseline (`src/baseline_seg.py`), calibration
-(`src/calibrate.py`), the label-free decode, the false-safe analysis and a CSV house list in the viewer.
-Model and data: `MODEL_CARD.md`, `DATA.md`.
+Work since then (PLAN §16; §16.5 for the latest review):
+
+- **Same-budget baseline** (`src/baseline_seg.py`, `src/baseline_report.py`): DeepLabV3-ResNet50 fine-tuned on the
+  same 50 photos beats Chameleon on the full test (mIoU .581 vs .507, stranded F1 .813 vs .752, false safe .081 vs
+  .111; paired intervals exclude 0) and runs on a CPU. At 5 photos the two are level (eval100 .340 vs .353). A curve
+  over 1–1,445 photos, other support draws and RescueNet are running (Mac) or planned (Phase 2).
+- **FloodNet label errors** (`src/label_audit.py`, `splits/floodnet_label_errors.tsv`): 11 test and 2 validation
+  photos label large dry areas as water; results are given with and without them.
+- **Phase 2** (GPU, not started): pre-registered in `experiments/phase2/PROTOCOL.md` (amendment 1: one-recipe curve
+  paired with the baseline on the full test, lean variance design, RescueNet 5–50 shots, product-model candidates);
+  `kaggle/phase2/make_plan.py` builds the sessions, `kaggle/phase2/post.py` runs every CPU step afterwards.
+- Engineering: off-site backup (`src/backup.py`), configurable paths (`RR_DATA`), `pyproject.toml` + `uv.lock`, CI,
+  the Chameleon scripts on Apple MPS / CPU for pre-flight checks (`RR_DEVICE`), calibration, label-free decode,
+  false-safe analysis, CSV house list, truck stop points and a Korean interface in the viewer (local `docs/`).
+  Model and data: `MODEL_CARD.md`, `DATA.md`.
 
 ## Setup (CPU)
 
