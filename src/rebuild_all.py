@@ -62,6 +62,8 @@ STEPS = {
     'gate': ([py('gate_sweep.py')], ['decode'], 'routing/gate*/gate.md: off-road gate sweeps'),
     'physical': ([py('physical_ablation.py')], ['decode'], 'routing/physical/ablation.md'),
     'tiers': ([py('tiers.py')], ['decode'], 'routing/tiers/: confidence tiers, cautious gate, p_wet calibration'),
+    'calibration': ([py('calibrate.py', '--results', R, '--out', f'{REP}/calibration')], ['decode'],
+                    'report/calibration/: per-class Platt scaling, ECE, plain-0.5 decode (PLAN §16 B3)'),
     'sensitivity': ([py('sensitivity.py')], ['decode'], 'routing/sensitivity/: cost independence, sensitivity, detection'),
     'dupes': ([py('dupes.py')], [], 'report/dupes/: near-duplicate test/support photos'),
     'bootstrap': ([py('bootstrap_ci.py')], ['decode', 'dupes', 'route_report', 'route_full'], 'report/ci/: bootstrap CIs'),

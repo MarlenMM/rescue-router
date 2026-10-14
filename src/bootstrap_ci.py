@@ -25,6 +25,7 @@ sys.path.insert(0, HERE)
 from rr.metrics import WET, confusion, gt_classes, summarize  # noqa: E402
 from rr.final_decode import decode_photo, photo  # noqa: E402
 from rr.paths import RR_DATA  # noqa: E402
+from router import false_safe_from  # noqa: E402
 
 NAMES = {'floodnet': ['road_clear', 'road_flooded', 'bldg_flooded', 'bldg_dry', 'water'],
          'rescuenet': ['road_clear', 'road_blocked', 'bldg_intact', 'bldg_damaged', 'water']}
@@ -140,7 +141,8 @@ def main():
         out['without_overlap']['/'.join(map(str, key))] = dict(removed=len(ids) - len(keep), miou=r)
         md.append(f'| {ds} {shot}-shot | {sf.split("_test_")[1]} | {dname} | {len(ids) - len(keep)} | {fmt(allv)} | {fmt(r)} |')
     # routing: stranded F1 (risk-aware, router v3, tuned decode)
-    md += ['', '| routing (router v3, tuned decode, λ 5) | images | stranded F1 | without overlapping photos |', '|---|---|---|---|']
+    md += ['', '| routing (router v3, tuned decode, λ 5) | images | stranded F1 | without overlapping photos | false safe |',
+           '|---|---|---|---|---|']
     for name, path, ds, shot in (('FloodNet 50-shot eval100', 'pred_floodnet_50shot_s0_stratified_tuned.json', 'floodnet', 50),
                                  ('FloodNet 50-shot full test', 'full/pred_floodnet_50shot_full_tuned.json', 'floodnet', 50),
                                  ('RescueNet 20-shot eval100', 'pred_rescuenet_20shot_s0_stratified_tuned.json', 'rescuenet', 20)):
@@ -151,8 +153,10 @@ def main():
         r, _ = boot(per, sorted(per), f1_from, a.B, rng)
         rng = np.random.default_rng(0)
         r2, _ = boot(per, sorted(i for i in per if i not in over), f1_from, a.B, rng)
-        out['routing'][name] = dict(all=r, without_overlap=r2)
-        md.append(f'| {name} | {r["n"]} | {fmt(r)} | {fmt(r2)} ({r["n"] - r2["n"]} removed) |')
+        rng = np.random.default_rng(0)
+        fs, _ = boot(per, sorted(per), false_safe_from, a.B, rng)
+        out['routing'][name] = dict(all=r, without_overlap=r2, false_safe=fs)
+        md.append(f'| {name} | {r["n"]} | {fmt(r)} | {fmt(r2)} ({r["n"] - r2["n"]} removed) | {fmt(fs)} |')
     json.dump(out, open(os.path.join(a.out, 'ci.json'), 'w'), indent=1)
     open(os.path.join(a.out, 'ci.md'), 'w').write('\n'.join(md) + '\n')
     print('\n'.join(md))

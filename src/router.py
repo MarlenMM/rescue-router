@@ -395,7 +395,7 @@ def eval_route_on_gt(route, gt_grid):
 
 def route_metrics(pred_grid, gt_grid, base, blds):
     """Per-image routing comparison (PLAN §5.4) of a predicted map against the GT map, same base and
-    GT buildings. Returns the 3x3 status confusion (rows GT, cols pred) and per-building records."""
+    GT buildings. Returns the 4x4 status confusion (rows GT, cols pred) and per-building records."""
     cm = np.zeros((len(STATUS), len(STATUS)), np.int64)
     recs = []
     if base is None:
@@ -416,8 +416,16 @@ def route_metrics(pred_grid, gt_grid, base, blds):
     return cm, recs
 
 
+def false_safe_from(cm):
+    """share of predicted-TRUCK houses whose labelled-map status is not TRUCK (rows GT, cols pred)"""
+    cm = np.asarray(cm)
+    return float(cm[1:, 0].sum() / max(cm[:, 0].sum(), 1))
+
+
 def summarize_routing(cm, recs):
-    """Dataset-level routing metrics from accumulated status confusion and building records."""
+    """Dataset-level routing metrics from accumulated status confusion and building records.
+    false_safe_rate = share of the houses shown as truck-reachable that are not truck-reachable on the labelled map
+    (the dangerous error: a team is sent by road and cannot get through)."""
     pos_g, pos_p = cm[1:, :].sum(), cm[:, 1:].sum()          # "not TRUCK" = stranded
     tp = cm[1:, 1:].sum()
     prec, rec = tp / max(pos_p, 1), tp / max(pos_g, 1)
@@ -430,6 +438,7 @@ def summarize_routing(cm, recs):
         n_buildings=int(cm.sum()), gt_status_counts=cm.sum(1).tolist(), pred_status_counts=cm.sum(0).tolist(),
         stranded_precision=float(prec), stranded_recall=float(rec),
         stranded_f1=float(2 * prec * rec / max(prec + rec, 1e-9)),
+        false_safe_rate=false_safe_from(cm), n_false_safe=int(cm[1:, 0].sum()),
         reach_agreement=float(np.trace(cm) / max(cm.sum(), 1)), status_confusion=cm.tolist(),
         rsv_mean=float(np.mean([r['rsv'] for r in truck_routes])) if truck_routes else None,
         unsafe_route_rate=float(np.mean([r['unsafe'] for r in truck_routes])) if truck_routes else None,

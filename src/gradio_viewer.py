@@ -122,7 +122,8 @@ def build_app(args, live, work):
 
     with gr.Blocks(title='Rescue Router') as demo:
         gr.Markdown('# Rescue Router\nFlood map of a drone photo by **Chameleon** adapted from **50 labelled photos** '
-                    '(FloodNet; RescueNet from 20), then truck → boat → on-foot rescue routes on the predicted map.')
+                    '(FloodNet; RescueNet from 20; plus 30 labelled validation photos for tuning), then truck → boat → on-foot '
+                    'rescue routes on the predicted map.')
         with gr.Tabs():
             with gr.Tab('Viewer'):
                 with gr.Row():

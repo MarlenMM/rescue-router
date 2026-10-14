@@ -2,7 +2,8 @@
 
 Marlen Melis, 20260876. KAIST AIC200 mini-project, Track A + B.
 
-A drone photo after a flood is mapped by Chameleon (adapted from 50 labelled FloodNet photos) into clear road, flooded
+A drone photo after a flood is mapped by Chameleon (adapted from 50 labelled FloodNet photos; 30 more
+labelled validation photos chose its checkpoint and thresholds) into clear road, flooded
 road, flooded/dry building and water. A router on that map works out how a rescue team reaches each house: truck on
 dry roads, then a boat across water, then the last stretch on foot (never back into a vehicle). The same pipeline,
 from the model to the routes, runs end to end in the notebook (`20260876_MarlenMelis_code.ipynb`, sections 8–9).
