@@ -95,6 +95,9 @@ h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: v
 .st svg { width: 13px; height: 13px; }
 .st.truck { background: var(--truck); } .st.boat { background: var(--boat); } .st.foot { background: var(--foot); } .st.check { background: var(--check); } .st.check svg { fill: #1f2937; } .st.isolated { background: var(--isolated); }
 .st.sel { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* truck stop (boat launch / walk-on point) for the houses a truck cannot reach: lettered square, A = first */
+.stop { width: 20px; height: 20px; border-radius: 4px; border: 2px solid #fff; background: #111827; color: #fff;
+  font: 700 11px/16px system-ui, sans-serif; text-align: center; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
 .vehicle { font-size: 22px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)); }
 .house-poly { cursor: pointer; }
 #map.picking, #map.picking .leaflet-interactive { cursor: crosshair !important; }
@@ -140,6 +143,7 @@ h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: v
 .route-card .tierline.warn { color: var(--check); }
 .route-card .eta { font-size: 14px; }
 .counter .split.check { color: var(--check); }
+.counter .split.stops { opacity: 0.85; }
 
 /* Batch 4: browsing all test photos, water probability layer, ghost route, link */
 h2.sub { margin-top: 12px; }
