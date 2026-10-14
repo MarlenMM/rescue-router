@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import platform
 import sys
 import types
 
@@ -35,7 +36,7 @@ from rr import data as D  # noqa: E402
 from torchvision.transforms import ColorJitter  # noqa: E402
 
 # md5 of FloodDataset.postprocess outputs (20 training crops + the support crop) computed with the code before
-# Batch 13 (torch 2.14.1 CPU); the defaults must keep giving exactly these tensors and random draws.
+# Batch 13 (torch 2.14.1 CPU, macOS arm64: float kernels differ on other platforms); the defaults must keep giving exactly these tensors and random draws.
 REF_POSTPROCESS = '3e17d523ba2e375091e57c5a63530ce5'
 
 
@@ -57,8 +58,8 @@ def dataset(**opts):
 
 
 def test_postprocess_defaults_bit_exact():
-    if torch.__version__.split('+')[0] != '2.14.1':
-        pytest.skip('reference hash recorded with torch 2.14.1')
+    if torch.__version__.split('+')[0] != '2.14.1' or (sys.platform, platform.machine()) != ('darwin', 'arm64'):
+        pytest.skip('reference hash recorded with torch 2.14.1 on macOS arm64')
     X, Y, M = sample()
     h = hashlib.md5()
     d = dataset(eval_mode=False, resize=False)
