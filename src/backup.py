@@ -32,7 +32,8 @@ SKIP = {'.DS_Store', '__pycache__', '.pytest_cache', '.ruff_cache'}
 LOCAL_FILES = ['chameleon', 'chameleon-main', 'assets', 'tools', 'chameleon.ipynb', 'README_starter.md',
                '.gitignore.starter', '20260876_MarlenMelis_slides.pptx', 'AIC200_TA_Session_MiniProject_Chameleon.pdf',
                'AIC200_presentation_order.pdf', 'NEW_CHAT_PROMPT.md', 'NEW_CHAT_PROMPT_GRADIO.md',
-               'NEW_CHAT_PROMPT_VIDEO.md', 'compass_artifact_wf-280fc84c-4184-8f72-b128-f5ffb289d4f8_text_markdown.md']
+               'NEW_CHAT_PROMPT_VIDEO.md', 'compass_artifact_wf-280fc84c-4184-8f72-b128-f5ffb289d4f8_text_markdown.md',
+               'SUMMARY_FOR_NEW_CHAT.md']
 GROUPS = {
     'results': (ROOT, ['results']),
     'rr_data': (RR_DATA, ['floodnet_r768.tar', 'rescuenet_r768.tar', 'floodnet_r1024_subset.tar']),
