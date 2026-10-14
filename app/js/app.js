@@ -679,9 +679,13 @@ function drawPwetLegend() {
   $('pwetRamp').style.background = `linear-gradient(90deg, ${stops.join(',')}), #1e293b`;
   $('pwetRamp').innerHTML = [0, cg, tg, 1].map(v => `<span style="left:${v * 100}%">${v === 0 || v === 1 ? v : fmt(v)}</span>`).join('');
   const what = s.ds === 'rescuenet' ? 'water or blocked road' : 'water';
-  $('pwetText').innerHTML = `Model's probability of ${what} per cell. <b class="b">Blue</b> (≥ ${fmt(tg)}): treated as wet; ` +
-    `trucks keep off it off-road. <b class="y">Yellow</b> (${fmt(cg)}–${fmt(tg)}), solid where a truck may cross only on the ` +
-    'normal map, not the cautious one: houses reached through it are "check first". Prediction only: the labelled map has no probabilities.';
+  $('pwetText').innerHTML = LANG === 'ko'
+    ? `셀별 모델의 ${s.ds === 'rescuenet' ? '물 또는 막힌 도로' : '물'} 확률. <b class="b">파랑</b> (≥ ${fmt(tg)}): 젖은 것으로 보고 트럭이 ` +
+      `도로 밖으로 지나가지 않습니다. <b class="y">노랑</b> (${fmt(cg)}–${fmt(tg)}): 보통 지도에서만 트럭이 지날 수 있고 신중한 지도에서는 ` +
+      '지날 수 없는 곳: 이곳을 지나야 닿는 가구는 "먼저 확인"입니다. 예측만 해당: 라벨 지도에는 확률이 없습니다.'
+    : `Model's probability of ${what} per cell. <b class="b">Blue</b> (≥ ${fmt(tg)}): treated as wet; ` +
+      `trucks keep off it off-road. <b class="y">Yellow</b> (${fmt(cg)}–${fmt(tg)}), solid where a truck may cross only on the ` +
+      'normal map, not the cautious one: houses reached through it are "check first". Prediction only: the labelled map has no probabilities.';
   $('pwetLegend').hidden = state.layer !== 'pwet';
 }
 
@@ -798,7 +802,7 @@ function relabel(lang) {
   setLang(lang);
   $('langBtn').textContent = LANG === 'ko' ? 'English' : '한국어';
   if (!state.s) return;
-  drawCaption(); drawLegend(); drawBase(); drawCounter(); drawHouseList();
+  drawCaption(); drawLegend(); drawPwetLegend(); drawBase(); drawCounter(); drawHouseList();
   if (state.sel) select(state.sel.i, state.sel.side, false);
 }
 $('langBtn').addEventListener('click', () => { relabel(LANG === 'ko' ? 'en' : 'ko'); writeHash(); });
