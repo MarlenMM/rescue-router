@@ -11,11 +11,12 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div id="map" aria-label="Drone photo with flood map"></div>
+<div id="map" data-i18n-attr="aria-label:" aria-label="Drone photo with flood map"></div>
 
 <header class="title card">
+  <button id="langBtn" class="lang-btn" aria-label="한국어 / English">한국어</button>
   <h1>Rescue Router</h1>
-  <p id="caption">Loading…</p>
+  <p id="caption" data-i18n>Loading…</p>
 </header>
 
 <div class="dock" id="dock">
@@ -25,107 +26,107 @@
 
 <div class="swipe" id="swipe" hidden>
   <div class="swipe-line"></div>
-  <button class="swipe-handle" id="swipeHandle" aria-label="Drag to compare the prediction and the labelled map">⟷</button>
-  <span class="swipe-tag left">Prediction</span><span class="swipe-tag right">Labelled map</span>
+  <button class="swipe-handle" id="swipeHandle" data-i18n-attr="aria-label:" aria-label="Drag to compare the prediction and the labelled map">⟷</button>
+  <span class="swipe-tag left" data-i18n>Prediction</span><span class="swipe-tag right" data-i18n>Labelled map</span>
 </div>
 
 <aside class="panel card" id="panel">
   <button class="sheet-toggle" id="sheetToggle" aria-expanded="true" aria-controls="panelBody">
-    <span class="grip"></span><span class="sheet-label">Controls</span>
+    <span class="grip"></span><span class="sheet-label" data-i18n>Controls</span>
   </button>
   <div class="panel-body" id="panelBody">
     <section>
-      <h2>Showcase</h2>
+      <h2 data-i18n>Showcase</h2>
       <div class="scenes" id="scenes"></div>
-      <h2 class="sub">All test photos</h2>
+      <h2 class="sub" data-i18n>All test photos</h2>
       <div class="browse-bar">
-        <button id="prevScene" class="nav" aria-label="Previous photo" title="Previous photo (P)">‹</button>
-        <div class="seg ds" role="radiogroup" aria-label="Dataset">
+        <button id="prevScene" data-i18n-attr="aria-label:|title:" class="nav" aria-label="Previous photo" title="Previous photo (P)">‹</button>
+        <div class="seg ds" role="radiogroup" aria-label="Dataset" data-i18n-attr="aria-label:">
           <button role="radio" data-ds="floodnet" aria-checked="true">FloodNet</button>
           <button role="radio" data-ds="rescuenet" aria-checked="false">RescueNet</button>
         </div>
-        <button id="nextScene" class="nav" aria-label="Next photo" title="Next photo (N)">›</button>
+        <button id="nextScene" data-i18n-attr="aria-label:|title:" class="nav" aria-label="Next photo" title="Next photo (N)">›</button>
       </div>
-      <label class="row sort">Sort <select id="sortScenes" aria-label="Sort the test photos">
-        <option value="id">by photo id</option>
-        <option value="cut">most houses cut off</option>
-        <option value="dis">most disagreements</option>
-        <option value="iou">lowest mean IoU</option>
+      <label class="row sort"><span data-i18n>Sort</span> <select id="sortScenes" data-i18n-attr="aria-label:" aria-label="Sort the test photos">
+        <option value="id" data-i18n>by photo id</option>
+        <option value="cut" data-i18n>most houses cut off</option>
+        <option value="dis" data-i18n>most disagreements</option>
+        <option value="iou" data-i18n>lowest mean IoU</option>
       </select></label>
-      <div class="all" id="allScenes" role="list" aria-label="Test photos"></div>
+      <div class="all" id="allScenes" data-i18n-attr="aria-label:" role="list" aria-label="Test photos"></div>
       <p class="model" id="model"></p>
-      <button id="copyLink" class="link-btn">Copy link to this view</button>
+      <button id="copyLink" class="link-btn" data-i18n>Copy link to this view</button>
     </section>
 
     <section>
-      <h2>Map</h2>
-      <div class="seg" role="radiogroup" aria-label="Map source">
-        <button role="radio" data-src="pred" aria-checked="true">Prediction</button>
-        <button role="radio" data-src="gt" aria-checked="false" title="The same router on the human labels">Labelled map</button>
-        <button role="radio" data-src="swipe" aria-checked="false">Swipe</button>
+      <h2 data-i18n>Map</h2>
+      <div class="seg" role="radiogroup" aria-label="Map source" data-i18n-attr="aria-label:">
+        <button role="radio" data-src="pred" aria-checked="true" data-i18n>Prediction</button>
+        <button role="radio" data-src="gt" data-i18n-attr="title:" aria-checked="false" title="The same router on the human labels" data-i18n>Labelled map</button>
+        <button role="radio" data-src="swipe" aria-checked="false" data-i18n>Swipe</button>
       </div>
-      <div class="seg" role="radiogroup" aria-label="Overlay">
-        <button role="radio" data-layer="classes" aria-checked="true">Classes</button>
-        <button role="radio" data-layer="pwet" aria-checked="false" title="The model's water probability per cell (prediction only)">Water probability</button>
+      <div class="seg" role="radiogroup" aria-label="Overlay" data-i18n-attr="aria-label:">
+        <button role="radio" data-layer="classes" aria-checked="true" data-i18n>Classes</button>
+        <button role="radio" data-layer="pwet" data-i18n-attr="title:" aria-checked="false" title="The model's water probability per cell (prediction only)" data-i18n>Water probability</button>
       </div>
       <div class="pwet-legend" id="pwetLegend" hidden>
         <div class="ramp" id="pwetRamp"></div>
         <p id="pwetText"></p>
       </div>
-      <label class="row"><input type="checkbox" id="tClasses" checked> Overlay <input type="range" id="opacity" min="0" max="100" value="60" aria-label="Overlay opacity"></label>
-      <label class="row"><input type="checkbox" id="tStatus" checked> House status</label>
-      <label class="row"><input type="checkbox" id="tDisagree"> Disagreements with the labelled map <span class="pill" id="nDisagree">0</span></label>
-      <label class="row"><input type="checkbox" id="tBase" checked> Entry points</label>
-      <label class="row"><input type="checkbox" id="tRisk" checked> Risk-aware truck (avoid likely water)</label>
-      <label class="row"><input type="checkbox" id="tCb"> Colour-blind palette</label>
+      <label class="row"><input type="checkbox" id="tClasses" checked> <span data-i18n>Overlay</span> <input type="range" id="opacity" data-i18n-attr="aria-label:" min="0" max="100" value="60" aria-label="Overlay opacity"></label>
+      <label class="row"><input type="checkbox" id="tStatus" checked> <span data-i18n>House status</span></label>
+      <label class="row"><input type="checkbox" id="tDisagree"> <span data-i18n>Disagreements with the labelled map</span> <span class="pill" id="nDisagree">0</span></label>
+      <label class="row"><input type="checkbox" id="tBase" checked> <span data-i18n>Entry points</span></label>
+      <label class="row"><input type="checkbox" id="tRisk" checked> <span data-i18n>Risk-aware truck (avoid likely water)</span></label>
+      <label class="row"><input type="checkbox" id="tCb"> <span data-i18n>Colour-blind palette</span></label>
     </section>
 
     <section>
       <h2>Houses <span class="h2-note" id="housesNote"></span></h2>
-      <div class="houses" id="houses" role="listbox" aria-label="Houses in this photo: arrow keys to move, Enter to send a team"></div>
-      <button id="csvHouses" class="link-btn" title="Every house of this photo with its status, tier, minutes and metres per mode (prediction; labelled map alongside)">Download house list (CSV)</button>
+      <div class="houses" id="houses" data-i18n-attr="aria-label:" role="listbox" aria-label="Houses in this photo: arrow keys to move, Enter to send a team"></div>
+      <button id="csvHouses" data-i18n-attr="title:" class="link-btn" title="Every house of this photo with its status, tier, minutes and metres per mode (prediction; labelled map alongside)" data-i18n>Download house list (CSV)</button>
     </section>
 
     <section>
-      <h2>Entry point</h2>
-      <p class="entry-mode">Rescue team enters: <span id="entryMode"></span></p>
+      <h2 data-i18n>Entry point</h2>
+      <p class="entry-mode"><span data-i18n>Rescue team enters:</span> <span id="entryMode"></span></p>
       <div class="btns">
-        <button id="entryPick" aria-pressed="false">Choose on map</button>
-        <button id="entryAuto">Auto</button>
+        <button id="entryPick" aria-pressed="false" data-i18n>Choose on map</button>
+        <button id="entryAuto" data-i18n>Auto</button>
       </div>
     </section>
 
     <section>
-      <h2>Legend</h2>
+      <h2 data-i18n>Legend</h2>
       <ul class="legend" id="legend"></ul>
       <ul class="legend">
-        <li><span class="badge truck"></span>Reachable by truck (confident)</li>
-        <li><span class="badge check"></span>Probably by truck: check first</li>
-        <li><span class="badge boat"></span>Boat needed</li>
-        <li><span class="badge foot"></span>Last stretch on foot</li>
-        <li><span class="badge isolated"></span>No route: air team</li>
-        <li><span class="line truckline"></span>Truck <span class="line boatline"></span>Boat <span class="line footline"></span>Foot</li>
-        <li><span class="line ghostline"></span>Route on the other map, when they disagree</li>
-        <li><span class="sq base"></span>Entry point (truck or boat)</li>
+        <li><span class="badge truck"></span><span data-i18n>Reachable by truck (confident)</span></li>
+        <li><span class="badge check"></span><span data-i18n>Probably by truck: check first</span></li>
+        <li><span class="badge boat"></span><span data-i18n>Boat needed</span></li>
+        <li><span class="badge foot"></span><span data-i18n>Last stretch on foot</span></li>
+        <li><span class="badge isolated"></span><span data-i18n>No route: air team</span></li>
+        <li><span class="line truckline"></span><span data-i18n>Truck</span> <span class="line boatline"></span><span data-i18n>Boat</span> <span class="line footline"></span><span data-i18n>Foot</span></li>
+        <li><span class="line ghostline"></span><span data-i18n>Route on the other map, when they disagree</span></li>
+        <li><span class="sq base"></span><span data-i18n>Entry point (truck or boat)</span></li>
       </ul>
     </section>
 
     <section class="about">
-      <h2>About</h2>
-      <p>A drone photo is mapped into five classes by <b>Chameleon</b>, adapted from only <b>50 labelled photos</b> (FloodNet) or 20 (RescueNet); 30 more labelled validation photos per dataset chose the checkpoint, the decode thresholds and the router settings.
+      <h2 data-i18n>About</h2>
+      <p data-i18n-html="About text">A drone photo is mapped into five classes by <b>Chameleon</b>, adapted from only <b>50 labelled photos</b> (FloodNet) or 20 (RescueNet); 30 more labelled validation photos per dataset chose the checkpoint, the decode thresholds and the router settings.
         A router on 4×4-pixel cells then finds the cheapest way from the entry point to each house: truck on dry ground
         (roads, or yards at 4× cost; never where water is likely), then a boat across water, then the last stretch on foot
         (never back into a vehicle). Vehicles have a width: a truck needs about 2.5 m between buildings and a boat
         about 1.6 m, so neither squeezes through the gap between two houses; people on foot can. The labelled map is the same router run on the human labels: the datasets label pixels,
         not reachability.</p>
-      <p>Confidence: the prediction is routed twice, with the normal off-road rule (land where p_wet &lt; 0.3 for
+      <p data-i18n-html="About confidence">Confidence: the prediction is routed twice, with the normal off-road rule (land where p_wet &lt; 0.3 for
         FloodNet, 0.2 for RescueNet, each tuned on the dataset's validation photos) and a cautious one (p_wet &lt; 0.05 /
         0.15). Houses a truck reaches even on the cautious map are confident (100 % truly truck-reachable on FloodNet test
         photos); the others are marked "check first" (79 %). Minutes and metres are
         rough estimates (truck 20 km/h on roads, 5 off-road, boat 6, on foot 3; scale from the cars in the photo).</p>
-      <p>FloodNet 50-shot: mIoU .51 on the full 448-image test (PSPNet with 1,445 labels: .85 on these classes).
+      <p data-i18n-html="About numbers">FloodNet 50-shot: mIoU .51 on the full 448-image test (PSPNet with 1,445 labels: .85 on these classes).
         One showcase scene is an honest failure: shallow water read as dry land.</p>
-      <p>Besides the 8 showcase scenes you can browse all 200 test photos of the evaluation split (100 FloodNet,
+      <p data-i18n-html="About browse">Besides the 8 showcase scenes you can browse all 200 test photos of the evaluation split (100 FloodNet,
         100 RescueNet), not picked by us: an orange count is the houses a truck cannot reach on the prediction, a pink dot
         marks a photo where prediction and labelled map disagree. "Water probability" shows what the model believes
         cell by cell. The address bar keeps the scene, house, entry point and view, so a link opens exactly this view.</p>
