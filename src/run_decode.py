@@ -77,7 +77,7 @@ def main():
     shot = int(a.run.split('_')[1][:-4])
     ss = a.support_seed if a.support_seed is not None else \
         int(a.run.split('_sup')[1].split('_')[0]) if '_sup' in a.run else int(a.run.split('_')[2][1:])
-    tau_prior, _ = match([P[:, ::4, ::4] for P in filt], support_prior(min(shot, 50), ss))
+    tau_prior, _ = match([P[:, ::4, ::4] for P in filt], support_prior(shot, ss))   # all of the run's training labels
     chosen = dict(tau=[float(t) for t in tau], gf=list(GF), sam=SAM, variant='final')
     out = dict(run=a.run, dataset=DS, rule='run_decode.py (submitted chain; drivable-precision floor P_MIN = %.4f)' % PS.P_MIN,
                chosen=chosen, prior_tau=[float(t) for t in tau_prior], tau_raw=tau_raw,

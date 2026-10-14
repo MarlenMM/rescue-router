@@ -46,7 +46,17 @@ def one(args):
     r = json.load(open(f))['routing']['lam5']
     return dict(split=split, cal=cal, gate=g, reach=reach, f1=r['stranded_f1'], false_safe=r['false_safe_rate'],
                 precision=r['stranded_precision'], recall=r['stranded_recall'], infeasible=r['infeasible_rate'],
-                n_false_safe=r['n_false_safe'])
+                n_false_safe=r['n_false_safe'], cm=r['status_confusion'])
+
+
+def pooled(rows, splits, cal, g, reach):
+    """stranded F1 and false-safe rate of the summed status confusion over several splits"""
+    import numpy as np
+    sys.path.insert(0, HERE)
+    import router as R
+    cm = sum(np.array(next(x for x in rows if (x['split'], x['cal'], x['gate'], x['reach']) == (s, cal, g, reach))['cm'])
+             for s in splits)
+    return R.summarize_routing(cm, [])['stranded_f1'], R.false_safe_from(cm)
 
 
 def main():
@@ -76,6 +86,17 @@ def main():
             cells.append(f"{x['f1']:.3f} | {x['false_safe']:.3f} ({x['n_false_safe']})")
         mark = ' **(published)**' if (c, g, r) == (False, 0.3, None) else ''
         md.append(f"| {'calibrated' if c else 'raw'} | {g} | {r or '∞'}{mark} | " + ' | '.join(cells) + ' |')
+    if {'val30', 'confirm100'} <= set(splits):                   # the pre-registered choice (PLAN §16, PROTOCOL.md)
+        md += ['', '## Gate choice on val30 + confirm100 (raw wetness, unlimited reach; pre-registered rule)', '',
+               '| gate | pooled F1 | pooled false safe |', '|---|---|---|']
+        pool = {g: pooled(rows, ('val30', 'confirm100'), False, g, None) for g in GATES}
+        md += [f'| {g} | {f:.3f} | {fs:.3f} |' for g, (f, fs) in pool.items()]
+        top = max(round(f, 6) for f, _ in pool.values())
+        tied = [g for g in GATES if round(pool[g][0], 6) == top]
+        best = 0.3 if 0.3 in tied else min(tied, key=lambda g: pool[g][1])   # a tie keeps the published gate
+        adopt = best != 0.3 and pool[best][1] <= pool[0.3][1]
+        md += ['', f'Max pooled F1 {top:.3f}: gate(s) {tied}. ' + (f'**Adopt {best}** (higher F1, false safe not higher than 0.3).'
+                                                               if adopt else '**Keep 0.3**.')]
     open(os.path.join(a.out, 'router_sweep.md'), 'w').write('\n'.join(md) + '\n')
     print('\n'.join(md))
 
