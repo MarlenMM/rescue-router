@@ -3,6 +3,7 @@ name = "rescue-router"
 version = "0.2.0"
 description = "Few-shot flood mapping (Chameleon, 50 labelled photos) and truck/boat/foot rescue routing"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12,<3.13"
 # CPU environment for everything in src/ except the GPU scripts (finetune, predict, infer_sweep, select_ckpt, probe)
 # and the Gradio --live path; those run on Kaggle/Colab, see requirements-gpu.txt. Same pins as requirements.txt.

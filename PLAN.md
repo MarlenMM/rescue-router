@@ -699,7 +699,7 @@ locally (`python3 -m http.server 8766 --directory docs`).
   Time Machine failed to mount its destination (checked 14 Oct). → private Kaggle/HF dataset with a SHA-256 manifest.
 - **F5 Hard-coded paths.** 48 references to `~/rr_data`/`~/.venvs` in `src/` → env vars (`RR_DATA`, `RR_RESULTS`, `RR_PY`)
   with today's values as defaults.
-- **F6 No LICENSE** in the code repo; RescueNet's two licences (figshare CC0 vs GitHub CC BY-NC-ND 4.0) → state that
+- **F6 No LICENSE** in the code repo (**done 14 Oct: MIT, Marlen's choice**); RescueNet's two licences (figshare CC0 vs GitHub CC BY-NC-ND 4.0) → state that
   we use the figshare (CC0) release everywhere, before anything goes public.
 - **F7 Small code issues:** `finetune.py:238` ignores the `load_state_dict` result on resume (assert no unexpected keys);
   ruff (default rules + bugbear) reports 459 findings, almost all style; the B023 hits in `bootstrap_ci.py` /
