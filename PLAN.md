@@ -860,7 +860,8 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
      int64 labels); default runs bit-exact with the 14 Oct code (test), swapped in atomically while the queue ran.
 - **Phase 2 changes (PROTOCOL amendment 1):** the curve's 1–20-shot runs predict the full test (eval100 cut from it
   on the CPU, verified byte-identical on the submitted model's T4 caches), RescueNet 5 and 10 added, `var` = lean L
-  design (4 runs; the 3×3 grid kept as `var_full`): **8.8 h of quota instead of 9.8 h**. Baseline partners for every
+  design (4 runs; the 3×3 grid kept as `var_full`); lanes split exactly, confirm100 first: **8.6 h of quota instead of
+  9.8 h**. Both kernels build from the committed code (`make_plan.py kernel curve|var`, not pushed). Baseline partners for every
   point on the Mac (`~/rr_local/baseline_queue3.sh`, after the two running queues).
 - **FloodNet label errors:** the two photos with the most false-safe houses (9344, 9348: 42 of 105) label dry lawns
   and river banks as water in FloodNet's raw annotation. Audit of all 578 evaluation photos (`src/label_audit.py`:

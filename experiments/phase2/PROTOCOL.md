@@ -91,7 +91,8 @@ where, if anywhere, Chameleon's few-shot adaptation wins.
 
 After A5 (the same-budget baseline beats Chameleon at 50 shots) the questions that matter are where, if anywhere,
 Chameleon wins (fewer labels, a second disaster) and whether the baseline's lead survives other support draws.
-Changes (`kaggle/phase2/make_plan.py cost`: curve + var 8.8 h of quota instead of 9.8 h):
+Changes (`kaggle/phase2/make_plan.py cost`: curve + var 8.6 h of quota instead of 9.8 h; the two GPU lanes are now
+split exactly and the submitted model's confirm100 prediction runs first):
 
 1. **curve:** the FloodNet 1/5/10/20-shot `p2` runs predict the whole test set (448 photos) instead of eval100, so
    each point is paired photo by photo with the baseline curve on the full test; their eval100 caches are cut from

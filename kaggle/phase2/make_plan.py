@@ -78,10 +78,25 @@ def session(name):
 
 
 def lanes(items, n=2):
-    """greedy longest-first assignment of job groups to the GPUs; returns ({gpu: [group, ...]}, minutes per gpu)"""
+    """job groups -> GPUs; returns ({gpu: [group, ...]}, minutes per gpu). Two GPUs: the exact best split (all 2^k
+    assignments; k <= 16 here), else greedy longest-first. In each lane, prediction-only groups (the submitted model on
+    confirm100: the model choice and F2 depend on it) go first, so a long session can never skip them, then the
+    longest first."""
+    items = list(items)
+    if n == 2 and len(items) <= 16:
+        best = min(range(2 ** len(items)), key=lambda mask: max(
+            sum(m for k, (_, _, m) in enumerate(items) if mask >> k & 1),
+            sum(m for k, (_, _, m) in enumerate(items) if not mask >> k & 1)))
+        assign = [best >> k & 1 for k in range(len(items))]
+    else:
+        assign, load = [], [0.0] * n
+        for _, _, m in items:                     # (greedy in the given order; callers sort longest first)
+            g = load.index(min(load))
+            assign.append(g)
+            load[g] += m
     plan, load = {g: [] for g in range(n)}, [0.0] * n
-    for rid, jobs, m in sorted(items, key=lambda x: -x[2]):
-        g = load.index(min(load))
+    first = lambda x: any(sc == 'finetune' for sc, _ in x[1])                  # noqa: E731
+    for (rid, jobs, m), g in sorted(zip(items, assign), key=lambda xg: (first(xg[0]), -xg[0][2])):
         plan[g].append(jobs)
         load[g] += m
     return plan, load
