@@ -875,6 +875,18 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
   cautious tier: 208 at 100 %).
 - **Self-training and small models** (pre-registered, amendment 1 item 4): pseudo-labels for the 1,395 unlabelled
   FloodNet train photos from the 50-shot baseline (`src/baseline_pseudo.py`), student and MobileNetV3 models in queue 3.
+- **Curve so far:** 5 photos: baseline eval100 .340 / full test .332 vs Chameleon (first recipe) eval100 .353 tuned:
+  level; 50 photos: baseline ahead (+.074 full test). The crossover question is open → the Phase 2 curve matters.
+  (The 5-shot run lost its prediction step to the folder move; re-run from its checkpoint on the CPU.)
+- **Out of domain:** zero-label FloodNet → RescueNet on shared road / building / water: baseline .226 vs Chameleon .223
+  (water .098 both; `report/transfer.md`). On the two unseen OpenAerialMap photos (no labels) the baseline finds the
+  flat roofs Chameleon missed but reads parts of Vijayawada's brown floodwater street as clear road, which Chameleon
+  got right (`results/baselines/report/oam_baseline_vijayawada_jamaica.jpg`; anecdotal, 2 photos).
+- **Proposed, needs Marlen's OK (downloads):** an offline mode for the viewer: the chosen small baseline exported to ONNX
+  (needs the `onnx` / `onnxscript` Python packages) and run in the browser with onnxruntime-web (vendored, ~10-20 MB),
+  then decode → routing grids → the existing JS router, all on the device: no GPU server, no photo upload, works
+  without a network in the field. The grid/building/entry construction (`export_web_assets.py`) needs a JS port
+  with a parity test like the router's.
 
 ## 15. Status / handoff (updated Wed 7 Oct, 18:15 KST)
 
