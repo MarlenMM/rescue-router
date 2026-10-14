@@ -5,7 +5,8 @@
 Rows on RescueNet eval100, super-classes road (channels 0+1), building (2+3), water (4):
   * zero-label transfer: FloodNet 50-shot model with its own FloodNet supports
     (preds/floodnet_50shot_s0_stratified_rescuenet_test_eval100_fp16.npz), FloodNet decodes;
-  * re-adaptation: RescueNet 20- and 50-shot models (their own caches and decodes).
+  * re-adaptation: RescueNet 20- and 50-shot models (their own caches and decodes);
+  * the same-budget baselines (results/baselines, argmax decode), where their caches exist.
 """
 
 import argparse
@@ -66,6 +67,17 @@ def main():
         npz = os.path.join(a.results, 'preds', f'{run}_rescuenet_test_eval100_fp16.npz')
         rows.append((f're-adapted: RescueNet {k}-shot, τ 0.5', score(npz, dict(tau=0.5), a.data)))
         rows.append((f're-adapted: RescueNet {k}-shot, tuned decode', score(npz, dec_of(run), a.data)))
+    # same-budget baselines (src/baseline_seg.py, argmax decode; 14 Oct): zero-label transfer of the FloodNet 50-shot
+    # baseline (--query_dataset rescuenet) and the RescueNet-trained ones (COCO start, or started from the FloodNet model)
+    B = os.path.join(os.path.dirname(os.path.dirname(a.results)), 'baselines', 'preds')
+    for label, run in (('zero-label transfer: FloodNet 50-shot **baseline** (DeepLabV3), argmax', 'baseline_deeplabv3_r50_50shot_s0'),
+                       ('RescueNet 20-shot **baseline**, argmax', 'baseline_deeplabv3_r50_rescuenet_20shot_s0'),
+                       ('RescueNet 50-shot **baseline**, argmax', 'baseline_deeplabv3_r50_rescuenet_50shot_s0'),
+                       ('RescueNet 20-shot **baseline** started from the FloodNet 50-shot baseline, argmax',
+                        'baseline_deeplabv3_r50_rescuenet_20shot_s0_ft50')):
+        npz = os.path.join(B, f'{run}_rescuenet_test_eval100.npz')
+        if os.path.exists(npz):
+            rows.append((label, score(npz, {'argmax': True}, a.data)))
     lines = ['| model (RescueNet eval100) | road IoU | building IoU | water IoU | mean |', '|---|---|---|---|---|']
     lines += [f'| {n} | ' + ' | '.join(f'{r[c]:.3f}' for c in ('road', 'building', 'water', 'mean')) + ' |' for n, r in rows]
     open(a.out, 'w').write('\n'.join(lines) + '\n')

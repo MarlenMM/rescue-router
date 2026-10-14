@@ -1,7 +1,7 @@
 """Phase 2 GPU plans (experiments/phase2/PROTOCOL.md) as lane plans for kaggle/b13/make_kernel.py, and a local
 pre-flight that runs the same job chains on this Mac (MPS/CPU) at toy size before any Kaggle quota is spent.
 
-    python kaggle/phase2/make_plan.py plan <session> > plan.json        # sessions: var, curve
+    python kaggle/phase2/make_plan.py plan <session> > plan.json        # sessions: curve, var (var_full)
     python kaggle/phase2/make_plan.py cost                              # T4 minutes per session (measured costs)
     python kaggle/phase2/make_plan.py preflight <session> [--jobs 2]    # toy run of the first jobs, locally
     python kaggle/phase2/make_plan.py kernel <session>                  # ~/rr_push/rr-p2-<session>/ ready to push
@@ -54,16 +54,26 @@ def predict_only(ckpt_run, ds, splits):
     return ckpt_run, jobs, sum(N_PHOTOS[sf] for sf in splits) * PRED_S[50] / 60
 
 
+# FloodNet points up to 20 shots predict the whole test set (448 photos) instead of eval100: prediction is cheap there,
+# eval100 is cut from it on the CPU (src/subset_cache.py, bit-exact: photos are predicted independently), and the
+# curve is then paired photo by photo with the baseline curve on the full test (amendment 1, PROTOCOL.md)
+FULL = ['floodnet_val_tune30', 'floodnet_test_full']
+
+
 def session(name):
     """list of (run id, job group, minutes), longest first is not needed: lanes are balanced greedily below"""
-    if name == 'var':            # A3: 3 training seeds x 3 support draws at 50 shots; (0, 0) is the submitted model
+    if name == 'var':            # A3, lean L design (amendment 1): support draws 1, 2 with seed 0 and training seeds
+        # 1, 2 with draw 0; (0, 0) is the submitted model. Pairs with the baseline's draws 0-2 by draw.
+        return [run_jobs('floodnet', 50, s, d) for s, d in ((0, 1), (0, 2), (1, 0), (2, 0))]
+    if name == 'var_full':       # A3 as first registered: 3 training seeds x 3 support draws (two-way variance split)
         return [run_jobs('floodnet', 50, s, d) for d in (0, 1, 2) for s in (0, 1, 2) if (s, d) != (0, 0)]
     if name == 'curve':          # A4: one recipe for the curve and RescueNet (tag p2: the published runs keep their
-        # names); 100 labels predicted with the first 50; + F2: the submitted model on the confirmation split
-        return [run_jobs('floodnet', k, tag='p2') for k in (1, 5, 10, 20)] + \
-               [run_jobs('floodnet', 100, eval_shot=50, tag='p2'),
-                run_jobs('rescuenet', 20, tag='p2'), run_jobs('rescuenet', 50, tag='p2'),
-                predict_only('floodnet_50shot_s0_stratified', 'floodnet', ['floodnet_val_confirm100'])]
+        # names); 100 labels predicted with the first 50; + F2: the submitted model on the confirmation split;
+        # RescueNet 5 and 10 (amendment 1): the low-label end on the second disaster
+        return [run_jobs('floodnet', k, tag='p2', splits=FULL) for k in (1, 5, 10, 20)] + \
+               [run_jobs('floodnet', 100, eval_shot=50, tag='p2')] + \
+               [run_jobs('rescuenet', k, tag='p2') for k in (5, 10, 20, 50)] + \
+               [predict_only('floodnet_50shot_s0_stratified', 'floodnet', ['floodnet_val_confirm100'])]
     raise ValueError(name)
 
 
@@ -84,16 +94,16 @@ def main():
         print(json.dumps({str(g): v for g, v in plan.items()}, indent=1))
     elif cmd == 'cost':
         tot = 0
-        for s in ('var', 'curve'):
+        for s in ('curve', 'var', 'var_full'):
             items = session(s)
             _, load = lanes(items)
             wall = max(load) + 15                  # + setup (clone, pip, data, model load)
-            tot += wall
+            tot += wall if s != 'var_full' else 0
             print(f'{s:8s} {len(items)} runs, T4 minutes {sum(m for _, _, m in items):.0f}, '
                   f'2xT4 wall (= quota) {wall:.0f} min')
             for rid, _, m in items:
                 print(f'    {rid:45s} {m:5.0f} min')
-        print(f'total quota ~{tot / 60:.1f} h of 30 h/week')
+        print(f'total quota (curve + var) ~{tot / 60:.1f} h of 30 h/week; var_full is the alternative to var')
     elif cmd == 'kernel':
         kernel(sys.argv[2])
     elif cmd == 'preflight':

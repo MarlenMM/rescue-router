@@ -5,8 +5,10 @@ CPU only, from the prediction caches.
 
 Chain (the submitted model's, 8 Oct): guided filter (r 2, eps 1e-3, guided by the grey photo) -> per-class tau ->
 SAM "grow" of the building outlines. tau: decode_tune's coordinate ascent on val30 mIoU, first on the raw
-probabilities from 0.5, then on the filtered ones from there, under the same fixed drivable-precision floor as the
-submitted model (postproc_sweep.P_MIN = the first model's tau-0.5 val30 value, .567). Also the label-free thresholds
+probabilities from 0.5, then on the filtered ones from there, under the drivable-precision floor of the
+submitted model (postproc_sweep.P_MIN = the first model's tau-0.5 val30 value, .567), lowered to the run's own tau-0.5
+val30 drivable precision when that is below it (few-shot runs; the published curve's rule; PROTOCOL amendment 1).
+Also the label-free thresholds
 of src/prior_decode.py (50 training labels only). Writes <results>/decode/<run>.json (decode_tune format: 'chosen'
 is used by every consumer through rr.final_decode) with the val30 numbers and, for every split cache found
 (eval100, confirm100, full test), mIoU with tau 0.5 / prior-matched / chosen (no SAM) / chosen + SAM (--sam).
@@ -68,35 +70,41 @@ def main():
     _, probs, gts, grey = load(val, 'val')
     S = PS.Scorer(probs, gts, a.workers)
     r05 = S('tau', tau=0.5)
-    tau_raw, r_raw = PS.tune_tau(S)
+    # drivable-precision floor: the submitted model's (P_MIN, the first model's tau-0.5 value), but never above the run's
+    # own tau-0.5 value, which few-shot runs cannot reach (the published curve's decode_tune rule); = P_MIN at 50 shots
+    floor = min(PS.P_MIN, r05['drivable_precision'])
+    tau_raw, r_raw = PS.tune_tau(S, floor=floor)
     S.close()
     filt = [PS.guided_filter(I, P, *GF) for I, P in zip(grey, probs)]
     S = PS.Scorer(filt, gts, a.workers)
-    tau, r_gf = PS.tune_tau(S, start=tau_raw)
+    tau, r_gf = PS.tune_tau(S, start=tau_raw, floor=floor)
     S.close()
     shot = int(a.run.split('_')[1][:-4])
     ss = a.support_seed if a.support_seed is not None else \
         int(a.run.split('_sup')[1].split('_')[0]) if '_sup' in a.run else int(a.run.split('_')[2][1:])
     tau_prior, _ = match([P[:, ::4, ::4] for P in filt], support_prior(shot, ss))   # all of the run's training labels
     chosen = dict(tau=[float(t) for t in tau], gf=list(GF), sam=SAM, variant='final')
-    out = dict(run=a.run, dataset=DS, rule='run_decode.py (submitted chain; drivable-precision floor P_MIN = %.4f)' % PS.P_MIN,
+    out = dict(run=a.run, dataset=DS, rule='run_decode.py (submitted chain; drivable-precision floor min(P_MIN %.4f, own tau-0.5 '
+                                          'value) = %.4f)' % (PS.P_MIN, floor),
                chosen=chosen, prior_tau=[float(t) for t in tau_prior], tau_raw=tau_raw,
                val30=dict(tau05=r05, tau_raw=r_raw, chosen_no_sam=r_gf), splits={})
     for sf, split in SPLITS:
         path = cache(a.results, a.run, sf)
         if not path:
             continue
-        ids, probs, gts, grey = load(path, split)
+        ids, probs, gts, _ = load(path, split)
         keys = ['tau0.5', 'prior', 'chosen'] + (['chosen_sam'] if a.sam else [])
         cms = {k: np.zeros((6, 6), np.int64) for k in keys}
         maps = {}
-        for i, P, g, I in zip(ids, probs, gts, grey):
-            Pf = PS.guided_filter(I, P, *GF)
+        for i, P, g in zip(ids, probs, gts):
+            img = np.asarray(Image.open(os.path.join(RR_DATA, f'{DS}_r768', split, 'images', f'{i}.jpg')).convert('RGB'))
+            # scored as every consumer decodes (rr.final_decode: the filter is guided by the RGB mean); the thresholds
+            # were tuned above on the luma grey, as the submitted model's were (differences in the 3rd decimal)
+            Pf = PS.guided_filter(img.mean(2).astype(np.float32) / 255, P, *GF)
             cms['tau0.5'] += confusion(decode(P, tau=0.5), g)
             cms['prior'] += confusion(decode(Pf, tau=tau_prior), g)
             cms['chosen'] += confusion(decode(Pf, tau=chosen['tau']), g)
             if a.sam:
-                img = np.asarray(Image.open(os.path.join(RR_DATA, f'{DS}_r768', split, 'images', f'{i}.jpg')).convert('RGB'))
                 maps[i] = decode_photo(P, chosen, img=img)
                 cms['chosen_sam'] += confusion(maps[i], g)
         if maps:                                  # consumers (route_eval, viewer) reuse these instead of re-running SAM

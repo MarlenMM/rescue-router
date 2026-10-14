@@ -7,7 +7,8 @@ prior-matched thresholds, the chosen chain and the chain + SAM; per-class IoU an
 decode; with --routing the stranded F1 and false-safe rate of router v3 on eval100 (route_eval.py, chosen chain;
 cached as <results>/../routing/<run>.json). Grouped by shot: mean, sd, n. When a shot has a full seed x draw grid,
 the variance is split into training seed, support draw and remainder (two-way ANOVA without replication: the
-interaction is not separable from noise).
+interaction is not separable from noise); with the lean "L" design (PROTOCOL amendment 1: draws at seed 0, seeds at
+draw 0) the sd over draws and the sd over seeds are reported separately.
 """
 import argparse
 import glob
@@ -32,16 +33,16 @@ def parse(run):
     return dict(dataset=ds, shot=int(shot), seed=int(seed), draw=int(sup) if sup else int(seed), sel=sel, tag=tag or '')
 
 
-def routing(results, run, dec, out_dir):
+def routing(results, run, dec, out_dir, ds='floodnet'):
     os.makedirs(out_dir, exist_ok=True)
     f = os.path.join(out_dir, f'{run}.json')
     if not os.path.exists(f):
-        preds = next(p for p in (os.path.join(results, 'preds', f'{run}_floodnet_test_eval100{s}.npz') for s in ('_fp16', ''))
+        preds = next(p for p in (os.path.join(results, 'preds', f'{run}_{ds}_test_eval100{s}.npz') for s in ('_fp16', ''))
                      if os.path.exists(p))
         tmp = os.path.join(out_dir, f'{run}_decode.json')
-        json.dump(dec, open(tmp, 'w'))
-        subprocess.run([sys.executable, os.path.join(HERE, 'route_eval.py'), '--dataset', 'floodnet', '--split_file',
-                        'floodnet_test_eval100', '--preds', preds, '--decode', tmp, '--lams', '5', '--out', f],
+        json.dump({k: v for k, v in dec.items() if k != 'variant'}, open(tmp, 'w'))
+        subprocess.run([sys.executable, os.path.join(HERE, 'route_eval.py'), '--dataset', ds, '--split_file',
+                        f'{ds}_test_eval100', '--preds', preds, '--decode', tmp, '--lams', '5', '--out', f],
                        check=True, stdout=subprocess.DEVNULL)
     r = json.load(open(f))['routing']['lam5']
     return dict(stranded_f1=r['stranded_f1'], false_safe=r['false_safe_rate'], infeasible=r['infeasible_rate'])
@@ -77,6 +78,9 @@ def main():
                              prior=None, chosen=d['eval100'][v]['miou'], chosen_sam=None, decode=v,
                              drivable_precision=d['eval100'][v]['drivable_precision'],
                              **{n: d['eval100'][v][f'iou_{c}'] for n, c in zip(NAMES, RN_NAMES)}))
+            if a.routing:
+                rows[-1].update(routing(a.results, d['run'], d['chosen'], os.path.join(os.path.dirname(a.out), 'routing'),
+                                        rows[-1]['dataset']))
             continue
         if 'splits' not in d:                     # neither format
             continue
@@ -119,6 +123,22 @@ def main():
             (f'{np.mean(v):.3f} ± {np.std(v, ddof=1):.3f}' if len(v) > 1 else f'{v[0]:.3f}') if v else '–' for v in s.values()) + ' |')
         seeds, draws = sorted({r['seed'] for r in grp}), sorted({r['draw'] for r in grp})
         cell = {(r['draw'], r['seed']): r for r in grp}
+        lean = {k: [cell[(d, 0)][k] for d in draws if (d, 0) in cell and cell[(d, 0)].get(k) is not None]
+                for k in ('chosen', 'chosen_sam', 'stranded_f1', 'false_safe')}
+        lean_s = {k: [cell[(0, sd)][k] for sd in seeds if (0, sd) in cell and cell[(0, sd)].get(k) is not None]
+                  for k in lean}
+        full_grid = len(seeds) > 1 and len(draws) > 1 and len(cell) == len(seeds) * len(draws)
+        if not full_grid:                                # the lean "L" design (amendment 1): one-way spreads
+            for k in lean:
+                if len(lean[k]) > 1 or len(lean_s[k]) > 1:
+                    v = dict(sd_draw_seed0=float(np.std(lean[k], ddof=1)) if len(lean[k]) > 1 else None,
+                             n_draws=len(lean[k]),
+                             sd_seed_draw0=float(np.std(lean_s[k], ddof=1)) if len(lean_s[k]) > 1 else None,
+                             n_seeds=len(lean_s[k]))
+                    summary[f'{shot}{"_" + tag if tag else ""}'][f'spread_{k}'] = v
+                    f = lambda x: '–' if x is None else f'{x:.3f}'                     # noqa: E731
+                    md.append(f'|  ↳ {k}: sd over support draws (seed 0, n {v["n_draws"]}) {f(v["sd_draw_seed0"])}, '
+                              f'over training seeds (draw 0, n {v["n_seeds"]}) {f(v["sd_seed_draw0"])} | | |')
         if len(seeds) > 1 and len(draws) > 1 and len(cell) == len(seeds) * len(draws):
             for k in ('chosen', 'chosen_sam', 'stranded_f1'):
                 if all(cell[(d, s)].get(k) is not None for d in draws for s in seeds):
