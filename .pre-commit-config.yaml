@@ -1,0 +1,15 @@
+# Same checks as CI (.github/workflows/ci.yml), on the staged files: `uv run pre-commit install` once.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.0
+    hooks:
+      - id: ruff
+        files: ^(src|notebook|release|kaggle/phase2)/
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest (fast unit tests)
+        entry: uv run pytest -q -x
+        language: system
+        pass_filenames: false
+        files: ^src/

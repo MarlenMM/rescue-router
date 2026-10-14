@@ -6,21 +6,23 @@ Few-shot flood mapping from drone photos, and rescue routes on the predicted map
 **Track A (segmentation).** [Chameleon](https://github.com/GitGyun/chameleon) (Kim et al., ECCV 2024), meta-trained
 by the course, is adapted with **50 labelled FloodNet photos** to five classes: clear road, flooded road, flooded
 building, dry building, water. **Label budget:** 30 more labelled validation photos (val30) chose the checkpoint, the
-decode thresholds, the router settings and every Batch 13 idea, so the system has seen 80 labelled photos in all; with
-no tuning (plain threshold 0.5) the final model scores .278. On the full 448-photo FloodNet test set the final model reaches **mIoU .507 [.474, .538]**
+decode thresholds, the router settings and every Batch 13 idea, so the system has seen 80 labelled photos in all.
+With thresholds set from the 50 training labels alone (class shares matched on unlabelled photos,
+`src/prior_decode.py`) it scores **.468**; with no thresholds at all (plain 0.5), .278. On the full 448-photo FloodNet test set the final model reaches **mIoU .507 [.474, .538]**
 (bootstrap 95 % CI) with its decode tuned on 30 validation photos; our first model reached .472, and a round of 36
 improvement ideas tested on the validation photos only (Batch 13: a 1,000-step schedule, a weight average of two
 snapshots, a guided-filter decode and SAM to redraw building outlines; `writeup/batch13_improvements.md`) added
 +.035 [+.013, +.057] (paired). PSPNet trained on 1,445 labelled photos scores .848 on the same classes, so this is far
-below full supervision; flooded roads are the gap (IoU .31 vs .82). Learning curve and the second dataset (RescueNet, Hurricane Michael, 20 labels: .421 on eval100) are in
-`results/kaggle_v2/report/`.
+below full supervision; flooded roads are the gap (IoU .31 vs .82). Learning curve and the second dataset (RescueNet, Hurricane Michael, 20 labels: .421 on eval100, a fixed
+100-photo subset of the test set) are in `results/kaggle_v2/report/`.
 
 **Track B (routing).** A router on 4×4-pixel cells sends a truck along dry roads, then a boat across water, then a
 walk to each house (never back into a vehicle), with vehicle widths, parked cars, tree canopy and a corner rule. On
 the predicted maps it finds the houses that cannot be reached by road with **F1 .752** on the full FloodNet test
 (.819 on eval100; RescueNet .818; the first model's .759 / .835 are within noise of these). The dangerous error is
-the **false-safe rate**: 11 % [5 %, 18 %] of the houses it shows as truck-reachable are not (full test; RescueNet 3 %),
-which is why each truck-reachable house gets a confidence tier: all 208 "confident" houses on FloodNet eval100 were truly truck-reachable; the others say
+the **false-safe rate**: 11 % [5 %, 18 %] of the houses it shows as truck-reachable are not (full test; RescueNet 3 %).
+In 83–87 % of those the truck route crosses water or flooded road that the model left unlabelled and the router took
+for dry yard (`results/routing/false_safe/`), which is why each truck-reachable house gets a confidence tier: all 208 "confident" houses on FloodNet eval100 were truly truck-reachable; the others say
 "check first" (79 %). The "labelled map" these numbers
 compare with is the same router run on the human labels: the datasets label pixels, not reachability.
 
@@ -47,7 +49,21 @@ uploaded photo.
 | `demo/uploads/` | three FloodNet test photos (not in eval100) for the live-upload demo |
 | `PLAN.md` | the project plan and the full log of decisions and results (§15 "Quick summary" first) |
 
+## Since submission (14 Oct 2026)
+
+The submitted state is tag `submitted-2026-10-08`; the public demo stays frozen until grading (`release/DEMO_FROZEN`).
+Work since then (PLAN §16): off-site backup of results and data (`src/backup.py`), configurable paths (`RR_DATA`),
+`pyproject.toml` + `uv.lock`, CI, the Chameleon scripts run on Apple MPS / CPU for pre-flight checks (`RR_DEVICE`),
+per-run decode and reports for the next GPU round (`src/run_decode.py`, `src/phase2_report.py`, pre-registered in
+`experiments/phase2/PROTOCOL.md`), a same-budget supervised baseline (`src/baseline_seg.py`), calibration
+(`src/calibrate.py`), the label-free decode, the false-safe analysis and a CSV house list in the viewer.
+Model and data: `MODEL_CARD.md`, `DATA.md`.
+
 ## Setup (CPU)
+
+```bash
+uv sync --locked          # CPU environment from uv.lock (or the pip line below); .venv may be a symlink out of iCloud
+```
 
 ```bash
 python3.12 -m venv ~/.venvs/rr && ~/.venvs/rr/bin/pip install -r requirements.txt
