@@ -794,6 +794,30 @@ A5. Phase 3 (GPU week 2): B1, B2, B4, D1. Phase 4: C1, C2, D2–D4. Phase 5 (aft
   - **Phase 1 left:** pre-commit hook (optional), F6 LICENSE (Marlen's choice of licence), write-up source wording
     (the submitted PDF stays as submitted; the tech report F-3 replaces it).
 
+- **14 Oct, pre-Phase-2 improvement cycles (CPU only; Marlen: "iterate until perfect before Phase 2"):**
+  - **Cycle 1, Phase 2 readiness.** `generalist.ckpt` is on this Mac (Drive desktop folder → `~/rr_data/weights/`).
+    `rr/device.py` makes every Chameleon script run on CUDA (unchanged), Apple MPS or CPU (`RR_DEVICE`): MPS reproduces
+    the T4 cache within 2/255 (5-shot), training works, but MPS is 35–100× slower (50-shot inference swaps at 24 GB),
+    so the Mac pre-flights GPU jobs and runs small models only. `finetune --support_seed` (draw ≠ seed, `_sup<k>`,
+    stored in the checkpoint) and `--eval_shot`. `run_decode.py` (= the submitted chain for any run; reproduces
+    τ [.25,.25,.45,.10,.15], val30 .5163, eval100 .5158 / .5185 with SAM), `phase2_report.py` (per run + mean ± sd +
+    seed/draw variance split + routing; reproduces F1 .819 / false safe .119), `kaggle/phase2/make_plan.py`
+    (sessions `curve` ~4.2 h, `var` ~5.6 h of quota; `kernel` builds the Kaggle folder; `preflight` runs the job
+    chains at toy size on the Mac: `var` OK), `experiments/phase2/PROTOCOL.md` (pre-registered). Label-free decode
+    (`prior_decode.py`, all 6 shares matched): full test **.468** (val30-tuned .503, plain .278). Same-budget
+    baseline `baseline_seg.py` (DeepLabV3-R50, MPS). Routing: `false_safe.py`: 83–87 % of false-safe houses cross
+    water/flooded road left unlabelled ("other") as dry yard; `router_sweep.py` (predicted map only): calibrated
+    wetness no help, an off-road reach limit trades F1 (.819 → .658) for safety (.119 → .010); val30 cannot pick
+    router parameters (52 stranded houses, F1 .980 for every gate ≥ .3) → gate re-chosen on val30 ∪ confirm100
+    (pre-registered). Viewer: CSV house list. MODEL_CARD.md, DATA.md, README "Since submission", pre-commit.
+  - **Cycle 2.** `baseline_report.py` (full test with CIs, paired Chameleon − baseline, val30-tuned variant, routing)
+    + argmax decode; baseline curve 5/10/20/100/all queued on the Mac (`~/rr_local/baseline_queue.sh`); regression
+    test of `run_decode`; `decode_tune.py` finds fp16 val30 caches; kernel builder mounts a dataset
+    (`marlenmelis/rr-final-ckpt`, staged in `~/rr_push/rr-final-ckpt/`, not uploaded); `var` kernel builds.
+  - **Phase 2 launch checklist:** commit → preflight `curve` and `var` OK → check Kaggle quota → upload
+    `rr-final-ckpt` → `make_plan.py kernel curve` → push → after: fetch, `run_decode.py --sam`, `decode_tune.py`
+    (RescueNet), `phase2_report.py --routing`, `router_sweep.py --splits val30,confirm100,eval100`, backup refresh.
+
 ## 15. Status / handoff (updated Wed 7 Oct, 18:15 KST)
 
 ### Quick summary (read this first; details below)

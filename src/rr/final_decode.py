@@ -5,6 +5,7 @@ A run's decode JSON (results/.../decode/<run>.json, key "chosen") may now carry,
   clean: [k, r] clean-up of the class map: components < k px filled from the nearest larger one, closing r (I29)
   sam: {"mode": "grow", "min_area": 50}  SAM ViT-B outline refinement of the predicted buildings (I31)
   classmaps: {"<split_file>": "<npz with ids + class maps>"}  precomputed final maps (the SAM step is expensive)
+  argmax: true  argmax over the 5 channels + other (= 1 - their sum): softmax models (src/baseline_seg.py)
 Without these keys `decode_photo` is exactly rr.metrics.decode(probs, **chosen): every published number unchanged.
 
     dec = load_chosen(results, run)
@@ -19,7 +20,7 @@ import numpy as np
 from rr.metrics import decode
 from rr.paths import SAM_WEIGHTS
 
-EXTRA = ('gf', 'clean', 'sam', 'classmaps')
+EXTRA = ('gf', 'clean', 'sam', 'classmaps', 'argmax')
 _MAPS = {}
 _SAM = {}
 
@@ -75,6 +76,9 @@ def decode_photo(probs, dec, img=None, split_file=None, photo_id=None, root='.')
     pre = _classmap(dec, split_file, photo_id, root)
     if pre is not None:
         return pre
+    if dec.get('argmax'):                     # softmax baselines (baseline_seg.py): argmax over the 5 classes + other
+        P = np.asarray(probs, np.float32)
+        return np.concatenate([P, 1 - P.sum(0, keepdims=True)]).argmax(0).astype(np.uint8)
     if not any(dec.get(k) for k in EXTRA):
         return decode(probs, **plain_kwargs(dec))
     from postproc_sweep import cleanup, guided_filter
