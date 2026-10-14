@@ -70,7 +70,7 @@ STEPS = {
                    'routing/false_safe/: why houses are falsely truck-reachable (PLAN §16 A2)'),
     'router_sweep': ([py('router_sweep.py', '--results', R, '--out', f'{RT}/router_sweep')], ['decode', 'calibration'],
                      'routing/router_sweep/: gate x calibrated wetness x off-road reach (information)'),
-    'same_budget': ([py('baseline_report.py'), py('ensemble.py')], ['decode', 'route_full'],
+    'same_budget': ([py('baseline_report.py'), py('ensemble.py'), py('curve_figure.py')], ['decode', 'route_full'],
                   'results/baselines/report/: same-budget baselines vs Chameleon, ensemble (needs results/baselines)'),
     'label_audit': ([py('label_audit.py'), py('label_audit.py', '--impact')], ['route_full', 'same_budget'],
                     'report/label_audit/: FloodNet label errors (photo + label only) and their impact on both models'),
