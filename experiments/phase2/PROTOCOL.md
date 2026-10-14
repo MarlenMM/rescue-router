@@ -136,6 +136,12 @@ split exactly and the submitted model's confirm100 prediction runs first):
    `src/label_audit.py`: visual check of photo and label only, never of a prediction). Every full-test and eval100
    result is reported on all photos (primary, as published) and without these photos (secondary); choices use all
    photos as registered.
+7. **Confidence tier when no gate reaches 99 %** (added 14 Oct 23:00, before computing it; seen so far: the baseline's
+   gate-only sweep, where no gate reaches 99 % on val30 ∪ confirm100): the candidates are extended with an off-road
+   reach limit (the truck may cross dry yards only within R m of a predicted road), R ∈ {40, 20, 10} at every candidate
+   gate; among all candidates whose confident-truck houses are ≥ 99 % truly truck-reachable on val30 ∪ confirm100, the
+   one with the most confident houses is chosen (for gates alone this is the published rule: the largest gate). It
+   changes only which houses are "confident"; statuses and the stranded F1 keep the tuned gate. `src/tiers.py --reach`.
 
 ## Deviation log
 
