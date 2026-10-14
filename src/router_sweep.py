@@ -12,6 +12,8 @@ saturates at .98), max stranded F1, adopted only if F1 does not drop and the fal
 published router; reported on eval100 / full test. Until confirm100 predictions exist this table is information only.
 
     python src/router_sweep.py [--splits val30,eval100] [--workers 8]
+    python src/router_sweep.py --results results/baselines --run baseline_deeplabv3_r50_50shot_s0 --argmax --raw_only \
+        --no_reach --splits val30,confirm100,eval100 --out results/baselines/report/router_sweep    # the baseline's gate
 """
 import argparse
 import itertools
@@ -23,21 +25,28 @@ from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RUN = 'floodnet_50shot_s0_stratified'
-SPLITS = {'val30': ('floodnet_val_tune30', f'{RUN}_floodnet_val_tune30.npz'),
-          'confirm100': ('floodnet_val_confirm100', f'{RUN}_floodnet_val_confirm100_fp16.npz'),
-          'eval100': ('floodnet_test_eval100', f'{RUN}_floodnet_test_eval100_fp16.npz')}
+SPLITS = {'val30': 'floodnet_val_tune30', 'confirm100': 'floodnet_val_confirm100', 'eval100': 'floodnet_test_eval100',
+          'full': 'floodnet_test_full'}
+
+
+def cache(results, run, sf):
+    for suffix in ('', '_fp16'):
+        p = os.path.join(results, 'preds', f'{run}_{sf}{suffix}.npz')
+        if os.path.exists(p):
+            return p
+    return None
 GATES = ['none', 0.5, 0.3, 0.2, 0.15, 0.1]
 REACH = [None, 40, 20, 10]
 
 
 def one(args):
     a, split, cal, g, reach = args
-    sf, cache = SPLITS[split]
+    sf = SPLITS[split]
     name = f'{split}_{"cal" if cal else "raw"}_g{g}_r{reach}'
     f = os.path.join(a.out, f'{name}.json')
     if not os.path.exists(f):
         cmd = [sys.executable, os.path.join(HERE, 'route_eval.py'), '--dataset', 'floodnet', '--split_file', sf,
-               '--preds', os.path.join(a.results, 'preds', cache), '--decode', a.dec, '--lams', '5',
+               '--preds', cache(a.results, a.run, sf), '--decode', a.dec, '--lams', '5',
                '--offroad_maxwet', str(-1 if g == 'none' else g), '--out', f,
                '--router_pred', json.dumps({} if reach is None else {'offroad_reach': reach})]
         if cal:
@@ -66,20 +75,28 @@ def main():
     ap.add_argument('--calibration', default='results/kaggle_v2/report/calibration/calibration.json')
     ap.add_argument('--splits', default='val30,eval100')
     ap.add_argument('--workers', type=int, default=8)
+    ap.add_argument('--run', default=RUN, help='any run with caches in --results (e.g. a baseline in results/baselines)')
+    ap.add_argument('--argmax', action='store_true', help='decode by argmax (softmax baselines) instead of decode/<run>.json')
+    ap.add_argument('--raw_only', action='store_true', help='raw probabilities only (the calibration is fitted to Chameleon)')
+    ap.add_argument('--no_reach', action='store_true', help='unlimited off-road reach only')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
-    a.dec = os.path.join(a.out, f'decode_{RUN}.json')
-    json.dump(json.load(open(os.path.join(a.results, 'decode', f'{RUN}.json')))['chosen'], open(a.dec, 'w'))
-    splits = [s for s in a.splits.split(',') if os.path.exists(os.path.join(a.results, 'preds', SPLITS[s][1]))]
-    jobs = [(a, s, c, g, r) for s, c, g, r in itertools.product(splits, (False, True), GATES, REACH)]
+    a.dec = os.path.join(a.out, f'decode_{a.run}.json')
+    json.dump({'argmax': True} if a.argmax else json.load(open(os.path.join(a.results, 'decode', f'{a.run}.json')))['chosen'],
+              open(a.dec, 'w'))
+    splits = [s for s in a.splits.split(',') if cache(a.results, a.run, SPLITS[s])]
+    cals, reaches = (False,) if a.raw_only else (False, True), [None] if a.no_reach else REACH
+    jobs = [(a, s, c, g, r) for s, c, g, r in itertools.product(splits, cals, GATES, reaches)]
     with ThreadPoolExecutor(a.workers) as ex:
         rows = list(ex.map(one, jobs))
     json.dump(rows, open(os.path.join(a.out, 'router_sweep.json'), 'w'), indent=1)
-    md = ['# Router options vs false-safe (FloodNet 50-shot, published decode, lam 5)', '',
+    who = 'FloodNet 50-shot, published decode' if (a.run, a.argmax) == (RUN, False) else \
+        f'{a.run}, {"argmax" if a.argmax else "its chosen"} decode'
+    md = [f'# Router options vs false-safe ({who}, lam 5)', '',
           'published router = raw probabilities, gate 0.3, unlimited reach', '',
           '| wetness | gate | reach (m) | ' + ' | '.join(f'{s} F1 | {s} false safe' for s in splits) + ' |',
           '|---|---|---|' + '---|---|' * len(splits)]
-    for c, g, r in itertools.product((False, True), GATES, REACH):
+    for c, g, r in itertools.product(cals, GATES, reaches):
         cells = []
         for s in splits:
             x = next(x for x in rows if (x['split'], x['cal'], x['gate'], x['reach']) == (s, c, g, r))
