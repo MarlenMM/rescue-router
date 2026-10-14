@@ -11,6 +11,8 @@ Candidates (FloodNet, all trained on the same 50 photos):
 --choose_on val30,confirm100 (the pre-registered rule): every candidate scored by mIoU of the confusion summed over
 the two splits; the highest is the product model (ties: fewer labels used, i.e. argmax before tuned, then the
 simpler model). Every candidate is reported on eval100 and the full test; the choice is marked.
+--baselines_only: the same rule among the baselines alone (argmax and val30-tuned), usable before Phase 2 gives
+Chameleon its confirm100 predictions; the final choice still includes Chameleon and the mixes.
 
     python src/ensemble.py [--baseline baseline_deeplabv3_r50_50shot_s0[,...]] [--choose_on val30,confirm100]
 """
@@ -50,21 +52,26 @@ def photos(a, key):
     None if a cache is missing. One photo at a time: the full test does not fit in memory as floats."""
     sf, split = SPLITS[key]
     sf_c = a.confirm_split if key == 'confirm100' and a.confirm_split else sf
-    pc = cache(a.results, CHAM, sf_c)
+    pc = None if a.baselines_only else cache(a.results, CHAM, sf_c)
     fb = {b: cache(a.baselines, b, sf_c) for b in a.baselines_list}
-    if pc is None or None in fb.values():
+    if (pc is None and not a.baselines_only) or None in fb.values():
         return None
     return _photos(a, pc, fb, sf_c)
 
 
 def _photos(a, pc, fb, sf_c):
-    zc = np.load(pc)
     pb = {}
     for b, f in fb.items():
         zb = np.load(f)
         pb[b] = {str(i): P for i, P in zip(zb['ids'], zb['probs'])}
-    dec = load_chosen(a.results, CHAM)
     root = os.path.join(RR_DATA, 'floodnet_r768', 'val' if '_val_' in sf_c else 'test')
+    if pc is None:                                # --baselines_only: no Chameleon slots
+        for i in pb[a.baselines_list[0]]:
+            g = gt_classes(np.asarray(Image.open(os.path.join(root, 'labels', f'{i}.png'))))
+            yield None, None, {b: pb[b][i].astype(np.float32) / 255 for b in pb}, g
+        return
+    zc = np.load(pc)
+    dec = load_chosen(a.results, CHAM)
     for i, P in zip(zc['ids'], zc['probs']):
         i = str(i)
         img = np.asarray(Image.open(os.path.join(root, 'images', f'{i}.jpg')).convert('RGB'))
@@ -74,6 +81,10 @@ def _photos(a, pc, fb, sf_c):
         cls_c = decode_photo(P, dec, img=img, split_file=maps[0] if maps else sf_c, photo_id=i, root=os.path.dirname(HERE))
         g = gt_classes(np.asarray(Image.open(os.path.join(root, 'labels', f'{i}.png'))))
         yield Pc, cls_c, {b: pb[b][i].astype(np.float32) / 255 for b in pb}, g
+
+
+def mix(w, cham, base):
+    return base if w == 0 else w * cham + (1 - w) * base
 
 
 def argmax6(P):
@@ -87,6 +98,9 @@ def main():
     ap.add_argument('--baseline', default='baseline_deeplabv3_r50_50shot_s0', help='comma list of baseline runs')
     ap.add_argument('--choose_on', default='val30', help="'val30' (14 Oct table) or 'val30,confirm100' (protocol)")
     ap.add_argument('--confirm_split', default=None, help='test only: stand-in split file for confirm100')
+    ap.add_argument('--baselines_only', action='store_true',
+                    help='candidates = the baselines (argmax, val30-tuned) only: their choice by the same rule before '
+                         'Chameleon has confirm100 predictions (Phase 2)')
     ap.add_argument('--out', default='results/baselines/report')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
@@ -99,7 +113,7 @@ def main():
         sys.exit(f'no Chameleon / baseline caches for {missing} (confirm100 comes with the Phase 2 curve session)')
     # candidates: name -> function(photo tuple) -> class map
     cands, info = {}, {}
-    if protocol:
+    if protocol and not a.baselines_only:
         cands['chameleon'] = lambda x: x[1]
         info['chameleon'] = dict(labels=80, kind='submitted chain (guided filter, tau, SAM)')
     for b in a.baselines_list if protocol else a.baselines_list[:1]:
@@ -107,12 +121,12 @@ def main():
             cands[f'{b} argmax'] = (lambda b: lambda x: argmax6(x[2][b]))(b)
             info[f'{b} argmax'] = dict(labels=50, kind='own argmax')
         val = list(photos(a, 'val30'))
-        for w in WS:
-            S = PS.Scorer([w * c + (1 - w) * p[b] for c, _, p, _ in val], [g for *_, g in val], 6)
+        for w in ((0.0,) if a.baselines_only else WS):
+            S = PS.Scorer([mix(w, c, p[b]) for c, _, p, _ in val], [g for *_, g in val], 6)
             tau, rv = PS.tune_tau(S)
             S.close()
             name = f'w={w} {b}'
-            cands[name] = (lambda w, b, tau: lambda x: decode(w * x[0] + (1 - w) * x[2][b], tau=tau))(w, b, tau)
+            cands[name] = (lambda w, b, tau: lambda x: decode(mix(w, x[0], x[2][b]), tau=tau))(w, b, tau)
             info[name] = dict(labels=80, kind='mix, val30-tuned tau', w=w, tau=[float(t) for t in tau], val30_tuned=rv['miou'])
     res = {name: dict(info[name]) for name in cands}
     for k in keys:
@@ -136,11 +150,12 @@ def main():
         best = max(order, key=lambda n: (round(res[n]['choice_score'], 6), -info[n]['labels'], -order.index(n)))
     else:
         best = max((n for n in cands), key=lambda n: info[n]['val30_tuned'])
-    tag = '' if not protocol else '_choice'
+    tag = '' if not protocol else '_choice_baselines' if a.baselines_only else '_choice'
     json.dump(dict(baselines=a.baselines_list, choose_on=choose, chosen=best, results=res),
               open(os.path.join(a.out, f'ensemble_{a.baselines_list[0]}{tag}.json'), 'w'), indent=1)
     cols = ([f'{"+".join(choose)} (choice)'] if protocol else ['val30 (tuned)']) + ['eval100', 'full test']
-    md = [f'# Product-model candidates (Chameleon, {", ".join(a.baselines_list)}); choice on {" + ".join(choose)}', '',
+    who = ', '.join(a.baselines_list) if a.baselines_only else f'Chameleon, {", ".join(a.baselines_list)}'
+    md = [f'# Product-model candidates ({who}); choice on {" + ".join(choose)}', '',
           '| candidate | labels | ' + ' | '.join(cols) + ' | ' + ' | '.join(NAMES) + ' (full test) | drv P |',
           '|' + '---|' * (2 + len(cols) + len(NAMES) + 1)]
     for n in cands:
