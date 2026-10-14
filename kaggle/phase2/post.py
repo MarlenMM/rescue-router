@@ -99,7 +99,11 @@ def main():
             sys.exit('no confirm100 cache of the submitted model: the router / tier / model choices cannot run')
         run([py, os.path.join(SRC, 'router_sweep.py'), '--splits', 'val30,confirm100,eval100'])
         run([py, os.path.join(SRC, 'tiers.py'), '--choose_on', 'val30,confirm100'])
-        run([py, os.path.join(SRC, 'ensemble.py'), '--choose_on', 'val30,confirm100'])
+        # every registered baseline candidate (amendment 1 item 4): 50 photos, draw 0, seed 0, with confirm100 predictions
+        bl = sorted(re.sub(r'_floodnet_val_confirm100\.npz$', '', os.path.basename(f)) for f in
+                    glob.glob(os.path.join(ROOT, 'results', 'baselines', 'preds', 'baseline_*_50shot_s0*_floodnet_val_confirm100.npz'))
+                    if re.search(r'_50shot_s0(_st)?(_tta)?_floodnet_val_confirm100\.npz$', f))
+        run([py, os.path.join(SRC, 'ensemble.py'), '--choose_on', 'val30,confirm100'] + (['--baseline', ','.join(bl)] if bl else []))
     run([py, os.path.join(SRC, 'baseline_report.py'), '--phase2', R, '--out', a.baseline_out])
     print('\nnext: src/backup.py pack && bash release/backup/upload.sh; PushNotification; PLAN §16.4; PROTOCOL deviation log')
 
