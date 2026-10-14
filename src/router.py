@@ -64,7 +64,7 @@ PROFILES = {
     'rescuenet': dict(truck=(0,), boat=(4,), wall=(1, 2, 3), risk=(1, 4), bldg=(2, 3), hazard=(1, 4), walk=(1,),
                       cell_m=0.31),
 }
-DEFAULTS = dict(lam=5.0, boat_cost=3.0, launch=40.0, boat_p=0.5, offroad=4.0, offroad_maxwet=None,
+DEFAULTS = dict(lam=5.0, boat_cost=3.0, launch=40.0, boat_p=0.5, offroad=4.0, offroad_maxwet=None, offroad_reach=None,
                 foot_cost=8.0, alight=10.0, cell_m=None,
                 truck_halfwidth=1.25, boat_halfwidth=0.8, car_gap=2.0, canopy_gap=3.0, canopy_cost=2.0, corner=True)
 POINT_VEHICLES = dict(truck_halfwidth=None, boat_halfwidth=None, car_gap=None, canopy_gap=None, corner=False)
@@ -150,6 +150,8 @@ class Grid:
             road |= ndimage.binary_closing(road, _disk(p['car_gap'] / 2 / self.cell_m)) & land
         self.road = road
         self.offroad = land & ~road if p['offroad'] else np.zeros_like(self.wall)
+        if p['offroad'] and p['offroad_reach'] is not None:        # only yards/driveways: within reach (m) of a road
+            self.offroad &= ndimage.distance_transform_edt(~road) * self.cell_m <= p['offroad_reach']
         self.room_truck = self._room(p['truck_halfwidth'])
         self.room_boat = self._room(p['boat_halfwidth'])
         self.truck_ok = (road | self.offroad) & ~self.wall & self.room_truck

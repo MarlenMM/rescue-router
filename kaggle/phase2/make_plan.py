@@ -4,6 +4,7 @@ pre-flight that runs the same job chains on this Mac (MPS/CPU) at toy size befor
     python kaggle/phase2/make_plan.py plan <session> > plan.json        # sessions: var, curve
     python kaggle/phase2/make_plan.py cost                              # T4 minutes per session (measured costs)
     python kaggle/phase2/make_plan.py preflight <session> [--jobs 2]    # toy run of the first jobs, locally
+    python kaggle/phase2/make_plan.py kernel <session>                  # ~/rr_push/rr-p2-<session>/ ready to push
 
 Every training job = the submitted recipe: 1000 steps, cosine lr 1e-3, batch 2, fp16 + gradient checkpointing,
 --freeze_rest, snapshots at 750 and 1000 (no in-process validation), then their weight average (avg_ckpt.py) saved
@@ -12,6 +13,7 @@ tau -> SAM), prior thresholds, routing: on the CPU after download (src/run_decod
 """
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -92,8 +94,34 @@ def main():
             for rid, _, m in items:
                 print(f'    {rid:45s} {m:5.0f} min')
         print(f'total quota ~{tot / 60:.1f} h of 30 h/week')
+    elif cmd == 'kernel':
+        kernel(sys.argv[2])
     elif cmd == 'preflight':
         preflight(sys.argv[2], int(sys.argv[sys.argv.index('--jobs') + 1]) if '--jobs' in sys.argv else 1)
+
+
+SETUP = """
+for tar in glob.glob('/kaggle/input/**/rescuenet_r768.tar', recursive=True)[:1]:   # RescueNet runs (curve session)
+    with tarfile.open(tar) as t:
+        t.extractall('/content/rr_data', filter='data')
+for f in glob.glob('/kaggle/input/**/rr-final-ckpt/**/floodnet_50shot_s0_stratified.ckpt', recursive=True)[:1]:
+    shutil.copy(f, f'{OUT}/ckpt/floodnet_50shot_s0_stratified.ckpt')     # the submitted model (confirm100)
+sh(f'ls /content/rr_data {OUT}/ckpt')
+"""
+
+
+def kernel(name):
+    """write the session's plan and build the Kaggle kernel folder with kaggle/b13/make_kernel.py"""
+    plan, load = lanes(session(name))
+    path = os.path.join(HERE, f'plan_{name}.json')
+    json.dump({str(g): v for g, v in plan.items()}, open(path, 'w'), indent=1)
+    limit = max(load) / 60 + 1.0                    # a job group may still start up to 1 h past the planned end
+    sources = 'marlenmelis/rr-final-ckpt' if name == 'curve' else ''
+    subprocess.run([sys.executable, os.path.join(ROOT, 'kaggle', 'b13', 'make_kernel.py'), '--slug', f'rr-p2-{name}',
+                    '--plan', path, '--start_limit', f'{limit:.1f}', '--setup', SETUP]
+                   + (['--datasets', sources] if sources else []), check=True)
+    print(f'plan {path}; lanes {[round(x) for x in load]} min; start limit {limit:.1f} h'
+          + (f'; needs the private dataset {sources} (the submitted checkpoint file)' if sources else ''))
 
 
 def preflight(name, n_groups):
@@ -109,16 +137,19 @@ def preflight(name, n_groups):
               '--mt_ckpt', os.path.expanduser('~/rr_data/weights/generalist.ckpt'),
               '--chameleon', os.path.expanduser('~/rr_local/chameleon')]
     for rid, jobs, _ in session(name)[:n_groups]:
+        trains = any(script == 'finetune' for script, _ in jobs)
+        if not trains:                                    # predict-only group: the submitted checkpoint itself
+            import shutil
+            shutil.copy(os.path.join(ROOT, 'results', 'kaggle_v2', 'rr', 'ckpt', f'{rid}.ckpt'), os.path.join(out, 'ckpt'))
         for script, args in jobs:
             args = [str(x).replace('{OUT}', out) for x in args]
             if script == 'finetune':                      # toy size: 1 shot, 4 steps, snapshots 2 and 4
                 args = toy(args, {'--shot': '1', '--n_steps': '4', '--val_every': '2', '--snap_from': '2'})
                 if '--eval_shot' in args:
                     args = toy(args, {'--eval_shot': '1'})
-            if script in ('avg_ckpt', 'predict'):
-                args = [a.replace('_50shot_', '_1shot_').replace('_100shot_', '_1shot_').replace('_step750', '_step2')
-                        .replace('_step1000', '_step4') for a in args]
-                args = [a for a in args]
+            if script in ('avg_ckpt', 'predict') and trains:
+                args = [re.sub(r'_\d+shot_', '_1shot_', a).replace('_step750', '_step2').replace('_step1000', '_step4')
+                        for a in args]
             if script == 'predict':
                 args += ['--limit', '1', '--force']
             cmd = [py, os.path.join(ROOT, 'src', f'{script}.py'), *args,

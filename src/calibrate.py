@@ -84,6 +84,12 @@ class Reliability:
         return (np.abs(self.p - self.y).sum(1) / tot[:, 0]).tolist()
 
 
+def apply_platt(P, platt):
+    """per-channel Platt scaling of probabilities P (C, H, W) in [0, 1]; platt = {channel name: {a, b}} or (C, 2)"""
+    w = np.array([[v['a'], v['b']] for v in platt.values()] if isinstance(platt, dict) else platt, np.float32)
+    return sigmoid(w[:, 0, None, None] * logit(P) + w[:, 1, None, None]).astype(np.float32)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--results', default='results/kaggle_v2/rr')
