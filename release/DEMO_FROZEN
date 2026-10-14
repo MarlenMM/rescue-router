@@ -1,0 +1,3 @@
+The public demo https://marlenmm.github.io/rescue-router-demo/ (repo MarlenMM/rescue-router-demo) stays exactly as
+published on 8 Oct 2026 21:39 KST (viewer build of commit 0556993, tag submitted-2026-10-08) until the AIC200 grade is
+out: the TA may still be checking it. Preview new viewer builds locally (python3 -m http.server 8766 --directory docs).

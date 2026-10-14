@@ -5,7 +5,7 @@ Student: 20260876. Presentation: Thu 8 Oct 2026, in class (16:00). KLMS deadline
 
 This file is the single source of truth for the build. When reality differs from the plan, update this file.
 
-**How to read it (cleaned up 7 Oct):** **§15 "Status / handoff" is the live state**: its Quick summary first, then the
+**Since 14 Oct (after submission): §16 "After submission" is the live roadmap; read it first.** **How to read it (cleaned up 7 Oct):** **§15 "Status / handoff" is the submission-time state**: its Quick summary first, then the
 improvement batches (the roadmap), then the chronological log. Parts A and B (§0–§14) are the plan as written on
 5 Oct; they are kept for the record, and where reality went another way the section says so in a *[Superseded]* note
 (main changes: all GPU work on Kaggle T4s with an fp16 recipe instead of Colab A100s; the router grew walking, vehicle
@@ -660,6 +660,109 @@ commands, and Marlen's recording; the data zip per §2.6. Every reported number 
 **Implemented 5 Oct (commit `df79806`, private repo github.com/MarlenMM/rescue-router; code reaches Colab as `rescue_router/rr_code_<hash>.tar.gz` on Drive because a private repo cannot be cloned without a token):** `src/rr/data.py` (`FloodDataset`: training crop side 320–480 px → 384, i.e. scale 0.8–1.2 around the inference scale, h/v flip, rot90, brightness/contrast 0.2, no hue; support = best 384 window by channel coverage), `src/rr/infer.py` (`encode_support`, `tiled_predict`: 6 tiles at 768×576, 15 at 1024×768, σ = 96), `src/rr/metrics.py`, `src/finetune.py` (resumable run, val30 every 250 steps, `_last.pt` every 500, logs/metrics/preds on Drive), `src/predict.py` (stage-2 caches). CPU smoke test on synthetic data passed against the real starter code (config, crops, support crops, loader, tiles, metrics).
 
 **Consequences for §2–§4:** use `img_size=384`, `base_size=[576,768]`, our own `FloodDataset.postprocess` (augmentations + support crops), our own `tiled_predict`, own metrics from caches.
+
+## 16. After submission: review and roadmap (14 Oct 2026; read this first now)
+
+**Context (Marlen, 14 Oct):** the KLMS submission is in (8 Oct, tag `submitted-2026-10-08` = commit 0556993). From now
+on this is our own project, without the course rules (one notebook, 50-label story, Chameleon-only, deadline). **One
+constraint stays until the grade is out: the public demo (MarlenMM/rescue-router-demo, Pages) does not change.**
+`src/publish_demo.sh` now refuses to run while `release/DEMO_FROZEN` exists (override `RR_UNFREEZE_DEMO=1` only after
+the grade). The private code repo, `docs/` in it and everything else may change; new viewer builds are previewed
+locally (`python3 -m http.server 8766 --directory docs`).
+
+### 16.1 What the earlier improvement rounds left open (from §15 and `writeup/batch13_improvements.md`)
+- **Batch 13 ideas not run (GPU budget / deadline):** I9 LoRA (coded + tested), I11 gradient accumulation, I14 Dice/Lovász,
+  I21 test-time adaptation, I25 two-scale, I26 seeds, I35 saved support encodings. **I24 denser tiles passed the +.010
+  bar** (+.0103 val30, 2× prediction) and was left out only for the quota.
+- **Bundles never split:** I12+I13 and I15+I18+I19 lost as bundles (−.04, −.10); a part may still help alone (low value).
+- **Two recipes in one story:** the 1/5/10/20 curve and RescueNet use the first recipe; only FloodNet 50 has the Batch 13
+  model + decode chain.
+- **Better pixels did not give better routes:** full-test mIoU +.035, but stranded F1 .759 → .752 and building-detection
+  F1 .853 → .806. Batch 13 chose on mIoU only.
+- **Calibration:** at τ .5 the final model scores .278 (full test); its tuned thresholds are part of the model.
+- **`--freeze_rest` memory saving** (5.7 vs 10.1 GB) seen in a 30-step probe, not in the 1000-step runs (11.4 GB peak).
+- Rejected only because of the course rules (now open): more labels, other segmenters, 100-shot and larger points,
+  1024-px/native-resolution model, uncertainty-driven labelling, mosaics.
+
+### 16.2 Fixes (things that are wrong or risky now)
+- **F1 Label budget wording (honesty).** "50 labelled photos" is the training set; checkpoint, decode τ, the SAM step,
+  the router gates and all 36 Batch 13 decisions used 30 more labelled photos (val30). Say "50 training + 30 tuning
+  labels (80)" in README/write-up/viewer About, and measure a 50-only variant (τ and checkpoint chosen by
+  cross-validation on the 50 supports).
+- **F2 val30 over-use.** One 30-photo set chose checkpoint, decode, gates and 36 ideas → winner's curse on every val30
+  number (the full-test paired check protects only the final switch). Use a second, untouched FloodNet val split
+  (420 unused val photos) to confirm choices; report choices made on val30 as such.
+- **F3 No variance from training.** Every point is one seed and one support draw; the bootstrap CIs cover test-photo
+  sampling only. → R-A3.
+- **F4 Data and results are not backed up.** `results/` (4.0 GB, incl. `b13/` 1.3 GB, checkpoints, caches) is untracked
+  and sits inside iCloud Drive (can be evicted by "Optimise Mac storage"); `~/rr_data` (2.4 GB) is on this Mac only;
+  Time Machine failed to mount its destination (checked 14 Oct). → private Kaggle/HF dataset with a SHA-256 manifest.
+- **F5 Hard-coded paths.** 48 references to `~/rr_data`/`~/.venvs` in `src/` → env vars (`RR_DATA`, `RR_RESULTS`, `RR_PY`)
+  with today's values as defaults.
+- **F6 No LICENSE** in the code repo; RescueNet's two licences (figshare CC0 vs GitHub CC BY-NC-ND 4.0) → state that
+  we use the figshare (CC0) release everywhere, before anything goes public.
+- **F7 Small code issues:** `finetune.py:238` ignores the `load_state_dict` result on resume (assert no unexpected keys);
+  ruff (default rules + bugbear) reports 459 findings, almost all style; the B023 hits in `bootstrap_ci.py` /
+  `sam_refine.py` / `b13_final_check.py` are false positives (lambdas called inside the loop), 2 unused variables.
+
+### 16.3 Roadmap (P1 = first; GPU-h = Kaggle T4 hours, 30 h/week)
+**A. Evaluation and science**
+- **A1 (P1, CPU)** F1 + F2: label-budget wording; 50-only variant; second validation split.
+- **A2 (P1, CPU)** Routing safety metrics as headline next to F1: false-safe rate (house shown truck-reachable that
+  is not), route-length/ETA error per house, an APLS-style path score.
+- **A3 (P1, ~10 GPU-h)** Variance: FloodNet 50 with the final recipe × 3 seeds × 3 support draws (I26); report
+  mean ± sd next to the bootstrap CI.
+- **A4 (P1, ~8 GPU-h)** One recipe everywhere: curve 1/5/10/20/50 (+100, +200) and RescueNet 20/50 with the final recipe
+  and decode chain.
+- **A5 (P1, ~4 GPU-h)** Same-budget baselines (the missing comparison): a standard segmenter (e.g. SegFormer-B2 or a
+  U-Net with an ImageNet backbone) trained on the same 50 photos, and on 100/200/1,445 → where does Chameleon win, and
+  where does full supervision overtake it (PSPNet .848 is at 1,445 labels).
+**B. Model (target: flooded roads .31 vs PSPNet .82, the dangerous error)**
+- **B1 (P2, ~6 GPU-h)** Finish the open ideas: I24 (adopt for offline evaluation; keep 6 tiles for the live app),
+  I25 two-scale, I9 LoRA, I14 Dice/Lovász, I11; I21 last.
+- **B2 (P2)** Routing-aware model choice: add val routing F1 and false-safe rate to the adoption rule.
+- **B3 (P2, CPU)** Per-class temperature scaling on val so τ .5 and `p_wet` mean something; gates then carry over
+  between models.
+- **B4 (P2, GPU)** More context for wet roads vs water: larger/downscaled whole-photo pass; road-connectivity loss
+  (clDice); native-resolution tiles (originals 4000×3000, we use 768×576).
+- **B5 (P3, GPU)** Active learning: add 10–20 photos chosen by wet/dry uncertainty vs 10–20 random; gain per label.
+**C. Routing (Track B logic)**
+- **C1 (P2, CPU)** Dispatch plan per photo: boat launch points, houses grouped per launch point, multi-house boat tours,
+  priority order → "N boats, M trips, ≈ T minutes".
+- **C2 (P2, CPU)** Probability-aware routing (expected cost / chance constraint) instead of hard gates; route
+  confidence = joint passability; compare with the tiers.
+- **C3 (P3, CPU)** Road graph from the drivable cells (skeleton) → turn-by-turn text, APLS, faster solves.
+- **C4 (P3, CPU)** Per-photo ground scale from detected cars (now one constant per dataset).
+- **C5 (P3, research)** Stitch overlapping frames (feature matching + homography) into area maps; FloodNet has no
+  geotags.
+**D. Product**
+- **D1 (P2, ~3 GPU-h)** Small student model (e.g. SegFormer-B0) distilled from the final model on the 1,445 FloodNet
+  train photos *without their labels* + the 50 supports; measure vs the teacher; export to ONNX.
+- **D2 (P2)** Upload in the static viewer with the student in the browser (ONNX Runtime Web): no GPU server needed.
+- **D3 (P2)** Permanent live demo: Hugging Face Space (student on CPU, or ZeroGPU for Chameleon) instead of 3-h Colab
+  links.
+- **D4 (P2)** Viewer: export a team briefing (PNG/PDF + GeoJSON of routes), batch triage list (photos ranked by stranded
+  houses / "check first"), Korean UI, offline PWA (service worker), screen-reader labels; `docs/` 56 MB → AVIF/WebP and
+  lazy loading.
+- **D5 (P3)** Gradio: concurrency limit, EXIF orientation, size checks, clear error states (or fold it into D2/D3).
+**E. Engineering**
+- **E1 (P1)** F4 backups; F5 config; `pyproject.toml` + `uv.lock` (CPU env) and a pinned GPU env (Kaggle image digest
+  or Dockerfile).
+- **E2 (P1)** CI (GitHub Actions): pytest, the JS parity test on a 10-scene fixture, ruff on changed files; pre-commit.
+- **E3 (P2)** Tidy: one-off scripts (`b13_*`, `probe`, `postproc_sweep`, `decode_ctl_check`, slide patchers) →
+  `experiments/`; one CLI (`rr predict | decode | route | viewer`); CPU smoke tests for finetune/infer with a tiny fake
+  model; a test for the `final_decode` chain.
+- **E4 (P3)** Repo size: `.git` 132 MB (viewer builds, PPTX, MP4) → large media to GitHub Releases / LFS, or a fresh
+  history for the public repo.
+**F. Docs and open-sourcing (after the grade)**
+- **F-1** LICENSE, CITATION.cff, model card (label budget, US hurricanes ≠ Korea, not for operational use), data card.
+- **F-2** Split PLAN.md (197 KB): `ROADMAP.md` (live) + `notes/log_2026-10.md` (history) + methods; README without
+  jargon (val30/eval100/Batch 13 defined).
+- **F-3** Technical report / blog post with A3–A5 results; make the code repo public; then unfreeze and republish the
+  demo (README link to the code).
+
+**Suggested order:** Phase 1 (CPU, ~1–2 days): E1, E2, A1, A2, F7 fixes, B3. Phase 2 (GPU week 1, ~22 GPU-h): A3, A4,
+A5. Phase 3 (GPU week 2): B1, B2, B4, D1. Phase 4: C1, C2, D2–D4. Phase 5 (after the grade): F-1…F-3, demo republish.
 
 ## 15. Status / handoff (updated Wed 7 Oct, 18:15 KST)
 

@@ -10,6 +10,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$HOME/rr_push/rescue-router-demo"
 PY="$HOME/.venvs/rr/bin/python"
 
+# Frozen while the course is grading (Marlen, 14 Oct 2026): the TA checks the public demo as submitted on 8 Oct.
+# Remove release/DEMO_FROZEN once the grade is out, or override deliberately with RR_UNFREEZE_DEMO=1.
+if [[ -f "$ROOT/release/DEMO_FROZEN" && "${RR_UNFREEZE_DEMO:-}" != 1 ]]; then
+  echo "Refusing to publish: the public demo is frozen ($ROOT/release/DEMO_FROZEN)." >&2
+  cat "$ROOT/release/DEMO_FROZEN" >&2
+  exit 1
+fi
+
 node --test "$ROOT/app/test/router.test.mjs"            # JS router must still match Python
 "$PY" "$ROOT/src/build_viewer.py"
 
