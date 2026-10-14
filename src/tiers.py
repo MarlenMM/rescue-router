@@ -1,6 +1,8 @@
 """Confidence tiers for truck-reachable houses and the calibration of p_wet (Batch 2). CPU only, from caches.
 
     python src/tiers.py [--out results/routing/tiers]
+    python src/tiers.py --results results/baselines --run baseline_deeplabv3_r50_50shot_s0 --argmax \
+        --choose_on val30,confirm100 --out results/baselines/report/tiers --fig none      # a baseline's cautious gate
 
 The predicted map is routed twice: with the tuned off-road gate (per dataset) and with a cautious gate g_c (off-road
 only where p_wet < g_c). A house truck-reachable even on the cautious map is a "confident truck" house; one
@@ -37,14 +39,21 @@ SPLITS = {'val30': ('{ds}_val_tune30', 'val', '{run}_{ds}_val_tune30.npz'),
           'confirm100': ('{ds}_val_confirm100', 'val', '{run}_{ds}_val_confirm100_fp16.npz')}   # FloodNet, Phase 2
 
 
+def cache_path(results, npz):
+    """the cache file, with or without the _fp16 suffix (Chameleon's test caches have it, baselines' do not)"""
+    p = os.path.join(results, 'preds', npz)
+    alt = p.replace('_fp16.npz', '.npz') if p.endswith('_fp16.npz') else p
+    return p if os.path.exists(p) or not os.path.exists(alt) else alt
+
+
 def collect(ds, split, a, gates):
     """per building: labelled-map status and predicted status for every gate; per cell: p_wet vs labelled wet"""
     run = RUNS[ds]
     sf, folder, npz = (x.format(ds=ds, run=run) for x in SPLITS[split])
-    z = np.load(os.path.join(a.results, 'preds', npz))
+    z = np.load(cache_path(a.results, npz))
     P = dict(zip([str(i) for i in z['ids']], z['probs']))
-    dec = {k: v for k, v in json.load(open(os.path.join(a.results, 'decode', f'{run}.json')))['chosen'].items()
-           if k != 'variant'}
+    dec = {'argmax': True} if getattr(a, 'argmax', False) else \
+        {k: v for k, v in json.load(open(os.path.join(a.results, 'decode', f'{run}.json')))['chosen'].items() if k != 'variant'}
     rows, cal = [], {'all': ([], []), 'other': ([], [])}
     for i in [l.strip() for l in open(os.path.join(a.repo, 'splits', f'{sf}.txt')) if l.strip()]:
         gt = gt_classes(np.asarray(Image.open(os.path.join(a.data, f'{ds}_r768', folder, 'labels', f'{i}.png'))))
@@ -99,7 +108,12 @@ def main():
     ap.add_argument('--fig', default='results/kaggle_v2/report/figures/calibration_pwet.png')
     ap.add_argument('--choose_on', default='val30',
                     help='splits whose houses choose the cautious gate (PLAN §16: val30,confirm100 once predicted)')
+    ap.add_argument('--run', default=None, help='another FloodNet run (e.g. a baseline in results/baselines): FloodNet only')
+    ap.add_argument('--argmax', action='store_true', help='decode by argmax (softmax baselines)')
     a = ap.parse_args()
+    if a.run:
+        RUNS.clear()
+        RUNS['floodnet'] = a.run
     choose = a.choose_on.split(',')
     os.makedirs(a.out, exist_ok=True)
     out = dict(target=TARGET, gates={}, tiers={}, calibration={})
@@ -110,7 +124,7 @@ def main():
         cands = tuple(g for g in CANDIDATES if g < g_t)
         for sp in SPLITS:
             sf, _, npz = (x.format(ds=ds, run=RUNS[ds]) for x in SPLITS[sp])
-            if sp == 'confirm100' and not os.path.exists(os.path.join(a.results, 'preds', npz)):
+            if sp == 'confirm100' and not os.path.exists(cache_path(a.results, npz)):
                 continue                                             # until Phase 2 predicts it
             data[(ds, sp)] = collect(ds, sp, a, (g_t,) + cands)
         rows, sweep = [r for sp in choose if (ds, sp) in data for r in data[(ds, sp)][0]], []
@@ -119,7 +133,7 @@ def main():
             sweep.append(dict(gate=g, n=t['n'], share=t['gt_truck_share']))
         ok = [s for s in sweep if s['share'] is not None and s['share'] >= TARGET]
         g_c = max(s['gate'] for s in ok) if ok else max(sweep, key=lambda s: (s['share'] or 0, s['gate']))['gate']
-        if choose == ['val30']:
+        if choose == ['val30'] and not a.run:
             assert g_c == PRED_CAUTIOUS_MAXWET[ds], f'{ds}: chosen cautious gate {g_c}, route_eval says {PRED_CAUTIOUS_MAXWET[ds]}'
         elif g_c != PRED_CAUTIOUS_MAXWET[ds]:
             print(f'{ds}: cautious gate chosen on {a.choose_on}: {g_c} (published {PRED_CAUTIOUS_MAXWET[ds]}); '
@@ -149,6 +163,8 @@ def main():
     open(os.path.join(a.out, 'tiers.md'), 'w').write('\n'.join(md) + '\n')
     print('\n'.join(md))
 
+    if a.fig == 'none':
+        return
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
