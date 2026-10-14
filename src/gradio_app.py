@@ -6,6 +6,8 @@ Live inference on an uploaded photo (GPU; FloodNet 50-shot checkpoint, same reci
     python src/gradio_app.py --live --ckpt <ckpt> --mt_ckpt <generalist.ckpt> --chameleon <starter>/chameleon \
         --data <rr_data> --support_file supports/floodnet_stratified_s0.txt [--amp fp16] --share
 
+Live uploads on a CPU (no GPU, no Chameleon files): --live_baseline results/baselines/ckpt/<run>.pt runs the same-budget
+baseline instead (PLAN §16.5).
 Upload path without a GPU, for testing the UI only (TEST MODE, says so on screen): --fake_live answers an uploaded
 eval100 FloodNet photo with its cached prediction.
 
@@ -255,6 +257,35 @@ class LiveModel:
         return np.round(tiled_predict(self.model, X, amp=self.amp).numpy() * 255).astype(np.uint8)
 
 
+class BaselineLive:
+    """CPU live inference with a same-budget baseline checkpoint (src/baseline_seg.py, PLAN §16.5): ~0.5 s per photo
+    on a laptop CPU, no GPU and no Chameleon files. Its own decode (argmax over the 5 classes + other) replaces the
+    Chameleon decode; the router, tiers and viewer are unchanged (the cautious tier gate was chosen for Chameleon's
+    probabilities, so read the tiers with care)."""
+    decode = {'argmax': True}
+
+    def __init__(self, ckpt, device='cpu'):
+        import torch
+        from baseline_seg import build
+        arch = next(x for x in ('deeplabv3_r50', 'deeplabv3_mbv3', 'lraspp_mbv3') if x in os.path.basename(ckpt))
+        self.torch, self.device, self.name = torch, device, os.path.basename(ckpt)[:-3]
+        self.model = build(arch, device, pretrained=False)
+        self.model.load_state_dict(torch.load(ckpt, map_location=device))
+        self.model.eval()
+
+    def __call__(self, photo):
+        from baseline_seg import predict
+        P = predict(self.model, self.torch.from_numpy(np.ascontiguousarray(photo)).permute(2, 0, 1), self.device)
+        return np.round(P * 255).astype(np.uint8)
+
+
+def live_model(a):
+    """the upload model chosen on the command line: --live (Chameleon, GPU), --live_baseline (CPU), --fake_live"""
+    if getattr(a, 'live_baseline', None):
+        return BaselineLive(a.live_baseline)
+    return LiveModel(a) if a.live else FakeLive(a) if a.fake_live else None
+
+
 def prep_upload(img, notes=None):
     """any RGB photo -> 768x576 as prep_data.py sizes the datasets: portrait photos are rotated, other aspect ratios
     are centre-cropped to 4:3 (not stretched: vehicle widths and the scale must stay right). `notes` (a list)
@@ -380,9 +411,10 @@ def build_ui(args, live=None):
             probs = live(photo)
         except ValueError as e:
             raise gr.Error(str(e))
-        s = build_scene('floodnet', photo, probs, dec50, gt=None)
+        s = build_scene('floodnet', photo, probs, getattr(live, 'decode', None) or dec50, gt=None)
         s.update(tier_stats=tier_stats('floodnet'))
-        title = 'your photo (FloodNet 50-shot, no labels)'
+        title = 'your photo (FloodNet 50-shot, no labels)' if not isinstance(live, BaselineLive) else \
+            f'your photo (CPU baseline {live.name}, no labels)'
         if isinstance(live, FakeLive):
             title = f'TEST MODE: cached prediction of eval100 photo {live.last}, not the model'
         st = new_state(s, title, risk=risk, boat=boat)
@@ -447,9 +479,11 @@ def main():
     ap.add_argument('--amp', default='fp16', choices=['none', 'fp16'])
     ap.add_argument('--chunk', type=int, default=1)
     ap.add_argument('--channel_chunk', type=int, default=1)
+    ap.add_argument('--live_baseline', default=None,
+                    help='CPU live inference with this baseline checkpoint (results/baselines/ckpt/<run>.pt)')
     a = ap.parse_args()
     a.results, a.data = os.path.abspath(a.results), os.path.abspath(a.data)
-    live = LiveModel(a) if a.live else FakeLive(a) if a.fake_live else None
+    live = live_model(a)
     build_ui(a, live).launch(server_name='127.0.0.1', server_port=a.port, share=a.share)
 
 

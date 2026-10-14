@@ -10,6 +10,7 @@ Live inference on uploads (GPU), arguments as gradio_app.py:
     python src/gradio_viewer.py --live --ckpt <ckpt> --mt_ckpt <generalist.ckpt> --chameleon <starter>/chameleon \
         --data <rr_data> [--amp fp16] --share
 TEST MODE without a GPU: --fake_live answers an uploaded eval100 FloodNet photo with its cached prediction.
+CPU live uploads with the same-budget baseline instead of Chameleon: --live_baseline results/baselines/ckpt/<run>.pt.
 
 The viewer files come from --viewer (default: docs/ in the repository, or viewer/ in the app zip) and are copied to a
 work folder, which Gradio serves (allowed_paths); uploads go to <work>/scenes/up/<token>/, opened as #s=up/<token>.
@@ -102,10 +103,11 @@ def build_app(args, live, work):
             probs = live(photo)
         except ValueError as e:
             raise gr.Error(str(e))
-        s = build_scene('floodnet', photo, probs, dec50, gt=None)
+        s = build_scene('floodnet', photo, probs, getattr(live, 'decode', None) or dec50, gt=None)
         token = uuid.uuid4().hex[:10]
         caption = ('TEST MODE: the cached prediction of eval100 photo %s, not the model' % live.last
-                   if isinstance(live, G.FakeLive) else 'Your photo: FloodNet 50-shot model, live (no labels)')
+                   if isinstance(live, G.FakeLive) else f'Your photo: CPU baseline {live.name}, live (no labels)'
+                   if isinstance(live, G.BaselineLive) else 'Your photo: FloodNet 50-shot model, live (no labels)')
         up = os.path.join(work, 'scenes', 'up')
         status = export_upload(s, os.path.join(up, token), caption, RUNS['floodnet'])
         old = sorted((os.path.getmtime(os.path.join(up, t)), t) for t in os.listdir(up))
@@ -162,11 +164,13 @@ def main():
     ap.add_argument('--amp', default='fp16', choices=['none', 'fp16'])
     ap.add_argument('--chunk', type=int, default=1)
     ap.add_argument('--channel_chunk', type=int, default=1)
+    ap.add_argument('--live_baseline', default=None,
+                    help='CPU live inference with this baseline checkpoint (results/baselines/ckpt/<run>.pt)')
     a = ap.parse_args()
     assert a.viewer, 'built viewer not found: run src/build_viewer.py (docs/) or pass --viewer'
     a.results, a.data = os.path.abspath(a.results), os.path.abspath(a.data)
     work = prepare_viewer(a.viewer, os.path.abspath(a.work))
-    live = G.LiveModel(a) if a.live else G.FakeLive(a) if a.fake_live else None
+    live = G.live_model(a)
     build_app(a, live, work).launch(server_name='127.0.0.1', server_port=a.port, share=a.share, allowed_paths=[work])
 
 
