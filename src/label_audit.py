@@ -39,7 +39,7 @@ def exg(img):
 
 def audit(split_file):
     split = 'val' if '_val_' in split_file else 'test'
-    root = os.path.join(RR_DATA, 'floodnet_r768', split)
+    root = os.path.join(RR_DATA, f'{split_file.split("_")[0]}_r768', split)
     rows = []
     for i in open(os.path.join(os.path.dirname(HERE), 'splits', f'{split_file}.txt')).read().split():
         img = np.asarray(Image.open(os.path.join(root, 'images', f'{i}.jpg')).convert('RGB'))
@@ -85,11 +85,11 @@ def main():
         tiles = []
         for r in with_water[:12]:
             split = 'val' if '_val_' in r['split'] else 'test'
-            root = os.path.join(RR_DATA, 'floodnet_r768', split)
+            root = os.path.join(RR_DATA, f'{r["split"].split("_")[0]}_r768', split)
             img = Image.open(os.path.join(root, 'images', f"{r['id']}.jpg")).convert('RGB').resize((256, 192))
             lab = np.asarray(Image.open(os.path.join(root, 'labels', f"{r['id']}.png")))
             from rr.metrics import gt_classes
-            col = Image.fromarray(colorize(gt_classes(lab), 'floodnet')[..., :3]).resize((256, 192), Image.NEAREST)
+            col = Image.fromarray(colorize(gt_classes(lab), r['split'].split('_')[0])[..., :3]).resize((256, 192), Image.NEAREST)
             tiles.append(np.concatenate([np.asarray(img), np.asarray(col)], 1))
         sheet = np.concatenate([np.concatenate(tiles[k:k + 2], 1) if k + 1 < len(tiles) else
                                 np.concatenate([tiles[k], np.zeros_like(tiles[k])], 1) for k in range(0, len(tiles), 2)], 0)

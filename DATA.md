@@ -36,7 +36,8 @@ grass class). Found because two of them (9344, 9348) held 42 of the submitted mo
 evaluation photo whose labelled water is ≥ 30 % vegetation-green (32 candidates, `src/label_audit.py`) was checked by
 eye on the photo and the label only, never on a prediction, so the list favours no model. List with reasons:
 `splits/floodnet_label_errors.tsv`; impact on both models: `results/kaggle_v2/report/label_audit/impact.md`
-(published numbers stay on all photos; results are also given without these photos).
+(published numbers stay on all photos; results are also given without these photos). The same check on RescueNet's
+evaluation photos found none: its "green water" candidates are green sea and canal water with correct outlines.
 
 ## Storage
 
