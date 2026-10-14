@@ -13,7 +13,10 @@ With thresholds set from the 50 training labels alone (class shares matched on u
 improvement ideas tested on the validation photos only (Batch 13: a 1,000-step schedule, a weight average of two
 snapshots, a guided-filter decode and SAM to redraw building outlines; `writeup/batch13_improvements.md`) added
 +.035 [+.013, +.057] (paired). PSPNet trained on 1,445 labelled photos scores .848 on the same classes, so this is far
-below full supervision; flooded roads are the gap (IoU .31 vs .82). Learning curve and the second dataset (RescueNet, Hurricane Michael, 20 labels: .421 on eval100, a fixed
+below full supervision; flooded roads are the gap (IoU .31 vs .82). **A standard supervised model trained on the same
+50 photos does better** (14 Oct, `src/baseline_seg.py`, `results/baselines/report/`): DeepLabV3-ResNet50 (COCO
+weights) reaches **.581** with no tuning labels (paired +.074 [+.045, +.108]), routes better (stranded F1 .813 vs .752)
+and more safely (false safe 8 % vs 11 %), and runs in 0.5 s per photo on a CPU (Chameleon: 17 s on a T4 GPU). Learning curve and the second dataset (RescueNet, Hurricane Michael, 20 labels: .421 on eval100, a fixed
 100-photo subset of the test set) are in `results/kaggle_v2/report/`.
 
 **Track B (routing).** A router on 4×4-pixel cells sends a truck along dry roads, then a boat across water, then a

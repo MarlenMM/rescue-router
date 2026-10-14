@@ -23,7 +23,8 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import postproc_sweep as PS  # noqa: E402
-from bootstrap_ci import boot  # noqa: E402
+from bootstrap_ci import boot, f1_from  # noqa: E402
+from router import false_safe_from  # noqa: E402
 from rr.final_decode import decode_photo, load_chosen  # noqa: E402
 from rr.metrics import WET, confusion, decode, gt_classes, summarize  # noqa: E402
 from rr.paths import RR_DATA  # noqa: E402
@@ -55,6 +56,7 @@ def main():
     ap.add_argument('--results', default='results/kaggle_v2/rr')
     ap.add_argument('--out', default='results/baselines/report')
     ap.add_argument('--B', type=int, default=2000)
+    ap.add_argument('--cham_routing', default='results/routing/full/pred_floodnet_50shot_full_tuned.json')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     ids, g_full = gts('floodnet_test_full', 'test')
@@ -93,6 +95,23 @@ def main():
                                check=True, stdout=subprocess.DEVNULL)
             rr_ = json.load(open(f))['routing']['lam5']
             row['routing_eval100'] = dict(stranded_f1=rr_['stranded_f1'], false_safe=rr_['false_safe_rate'])
+        # full-test routing, paired with Chameleon's published full-test routing (same photos, same resamples)
+        f = os.path.join(a.out, f'routing_full_{run}.json')
+        if not os.path.exists(f):
+            dj = os.path.join(a.out, 'decode_argmax.json')
+            json.dump({'argmax': True}, open(dj, 'w'))
+            subprocess.run([sys.executable, os.path.join(HERE, 'route_eval.py'), '--dataset', 'floodnet', '--split_file',
+                            'floodnet_test_full', '--preds', os.path.join(a.baselines, 'preds', f'{run}_floodnet_test_full.npz'),
+                            '--decode', dj, '--lams', '5', '--out', f], check=True, stdout=subprocess.DEVNULL)
+        pb = {r['id']: np.array(r['status_confusion']) for r in json.load(open(f))['per_image'] if 'status_confusion' in r}
+        pc = {r['id']: np.array(r['status_confusion']) for r in json.load(open(a.cham_routing))['per_image'] if 'status_confusion' in r}
+        common = sorted(set(pb) & set(pc))
+        row['routing_full'] = {}
+        for name, fn in (('stranded_f1', f1_from), ('false_safe', false_safe_from)):
+            rb, db = boot(pb, common, fn, a.B, np.random.default_rng(0))
+            rc, dc = boot(pc, common, fn, a.B, np.random.default_rng(0))
+            row['routing_full'][name] = dict(baseline=rb, chameleon=rc['value'], diff=float(rb['value'] - rc['value']),
+                                             lo=float(np.percentile(db - dc, 2.5)), hi=float(np.percentile(db - dc, 97.5)))
         rows.append(row)
         print(run, {k: round(row[k]['miou']['value'], 4) for k in ('argmax', 'tuned')}, row.get('routing_eval100'), flush=True)
     c_all = sum(cm_c.values())
@@ -110,6 +129,11 @@ def main():
                       f"{x['chameleon_minus_baseline']['value']:+.3f} [{x['chameleon_minus_baseline']['lo']:+.3f}, "
                       f"{x['chameleon_minus_baseline']['hi']:+.3f}] | " + ' | '.join(f"{x['per_class'][n]:.3f}" for n in NAMES)
                       + f" | {rt.get('stranded_f1', float('nan')):.3f} | {rt.get('false_safe', float('nan')):.3f} |")
+    md += ['', '| baseline | full test, router v3 | baseline [95 % CI] | Chameleon | baseline − Chameleon [95 % CI] |', '|---|---|---|---|---|']
+    for r in rows:
+        for name, x in r['routing_full'].items():
+            md.append(f"| {r['run']} | {name.replace('_', ' ')} | {x['baseline']['value']:.3f} [{x['baseline']['lo']:.3f}, "
+                      f"{x['baseline']['hi']:.3f}] | {x['chameleon']:.3f} | {x['diff']:+.3f} [{x['lo']:+.3f}, {x['hi']:+.3f}] |")
     json.dump(rows, open(os.path.join(a.out, 'baselines.json'), 'w'), indent=1)
     open(os.path.join(a.out, 'baselines.md'), 'w').write('\n'.join(md) + '\n')
     print('\n'.join(md))
