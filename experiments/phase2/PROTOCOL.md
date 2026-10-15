@@ -7,6 +7,7 @@ end with the reason. Budget: Kaggle 2×T4 sessions (a session is billed once for
 holds: "Router parameters" and "Model choice" (14 Oct) and **Amendment 1** (14 Oct night: curve on the full test,
 RescueNet 5/10, lean variance design, baseline candidates, decode floor, label errors). Superseded sentences are
 marked "→ amendment 1". **Amendment 2** (15 Oct) is procedural: pinned image, environment check, baseline draw seeds.
+**Amendment 3** (15 Oct) adds two product-model candidates: the baselines' seed ensemble, without and with flips.
 
 ## Questions
 
@@ -157,6 +158,22 @@ split exactly and the submitted model's confirm100 prediction runs first):
    nothing of it was evaluated). Every Mac job is in `experiments/phase2/mac_queue.txt` (`src/job_queue.py`, resumes
    after a crash).
 3. Nothing else changes: runs, recipes, decodes, splits and choice rules are as registered.
+
+## Amendment 3 (15 Oct 2026, ~24:00 KST; before any result of the candidates it adds, before any Phase 2 GPU run)
+
+**Product-model candidates added** to the "Model choice" rule (same rule, same splits: highest mIoU of the confusion
+summed over val30 + confirm100; ties: fewer labels, then the simpler model; then reported on the full test with the
+paired bootstrap):
+- **seed ensemble** `baseline_deeplabv3_r50_50shot_s0_ens3`: the mean softmax of the three 50-shot draw-0 baselines
+  with training seeds 0, 1 and 2 (the runs of amendment 1 item 3), decoded by argmax (`src/baseline_avg.py`);
+- the same with **test-time flips** (`…_ens3_tta`: each member's four-view average, then the mean).
+Reason: averaging independently trained models is the standard way to reduce variance and usually improves both
+accuracy and calibration; it uses no labels beyond the 50 and no tuning, at 3× the CPU inference of one model
+(~1.4 s per photo). Nothing about these candidates is tuned on any labelled photo. In the "simpler" tie-break an
+ensemble counts as more complex than any single model; the full order (`kaggle/phase2/post.py` `candidate_order`, until
+now alphabetical) is: the plain ResNet-50 baseline, its flips, self-trained, self-trained + flips, the small models,
+then the seed ensembles (ties at 6 decimals are unlikely; the order only decides those). The Mac jobs are in `experiments/phase2/mac_queue.txt`
+(`seed1tta`, `seed2tta`, `ens3`, `ens3tta`); `kaggle/phase2/post.py` passes them to `src/ensemble.py`.
 
 ## Deviation log
 

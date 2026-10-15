@@ -934,6 +934,17 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
   [+.004, +.066], 20 +.096 [+.054, +.138], 50 +.114 [+.083, +.148] (full test; Chameleon label-free .468 = the published
   value): with equal labels the baseline is ahead at every measured point, significantly from 10 labels. Chameleon
   draws level only at 5-10 labels and only with the 30 tuning labels.
+- **Cycle 7 (16 Oct, after Marlen's "continue, still no Phase 2"):** `tiers.py --run ... --dataset rescuenet` (any
+  dataset) and `--fixed_gate` (the tiers at the router's gates, for the viewer; default output byte-identical, checked);
+  **PROTOCOL amendment 3**: the baselines' seed ensemble (seeds 0-2 at draw 0, mean softmax, `src/baseline_avg.py`,
+  tested) without and with flips as product-model candidates, registered before any of their results; `post.py` hands
+  the candidates to `ensemble.py` in the tie-break order (single before ensemble; it was alphabetical). Mac queue:
+  `tiers_rn20` right after the RescueNet 20-shot run (the viewer switch needs it), `seed1tta`, `seed2tta`, `ens3`,
+  `ens3tta`, and `choice_bl` (the registered rule among the baselines alone) after the reports. **1 label** (fn1):
+  baseline eval100 .139 vs Chameleon label-free .138 (level) and Chameleon with its 30 tuning labels .264.
+- **Viewer switch** (session started by Marlen, stopped at its usage limit, uncommitted in this folder; Marlen chose
+  to commit the generated `b/` assets, ~12 MB of history): FloodNet done and parity-tested (304 JS tests); left:
+  RescueNet (needs `tiers_rn20`), browser check, pytest, docs/, commit. Its notes: the session's hand-over file.
 - **Proposed, needs Marlen:** (a) a model switch in the viewer (Chameleon / same-budget baseline on all 200 scenes:
   +~26 MB per copy in `app/` and `docs/`, so +~52 MB of git history; RescueNet needs the queue's 20-shot run); (b)
   whether `var` (3.0 h) still runs: it is the only measure of Chameleon's training variance (A3) and pairs with the

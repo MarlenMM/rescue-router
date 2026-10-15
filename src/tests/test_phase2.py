@@ -225,3 +225,16 @@ def test_env_check_passes_the_same_predictions_and_stops_on_drift(tmp_path):
     with pytest.raises(SystemExit):
         exec(block, g)
     assert 'not mounted' in (out / 'logs' / 'envcheck.txt').read_text()
+
+
+def test_model_choice_candidates_are_ordered_simpler_first():
+    """post.py hands the baselines to ensemble.py in the tie-break order: single before ensemble (amendment 3)"""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'kaggle', 'phase2'))
+    import post
+    runs = ['baseline_deeplabv3_r50_50shot_s0_ens3_tta', 'baseline_lraspp_mbv3_50shot_s0_st', 'baseline_deeplabv3_r50_50shot_s0_tta',
+            'baseline_deeplabv3_r50_50shot_s0_ens3', 'baseline_deeplabv3_r50_50shot_s0', 'baseline_deeplabv3_r50_50shot_s0_st_tta',
+            'baseline_deeplabv3_mbv3_50shot_s0_st', 'baseline_deeplabv3_r50_50shot_s0_st']
+    assert sorted(runs, key=post.candidate_order) == [
+        'baseline_deeplabv3_r50_50shot_s0', 'baseline_deeplabv3_r50_50shot_s0_tta', 'baseline_deeplabv3_r50_50shot_s0_st',
+        'baseline_deeplabv3_r50_50shot_s0_st_tta', 'baseline_deeplabv3_mbv3_50shot_s0_st', 'baseline_lraspp_mbv3_50shot_s0_st',
+        'baseline_deeplabv3_r50_50shot_s0_ens3', 'baseline_deeplabv3_r50_50shot_s0_ens3_tta']
