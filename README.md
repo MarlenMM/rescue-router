@@ -85,7 +85,10 @@ Work since then (PLAN §16; §16.5 for the latest review):
   paired with the baseline on the full test, lean variance design, RescueNet 5–50 shots, product-model candidates);
   `kaggle/phase2/make_plan.py` builds the sessions (pinned to the 8 Oct Kaggle image; each session first checks that
   the submitted model reproduces its published predictions, `src/env_check.py`, and stops otherwise),
-  `kaggle/phase2/launch_check.py` checks the launch list, `kaggle/phase2/post.py` runs every CPU step afterwards.
+  `kaggle/phase2/launch_check.py` checks the launch list, `kaggle/phase2/finish.py` waits for a session, downloads it
+  and runs every CPU step (`kaggle/phase2/post.py`). Amendment 3 adds the baselines' seed ensemble as a product-model
+  candidate; amendment 4 (to keep or drop at the launch) scores RescueNet 5-20 shots on its full test. Equal-label
+  ("label-free") comparisons are reported for both datasets.
 - Engineering: off-site backup (`src/backup.py`), configurable paths (`RR_DATA`), `pyproject.toml` + `uv.lock`, CI,
   the Chameleon scripts on Apple MPS / CPU for pre-flight checks (`RR_DEVICE`), calibration, label-free decode,
   false-safe analysis, CSV house list, truck stop points and a Korean interface in the viewer (local `docs/`;
