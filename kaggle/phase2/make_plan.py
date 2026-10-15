@@ -241,6 +241,20 @@ def preflight(name, n_groups):
             if r.returncode:
                 sys.exit(f'PREFLIGHT FAILED: {script}')
     print('PREFLIGHT OK')
+    print(f'SRC_SHA256 {src_hash()}')               # launch_check.py: the code this pre-flight ran (content, not time)
+
+
+def src_hash(root=ROOT):
+    """SHA-256 over the contents of src/**/*.py (tests excluded), in path order: what a pre-flight checks"""
+    import glob
+    import hashlib
+    h = hashlib.sha256()
+    for f in sorted(glob.glob(os.path.join(root, 'src', '**', '*.py'), recursive=True)):
+        rel = os.path.relpath(f, root)
+        if rel.startswith(os.path.join('src', 'tests')):
+            continue
+        h.update(rel.encode() + b'\0' + open(f, 'rb').read() + b'\0')
+    return h.hexdigest()
 
 
 def toy(args, repl):

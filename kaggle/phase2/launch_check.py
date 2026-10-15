@@ -3,7 +3,8 @@
     python kaggle/phase2/launch_check.py curve|var
 
 Checks, in the checklist's order: the code is committed and pushed (the kernel embeds git HEAD); the session's
-pre-flight log ends with PREFLIGHT OK (~/rr_local/preflight_<session>*.log, newer than the last change to src/);
+pre-flight log ends with PREFLIGHT OK (~/rr_local/preflight_<session>*.log) for the current contents of src/ (its
+SRC_SHA256 line; logs without one: newer than the last change to src/);
 the kernel folder was built from HEAD with the current plan, pins the 8 Oct image and embeds the environment check;
 the private checkpoint dataset is staged (both sessions mount it).
 Then prints the remaining manual steps (Kaggle quota in the browser, dataset upload, kernel push) as commands.
@@ -22,7 +23,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
-from make_plan import DOCKER_IMAGE, lanes, session  # noqa: E402
+from make_plan import DOCKER_IMAGE, lanes, session, src_hash  # noqa: E402
 
 PUSH = os.path.expanduser('~/rr_push')
 QUOTA_JS = ("fetch('/api/i/kernels.KernelsService/GetAcceleratorQuotaStatistics', {method: 'POST', headers: "
@@ -50,9 +51,15 @@ def main():
     git('fetch', '-q', 'origin')
     check(git('rev-parse', 'HEAD') == git('rev-parse', 'origin/main'), 'HEAD pushed to origin/main', 'git push')
     last_src = max(os.path.getmtime(f) for f in glob.glob(os.path.join(ROOT, 'src', '**', '*.py'), recursive=True))
+    now = src_hash()
+
+    def fresh(f):                                   # same code as now: by content when the log has the hash
+        m = re.search(r'SRC_SHA256 ([0-9a-f]{64})', open(f).read())
+        return m.group(1) == now if m else os.path.getmtime(f) > last_src
+
     logs = sorted(glob.glob(os.path.expanduser(f'~/rr_local/preflight_{name}*.log')), key=os.path.getmtime)
-    good = [f for f in logs if 'PREFLIGHT OK' in open(f).read() and os.path.getmtime(f) > last_src]
-    check(good, f'pre-flight OK after the last change to src/ ({os.path.basename(good[-1]) if good else "none"})',
+    good = [f for f in logs if 'PREFLIGHT OK' in open(f).read() and fresh(f)]
+    check(good, f'pre-flight OK for the current src/ ({os.path.basename(good[-1]) if good else "none"})',
           f'RR_DEVICE=mps python kaggle/phase2/make_plan.py preflight {name} --jobs {len(session(name)) - (name == "curve")}'
           f' > ~/rr_local/preflight_{name}_<date>.log' + ('  (curve: the last group, the 50-support prediction, '
                                                         'swaps on a 24-GB Mac and is left out)' if name == 'curve' else ''))
@@ -97,7 +104,8 @@ def main():
           f'console:\n     {QUOTA_JS}\n     (timeUsed / totalTimeAllowed in s; the session needs '
           f'~{(max(load) + 18) * 60:.0f} s)\n' + ''.join(f'  {k}. {n}\n' for k, n in enumerate(notes, 2))
           + f'  {len(notes) + 2}. cd {kdir} && ~/.venvs/kaggle/bin/kaggle kernels push -p .\n'
-          f'  then: kaggle/fetch_output.py marlenmelis/rr-p2-{name} results/phase2; python kaggle/phase2/post.py {name}')
+          f'  then (waits, downloads, post-processes; read-only on Kaggle): '
+          f'nohup caffeinate -is ~/.venvs/rr/bin/python kaggle/phase2/finish.py {name} &')
     sys.exit(0 if ok else 1)
 
 

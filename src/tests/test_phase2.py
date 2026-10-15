@@ -242,3 +242,18 @@ def test_model_choice_candidates_are_ordered_simpler_first():
         'baseline_deeplabv3_r50_50shot_s0', 'baseline_deeplabv3_r50_50shot_s0_tta', 'baseline_deeplabv3_r50_50shot_s0_st',
         'baseline_deeplabv3_r50_50shot_s0_st_tta', 'baseline_deeplabv3_mbv3_50shot_s0_st', 'baseline_lraspp_mbv3_50shot_s0_st',
         'baseline_deeplabv3_r50_50shot_s0_ens3', 'baseline_deeplabv3_r50_50shot_s0_ens3_tta']
+
+
+def test_src_hash_follows_content_not_time(tmp_path):
+    """make_plan.src_hash (pre-flight freshness): a touch changes nothing, an edit changes the hash, tests do not count"""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'kaggle', 'phase2'))
+    import make_plan as MP
+    (tmp_path / 'src' / 'tests').mkdir(parents=True)
+    (tmp_path / 'src' / 'a.py').write_text('x = 1\n')
+    (tmp_path / 'src' / 'tests' / 't.py').write_text('y = 1\n')
+    h0 = MP.src_hash(str(tmp_path))
+    os.utime(tmp_path / 'src' / 'a.py', (1, 1))
+    (tmp_path / 'src' / 'tests' / 't.py').write_text('y = 2\n')
+    assert MP.src_hash(str(tmp_path)) == h0
+    (tmp_path / 'src' / 'a.py').write_text('x = 2\n')
+    assert MP.src_hash(str(tmp_path)) != h0
