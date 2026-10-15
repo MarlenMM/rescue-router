@@ -3,6 +3,12 @@
 Few-shot flood mapping from drone photos, and rescue routes on the predicted map. KAIST AIC200 mini-project
 (Chameleon, Track A + B).
 
+**Status (15 Oct 2026).** Submitted on 8 Oct (tag `submitted-2026-10-08`; the sections below describe that model).
+Since then: an ordinary segmenter (DeepLabV3-ResNet50) fine-tuned on the same photos beats the submitted Chameleon
+model at 50 labels and, with the same labels for both, at every label count measured so far (5–50); the one-recipe
+Chameleon curve, its training variance and the second disaster are the next GPU round (Phase 2, prepared, not
+started). Details: "Since submission" below, `PLAN.md` §16.
+
 **Track A (segmentation).** [Chameleon](https://github.com/GitGyun/chameleon) (Kim et al., ECCV 2024), meta-trained
 by the course, is adapted with **50 labelled FloodNet photos** to five classes: clear road, flooded road, flooded
 building, dry building, water. **Label budget:** 30 more labelled validation photos (val30) chose the checkpoint, the
