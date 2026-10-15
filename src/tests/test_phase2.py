@@ -300,3 +300,26 @@ def test_registered_candidates_match_the_mac_queue():
     line = next(x for x in open(os.path.join(REPO, 'experiments', 'phase2', 'mac_queue.txt')) if x.startswith('choice_bl'))
     queue = line.split('--baseline ')[1].split()[0].split(',')
     assert queue == post.REGISTERED == sorted(post.REGISTERED, key=post.candidate_order)
+
+
+def test_finish_merges_two_sessions_without_losing_logs(tmp_path):
+    """finish.merge: both sessions' runs land in one results folder; the files every session writes under one name
+    (environment check, lane logs) go to logs/<session>/, so the second download does not overwrite the first"""
+    sys.path.insert(0, os.path.join(REPO, 'kaggle', 'phase2'))
+    import finish
+    dest = tmp_path / 'phase2' / 'rr'
+    for session, run in (('curve', 'rescuenet_5shot_s0_stratified_p2'), ('var', 'floodnet_50shot_s0_stratified_sup1')):
+        stage = tmp_path / 'phase2' / f'download_{session}'
+        for rel, text in ((f'rr/preds/{run}_x.npz', run), (f'rr/logs/{run}.json', run), ('rr/logs/envcheck.txt', f'ENVCHECK OK {session}'),
+                          ('rr/logs/b13_gpu0.out', session), ('rr/ckpt/floodnet_50shot_s0_stratified.ckpt', 'same'),
+                          (f'rr-p2-{session}.log', session)):
+            (stage / rel).parent.mkdir(parents=True, exist_ok=True)
+            (stage / rel).write_text(text)
+        finish.merge(str(stage), str(dest), session)
+        assert not stage.exists()
+    for session in ('curve', 'var'):
+        assert (dest / 'logs' / session / 'envcheck.txt').read_text() == f'ENVCHECK OK {session}'
+        assert (dest / 'logs' / session / 'b13_gpu0.out').read_text() == session
+        assert (tmp_path / 'phase2' / f'rr-p2-{session}.log').read_text() == session
+    assert (dest / 'preds' / 'rescuenet_5shot_s0_stratified_p2_x.npz').exists()
+    assert (dest / 'logs' / 'floodnet_50shot_s0_stratified_sup1.json').exists() and not (dest / 'logs' / 'envcheck.txt').exists()
