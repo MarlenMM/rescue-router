@@ -100,6 +100,8 @@ def main():
     _, load = lanes(session(name))
     print(f'\n{"READY" if ok else "NOT READY"}: {name}, {len(session(name))} job groups, lanes {[round(x) for x in load]} min, '
           f'~{(max(load) + 18) / 60:.1f} h of quota')
+    for line in optional(name):
+        print(line)
     print('Manual steps (Marlen\'s go first; memory phase2-gate):\n  1. Kaggle GPU quota: in a logged-in kaggle.com tab, '
           f'console:\n     {QUOTA_JS}\n     (timeUsed / totalTimeAllowed in s; the session needs '
           f'~{(max(load) + 18) * 60:.0f} s)\n' + ''.join(f'  {k}. {n}\n' for k, n in enumerate(notes, 2))
@@ -107,6 +109,36 @@ def main():
           f'  then (waits, downloads, post-processes; read-only on Kaggle): '
           f'nohup caffeinate -is ~/.venvs/rr/bin/python kaggle/phase2/finish.py {name} &')
     sys.exit(0 if ok else 1)
+
+
+def optional(name):
+    """the pre-registered parts Marlen keeps or drops at this launch (PROTOCOL amendments 4 and 5), with their quota"""
+    import make_plan as MP
+    full, _ = lanes(session(name))
+    wall = lambda items: max(lanes(items)[1]) + 18                       # noqa: E731
+    out = []
+    if name == 'curve':
+        rn = [g for grp in full.values() for g in grp
+              if any(sc == 'predict' and 'rescuenet_test_full' in a for sc, a in g)]
+        base = [(rid, jobs, m) for rid, jobs, m in session(name)]
+        cut = [(rid, jobs, m - (MP.N_PHOTOS['rescuenet_test_full'] - MP.N_PHOTOS['rescuenet_test_eval100'])
+                * MP.PRED_S[min(MP.PRED_S, key=lambda k: abs(k - int(re.search(r'_(\d+)shot', rid).group(1))))] / 60
+                if rid.startswith('rescuenet') and any('rescuenet_test_full' in a for sc, a in jobs if sc == 'predict')
+                else m) for rid, jobs, m in base]
+        if rn:
+            out.append(f'Decision at this launch: amendment 4 (RescueNet 5-20 shots on the full RescueNet test) is IN: '
+                       f'+{wall(base) - wall(cut):.0f} min of quota. To drop it: RN_FULL -> default splits for those '
+                       f'three runs in kaggle/phase2/make_plan.py, then rebuild the kernel.')
+    if name == 'var':
+        rn = [rid for rid, _, _ in session(name) if rid.startswith('rescuenet')]
+        if rn:
+            rest = [x for x in session(name) if not x[0].startswith('rescuenet')]
+            out.append(f'Decision at this launch: amendment 5 (RescueNet 20 shots, draws {", ".join(re.search(r'_sup(\d+)', r).group(1) for r in rn)}) is IN: '
+                       f'+{wall(session(name)) - wall(rest):.0f} min of quota. To drop it: VAR_RN_DRAWS = () in '
+                       f'kaggle/phase2/make_plan.py, then rebuild the kernel.')
+        else:
+            out.append('Amendment 5 (RescueNet 20-shot draws) is OUT (VAR_RN_DRAWS = ()).')
+    return out
 
 
 if __name__ == '__main__':

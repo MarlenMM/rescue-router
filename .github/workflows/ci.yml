@@ -1,5 +1,5 @@
 # CPU checks on every push and pull request (PLAN §16, E2). Tests that need the prediction caches or ~/rr_data skip
-# themselves here; the JS router parity test runs on all 200 committed viewer scenes.
+# themselves here; the JS router parity test runs on all 200 committed viewer scenes, each with both models (400).
 name: ci
 on:
   push:
