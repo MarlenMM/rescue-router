@@ -25,7 +25,12 @@
 | `floodnet_val_tune30` | 30 | all tuning (checkpoint, thresholds, gates, Batch 13 choices) |
 | `floodnet_val_confirm100` | 100 | disjoint from val30; confirms choices only (14 Oct) |
 | `floodnet_stratified_s{0,1,2}` | 100 each | nested support orders (the k-shot set is the first k), three independent draws |
-| `rescuenet_*` | same roles | RescueNet supports come from its val split |
+| `rescuenet_*` | same roles | RescueNet supports come from its val split; `rescuenet_val_tune30` = 30 photos of that pool outside the draw-0 supports |
+| `rescuenet_stratified_s{3,4}` | 100 each | RescueNet support draws made without val30 (16 Oct, `src/splits_local.py rn_draws`) |
+
+RescueNet's published draws 1 and 2 (`rescuenet_stratified_s{1,2}`) contain 8 and 5 val30 photos, because val30 was
+cut outside draw 0 only; they were never used, and draws 3 and 4 replace them. `finetune.py` and `baseline_seg.py`
+refuse any support photo that is in the dataset's val30 or confirm100 (`rr.runs.check_supports`).
 
 Unlabelled use (14 Oct, PROTOCOL amendment 1 item 4): the self-trained baseline candidates also train on the other
 1,395 FloodNet train photos **without their labels**, with pseudo-labels from the 50-shot baseline
