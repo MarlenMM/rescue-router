@@ -18,3 +18,5 @@ all_conf  src/baseline_seg.py --shot 0 --splits floodnet_val_confirm100
 rn20ft    src/baseline_seg.py --dataset rescuenet --shot 20 --init results/baselines/ckpt/baseline_deeplabv3_r50_50shot_s0.pt --tag ft50
 mbv3st    src/baseline_seg.py --arch deeplabv3_mbv3 --shot 50 --pseudo results/baselines/pseudo/baseline_deeplabv3_r50_50shot_s0_c90 --pseudo_frac 0.5 --bs 8 --accum 2 --iters 3000 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
 lrasppst  src/baseline_seg.py --arch lraspp_mbv3 --shot 50 --pseudo results/baselines/pseudo/baseline_deeplabv3_r50_50shot_s0_c90 --pseudo_frac 0.5 --bs 8 --accum 2 --iters 3000 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
+# last: the CPU reports on everything above (baseline_report incl. the label-fair table, ensemble, curve figure, transfer)
+reports   ~/.venvs/rr/bin/python src/rebuild_all.py --only transfer,same_budget
