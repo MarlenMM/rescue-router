@@ -208,7 +208,12 @@ def kernel(name):
 
 
 def preflight(name, n_groups):
-    """the first n job groups of a session with toy sizes, through the same scripts, on this machine"""
+    """the first n job groups of a session with toy sizes, through the same scripts, on this machine. One pre-flight at
+    a time (a lock): they share the starter folder ~/rr_local/chameleon, whose data_paths.yaml every Chameleon job
+    rewrites (16 Oct: two pre-flights started together both failed reading a half-written one)"""
+    import fcntl
+    lock = open(os.path.expanduser('~/rr_local/preflight.lock'), 'w')
+    fcntl.flock(lock, fcntl.LOCK_EX)
     out = os.path.expanduser('~/rr_local/preflight')
     for d in ('ckpt', 'metrics', 'logs', 'preds'):
         os.makedirs(os.path.join(out, d), exist_ok=True)

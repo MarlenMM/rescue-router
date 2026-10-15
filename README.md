@@ -51,9 +51,9 @@ uploaded photo.
 |---|---|
 | `src/` | all code: data prep, fine-tuning and inference (GPU), metrics, decode tuning, router, evaluation, reports, viewer export, Gradio |
 | `src/rr/` | data loading, tiled inference, decode rules and metrics |
-| `src/tests/` | Python tests (router, metrics/decode, scene packing, Phase 2 tooling, baseline resume, job queue) |
+| `src/tests/` | Python tests (router, metrics/decode, scene packing incl. the second model, Phase 2 tooling and lane order, support/tuning overlap guard, baseline resume, job queue, Gradio uploads) |
 | `app/` | web viewer source (plain HTML/JS + Leaflet 1.9.4, vendored); `app/js/router.js` is the JS port of `src/router.py` |
-| `app/test/` | JS router parity test against the Python reference (bit-exact on all 200 scenes); Korean coverage of the interface |
+| `app/test/` | JS router parity test against the Python reference (bit-exact on all 200 scenes, both models: 400); Korean coverage of the interface |
 | `docs/` | the built viewer (GitHub Pages folder), made by `src/build_viewer.py`; published at <https://marlenmm.github.io/rescue-router-demo/> by `src/publish_demo.sh` |
 | `notebook/` | the final notebook: generator `build_notebook.py`, executed copy `rescue_router_executed.ipynb` (the submitted one) |
 | `writeup/`, `slides/` | write-up (LaTeX, figures, PDF) and slides (PPTX, sources, GIF backup, recording storyboard) |

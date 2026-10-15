@@ -35,6 +35,14 @@ PUB = os.path.join(ROOT, 'results', 'kaggle_v2', 'rr')
 SUBMITTED = 'floodnet_50shot_s0_stratified'
 
 
+# every registered product-model candidate among the baselines (PROTOCOL amendment 1 item 4, amendment 3); the choice
+# is made only when all of them have their confirm100 predictions (the Mac queue makes them; a choice among a subset
+# would not be the registered rule)
+REGISTERED = ['baseline_deeplabv3_r50_50shot_s0', 'baseline_deeplabv3_r50_50shot_s0_tta', 'baseline_deeplabv3_r50_50shot_s0_st',
+              'baseline_deeplabv3_r50_50shot_s0_st_tta', 'baseline_deeplabv3_mbv3_50shot_s0_st', 'baseline_lraspp_mbv3_50shot_s0_st',
+              'baseline_deeplabv3_r50_50shot_s0_ens3', 'baseline_deeplabv3_r50_50shot_s0_ens3_tta']
+
+
 def candidate_order(run):
     """the order of the baseline candidates = the "simpler first" tie-break of the model choice (ensemble.choose_best):
     one ResNet-50 model before the small models' self-training, plain before self-trained, no flips before flips,
@@ -120,7 +128,12 @@ def main():
                      glob.glob(os.path.join(ROOT, 'results', 'baselines', 'preds', 'baseline_*_50shot_s0*_floodnet_val_confirm100.npz'))
                      if re.search(r'_50shot_s0(_st|_ens3)?(_tta)?_floodnet_val_confirm100\.npz$', f)),
                     key=candidate_order)
-        run([py, os.path.join(SRC, 'ensemble.py'), '--choose_on', 'val30,confirm100'] + (['--baseline', ','.join(bl)] if bl else []))
+        missing = [r for r in REGISTERED if r not in bl]
+        if missing and not a.dry:
+            print(f'NOT YET: the model choice waits for the confirm100 predictions of {", ".join(missing)} (Mac queue: '
+                  'python src/job_queue.py experiments/phase2/mac_queue.txt --status); rerun this script when they exist')
+        else:
+            run([py, os.path.join(SRC, 'ensemble.py'), '--choose_on', 'val30,confirm100'] + (['--baseline', ','.join(bl)] if bl else []))
     run([py, os.path.join(SRC, 'baseline_report.py'), '--phase2', R, '--out', a.baseline_out])
     run([py, os.path.join(SRC, 'curve_figure.py'), '--phase2', R, '--out', os.path.join(a.baseline_out, 'curve')])
     print('\nnext: src/backup.py pack && bash release/backup/upload.sh; PushNotification; PLAN §16.4; PROTOCOL deviation log')
