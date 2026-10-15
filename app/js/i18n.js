@@ -108,6 +108,7 @@ const KO = {
   'Chameleon as submitted: few-shot, plus 30 labelled photos for tuning': '제출한 Chameleon: 퓨샷, 조정용 라벨 사진 30장 추가',
   'DeepLabV3-ResNet50 fine-tuned on the same labelled photos (same-budget baseline)': '같은 라벨 사진으로 미세 조정한 DeepLabV3-ResNet50 (같은 예산 기준 모델)',
   'Not available for this photo': '이 사진에는 아직 없음',
+  'models disagree most': '두 모델이 가장 다른 순',
 };
 
 const params = () => new URLSearchParams(location.hash.slice(1));

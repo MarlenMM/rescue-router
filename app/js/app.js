@@ -109,6 +109,7 @@ const SORTS = {
   cut: (a, b) => cutOff(b) - cutOff(a) || +a.id - +b.id,
   dis: (a, b) => summary(b).n_disagree - summary(a).n_disagree || +a.id - +b.id,
   iou: (a, b) => (summary(a).miou ?? 2) - (summary(b).miou ?? 2) || +a.id - +b.id,
+  models: (a, b) => (b.n_models ?? -1) - (a.n_models ?? -1) || +a.id - +b.id,   // houses the two models route differently
 };
 const browseList = () => state.index.scenes.filter(s => s.dataset === state.ds).sort(SORTS[state.sort]);
 
