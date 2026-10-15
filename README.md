@@ -5,9 +5,10 @@ Few-shot flood mapping from drone photos, and rescue routes on the predicted map
 
 **Status (15 Oct 2026).** Submitted on 8 Oct (tag `submitted-2026-10-08`; the sections below describe that model).
 Since then: an ordinary segmenter (DeepLabV3-ResNet50) fine-tuned on the same photos beats the submitted Chameleon
-model at 50 labels and, with the same labels for both, at every label count measured so far (5–50); the one-recipe
-Chameleon curve, its training variance and the second disaster are the next GPU round (Phase 2, prepared, not
-started). Details: "Since submission" below, `PLAN.md` §16.
+model at 50 labels and, with the same labels for both, at every FloodNet label count measured (1 level, 5–50 ahead).
+On the second disaster (RescueNet, 20 photos) Chameleon is ahead when it also uses its 30 tuning photos and level
+with equal labels. The one-recipe Chameleon curve, its training variance and the RescueNet points are the next GPU
+round (Phase 2, prepared, not started). Details: "Since submission" below, `PLAN.md` §16.
 
 **Track A (segmentation).** [Chameleon](https://github.com/GitGyun/chameleon) (Kim et al., ECCV 2024), meta-trained
 by the course, is adapted with **50 labelled FloodNet photos** to five classes: clear road, flooded road, flooded
@@ -77,7 +78,9 @@ Work since then (PLAN §16; §16.5 for the latest review):
   50 photos +.074 on the full test; the baseline reaches .609 with 100 photos and .728 with all 1,445 (full test).
   **With equal labels** (Chameleon decoded with thresholds from its k training labels only) the baseline is ahead at
   every point: 5 +.021 [−.012, +.053], 10 +.035 [+.004, +.066], 20 +.096 [+.054, +.138], 50 +.114 [+.083, +.148].
-  1 photo, RescueNet 5–50, other support draws and training seeds run on the Mac
+  **RescueNet (second disaster), 20 photos:** Chameleon with its tuning labels is ahead (baseline −.061 [−.098,
+  −.027], stranded F1 .605 vs .818), with equal labels the two are level (+.018 [−.033, +.063]): the first point where
+  Chameleon wins. 1 photo (FloodNet): level with equal labels (.139 vs .138). Other support draws and training seeds run on the Mac
   (`experiments/phase2/mac_queue.txt`, restartable: `src/job_queue.py`); Chameleon's one-recipe curve is Phase 2.
 - **FloodNet label errors** (`src/label_audit.py`, `splits/floodnet_label_errors.tsv`): 11 test and 2 validation
   photos label large dry areas as water; results are given with and without them.

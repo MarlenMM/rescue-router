@@ -954,6 +954,12 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
   published; `post.py` also draws the curve figure with the Phase 2 points (`curve_figure.py --phase2`, checked).
   CPU uploads can serve the seed ensemble (`--live_baseline a,b,c`, `--live_tta`; tested). Credential scan of every
   tracked file in all 170 commits: clean (before the repo goes public after the grade).
+- **RescueNet, first result (16 Oct 01:45; baseline 5 / 10 / 20 photos: eval100 .186 / .278 / .360):** at 20 photos,
+  paired with the published Chameleon run on eval100: **Chameleon wins with its 30 tuning labels** (baseline −.061
+  [−.098, −.027]; stranded F1 .605 vs .818, false safe .044 vs .026), and with equal labels the two are level
+  (+.018 [−.033, +.063]). The first point where Chameleon is ahead, on the second disaster: the Phase 2 RescueNet
+  points (5-50) and amendment 4 (their full test) carry the main open question. The viewer's RescueNet baseline tiers:
+  `results/baselines/report/tiers_rescuenet/` (eval100 confident 273 houses at 96.0 %).
 - **Viewer switch** (session started by Marlen, stopped at its usage limit, uncommitted in this folder; Marlen chose
   to commit the generated `b/` assets, ~12 MB of history): FloodNet done and parity-tested (304 JS tests); left:
   RescueNet (needs `tiers_rn20`), browser check, pytest, docs/, commit. Its notes: the session's hand-over file.

@@ -45,7 +45,8 @@ With fewer labels the two are level (eval100, baseline − Chameleon: 5 photos �
 [−.061, +.032], although Chameleon's decode also uses the 30 tuning labels); from 20 photos the baseline leads (+.047
 [+.004, +.090]). With the same k labels for both (Chameleon's label-free decode) the baseline is ahead at every point
 (5: +.021 [−.012, +.053], 10: +.035 [+.004, +.066], 20: +.096, 50: +.114 [+.083, +.148]). One label and the second
-disaster (RescueNet) are being measured.
+disaster (RescueNet) are being measured. First RescueNet point (20 photos, eval100): here Chameleon with its 30
+tuning labels is ahead of the baseline (+.061 [+.027, +.098]; stranded F1 .818 vs .605), level with equal labels.
 
 Training variance (seeds, choice of the 50 photos) is not yet measured: every number is one run (Phase 2, A3).
 
