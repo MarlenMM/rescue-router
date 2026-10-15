@@ -323,3 +323,16 @@ def test_finish_merges_two_sessions_without_losing_logs(tmp_path):
         assert (tmp_path / 'phase2' / f'rr-p2-{session}.log').read_text() == session
     assert (dest / 'preds' / 'rescuenet_5shot_s0_stratified_p2_x.npz').exists()
     assert (dest / 'logs' / 'floodnet_50shot_s0_stratified_sup1.json').exists() and not (dest / 'logs' / 'envcheck.txt').exists()
+
+
+def test_post_never_writes_over_the_published_reports(tmp_path):
+    """post.py curve: the gate re-choices (router_sweep, tiers) write into the Phase 2 report folder, not the published
+    results/routing/{router_sweep,tiers} or the published calibration figure"""
+    import subprocess
+    r = subprocess.run([sys.executable, os.path.join(REPO, 'kaggle', 'phase2', 'post.py'), 'curve', '--dry',
+                        '--results', str(tmp_path / 'rr')], capture_output=True, text=True, cwd=REPO)
+    cmds = [x for x in r.stdout.splitlines() if x.startswith('$ ') and ('tiers.py' in x or 'router_sweep.py' in x)]
+    assert len(cmds) == 2, r.stdout[-2000:]
+    for c in cmds:
+        assert f'--out {os.path.relpath(str(tmp_path), REPO)}' in c or f'--out {tmp_path}' in c, c
+    assert '--fig none' in next(c for c in cmds if 'tiers.py' in c)

@@ -12,7 +12,8 @@ Steps (each skipped when its output exists; --dry prints them); first it prints 
      the published folder, where router_sweep / tiers / ensemble read it
   3. run_decode.py (--sam) for every FloodNet run; decode_tune.py for the RescueNet runs
   4. phase2_report.py --routing
-  5. curve only: router_sweep (gate) and tiers (cautious gate) on val30 + confirm100, ensemble.py model choice on
+  5. curve only: router_sweep (gate) and tiers (cautious gate) on val30 + confirm100 (into results/phase2/report/,
+     never over the published reports), ensemble.py model choice on
      val30 + confirm100 (the pre-registered rules); baseline_report.py pairs the baselines with the Phase 2 runs and
      curve_figure.py draws the curves with the one-recipe Phase 2 points
 Then refresh the off-site backup (src/backup.py pack; release/backup/upload.sh) and send the notification.
@@ -121,8 +122,12 @@ def main():
     if a.session == 'curve':
         if not os.path.exists(os.path.join(a.pub, 'preds', os.path.basename(conf))) and not a.dry:
             sys.exit('no confirm100 cache of the submitted model: the router / tier / model choices cannot run')
-        run([py, os.path.join(SRC, 'router_sweep.py'), '--splits', 'val30,confirm100,eval100'])
-        run([py, os.path.join(SRC, 'tiers.py'), '--choose_on', 'val30,confirm100'])
+        # the re-chosen gates go to the Phase 2 report folder: the defaults are the published reports (tiers.json feeds
+        # the viewer's route card and rebuild_all --check; calibration_pwet.png is a published figure)
+        run([py, os.path.join(SRC, 'router_sweep.py'), '--splits', 'val30,confirm100,eval100',
+             '--out', os.path.join(rep, 'router_sweep')])
+        run([py, os.path.join(SRC, 'tiers.py'), '--choose_on', 'val30,confirm100', '--out', os.path.join(rep, 'tiers'),
+             '--fig', 'none'])
         # every registered baseline candidate (amendment 1 item 4, amendment 3: the seed ensemble 'ens3'): 50 photos,
         # draw 0, seed 0 (or the ensemble of seeds 0-2), with confirm100 predictions
         bl = sorted((re.sub(r'_floodnet_val_confirm100\.npz$', '', os.path.basename(f)) for f in
