@@ -282,7 +282,8 @@ def fd(d):
 
 
 def label(r):
-    v = [r['arch'] if r['arch'] != 'deeplabv3_r50' else '', 'self-trained' if r['tag'] == 'st' else r['tag'],
+    v = [r['arch'] if r['arch'] != 'deeplabv3_r50' else '',
+         {'st': 'self-trained', 'ens3': 'seed ensemble (3)'}.get(r['tag'], r['tag']),
          'flips' if r['tta'] else '']
     return ', '.join(x for x in v if x) or 'plain'
 

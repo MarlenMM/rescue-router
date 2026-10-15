@@ -33,6 +33,13 @@ PUB = os.path.join(ROOT, 'results', 'kaggle_v2', 'rr')
 SUBMITTED = 'floodnet_50shot_s0_stratified'
 
 
+def candidate_order(run):
+    """the order of the baseline candidates = the "simpler first" tie-break of the model choice (ensemble.choose_best):
+    one ResNet-50 model before the small models' self-training, plain before self-trained, no flips before flips,
+    and the seed ensembles (amendment 3) after every single model"""
+    return ('_ens3' in run, 'deeplabv3_r50' not in run, '_st' in run, run.endswith('_tta'), run)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('session', choices=['curve', 'var', 'var_full'])
@@ -103,10 +110,12 @@ def main():
             sys.exit('no confirm100 cache of the submitted model: the router / tier / model choices cannot run')
         run([py, os.path.join(SRC, 'router_sweep.py'), '--splits', 'val30,confirm100,eval100'])
         run([py, os.path.join(SRC, 'tiers.py'), '--choose_on', 'val30,confirm100'])
-        # every registered baseline candidate (amendment 1 item 4): 50 photos, draw 0, seed 0, with confirm100 predictions
-        bl = sorted(re.sub(r'_floodnet_val_confirm100\.npz$', '', os.path.basename(f)) for f in
-                    glob.glob(os.path.join(ROOT, 'results', 'baselines', 'preds', 'baseline_*_50shot_s0*_floodnet_val_confirm100.npz'))
-                    if re.search(r'_50shot_s0(_st)?(_tta)?_floodnet_val_confirm100\.npz$', f))
+        # every registered baseline candidate (amendment 1 item 4, amendment 3: the seed ensemble 'ens3'): 50 photos,
+        # draw 0, seed 0 (or the ensemble of seeds 0-2), with confirm100 predictions
+        bl = sorted((re.sub(r'_floodnet_val_confirm100\.npz$', '', os.path.basename(f)) for f in
+                     glob.glob(os.path.join(ROOT, 'results', 'baselines', 'preds', 'baseline_*_50shot_s0*_floodnet_val_confirm100.npz'))
+                     if re.search(r'_50shot_s0(_st|_ens3)?(_tta)?_floodnet_val_confirm100\.npz$', f)),
+                    key=candidate_order)
         run([py, os.path.join(SRC, 'ensemble.py'), '--choose_on', 'val30,confirm100'] + (['--baseline', ','.join(bl)] if bl else []))
     run([py, os.path.join(SRC, 'baseline_report.py'), '--phase2', R, '--out', a.baseline_out])
     print('\nnext: src/backup.py pack && bash release/backup/upload.sh; PushNotification; PLAN §16.4; PROTOCOL deviation log')

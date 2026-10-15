@@ -3,6 +3,8 @@
     python src/tiers.py [--out results/routing/tiers]
     python src/tiers.py --results results/baselines --run baseline_deeplabv3_r50_50shot_s0 --argmax \
         --choose_on val30,confirm100 --out results/baselines/report/tiers --fig none      # a baseline's cautious gate
+    python src/tiers.py --results results/baselines --run baseline_deeplabv3_r50_rescuenet_20shot_s0 --dataset rescuenet \
+        --argmax --fixed_gate --out results/baselines/report/tiers_rescuenet --fig none   # the tiers the viewer shows
 
 The predicted map is routed twice: with the tuned off-road gate (per dataset) and with a cautious gate g_c (off-road
 only where p_wet < g_c). A house truck-reachable even on the cautious map is a "confident truck" house; one
@@ -109,7 +111,11 @@ def main():
     ap.add_argument('--fig', default='results/kaggle_v2/report/figures/calibration_pwet.png')
     ap.add_argument('--choose_on', default='val30',
                     help='splits whose houses choose the cautious gate (PLAN §16: val30,confirm100 once predicted)')
-    ap.add_argument('--run', default=None, help='another FloodNet run (e.g. a baseline in results/baselines): FloodNet only')
+    ap.add_argument('--run', default=None, help='another run (e.g. a baseline in results/baselines), of --dataset')
+    ap.add_argument('--dataset', default='floodnet', choices=['floodnet', 'rescuenet'], help='the dataset of --run')
+    ap.add_argument('--fixed_gate', action='store_true',
+                    help="report the tiers at the router's cautious gate (route_eval.PRED_CAUTIOUS_MAXWET) instead of "
+                         'choosing one: the tiers a viewer built with the router shows')
     ap.add_argument('--argmax', action='store_true', help='decode by argmax (softmax baselines)')
     ap.add_argument('--reach', default='', help='off-road reach limits in m added to the cautious candidates, e.g. '
                                                 '40,20,10 (PROTOCOL amendment 1 item 7)')
@@ -117,7 +123,7 @@ def main():
     a.reach = [float(x) for x in a.reach.split(',') if x]
     if a.run:
         RUNS.clear()
-        RUNS['floodnet'] = a.run
+        RUNS[a.dataset] = a.run
     choose = a.choose_on.split(',')
     os.makedirs(a.out, exist_ok=True)
     out = dict(target=TARGET, gates={}, tiers={}, calibration={})
@@ -138,18 +144,21 @@ def main():
             t = tier_table(rows, g_t, g)['CONFIDENT_TRUCK']
             sweep.append(dict(gate=g, n=t['n'], share=t['gt_truck_share']))
         ok = [s for s in sweep if s['share'] is not None and s['share'] >= TARGET]
-        if a.reach:                                                  # the most confident houses at >= 99 %
+        if a.fixed_gate:                                             # report, do not choose
+            g_c = PRED_CAUTIOUS_MAXWET[ds]
+        elif a.reach:                                                  # the most confident houses at >= 99 %
             g_c = max(ok, key=lambda s: s['n'])['gate'] if ok else max(sweep, key=lambda s: s['share'] or 0)['gate']
         else:
             g_c = max(s['gate'] for s in ok) if ok else max(sweep, key=lambda s: (s['share'] or 0, s['gate']))['gate']
-        if choose == ['val30'] and not a.run:
+        if choose == ['val30'] and not a.run and not a.fixed_gate:
             assert g_c == PRED_CAUTIOUS_MAXWET[ds], f'{ds}: chosen cautious gate {g_c}, route_eval says {PRED_CAUTIOUS_MAXWET[ds]}'
         elif g_c != PRED_CAUTIOUS_MAXWET[ds]:
             print(f'{ds}: cautious gate chosen on {a.choose_on}: {g_c} (published {PRED_CAUTIOUS_MAXWET[ds]}); '
                   'if adopted, update route_eval.PRED_CAUTIOUS_MAXWET and rebuild', flush=True)
         out['gates'][ds] = dict(tuned=g_t, cautious=g_c, reached_target=bool(ok), val30_sweep=sweep)
-        md += [f'**{ds}**: tuned gate {g_t}; cautious gate chosen on {a.choose_on}: **{g_c}** '
-               + ('(largest candidate with confident-truck share >= 99 %)' if ok else '(no candidate reaches 99 %: highest share)'),
+        md += [f'**{ds}**: tuned gate {g_t}; cautious gate ' + (f"fixed at the router's **{g_c}** (--fixed_gate)" if a.fixed_gate
+               else f'chosen on {a.choose_on}: **{g_c}** ' + ('(largest candidate with confident-truck share >= 99 %)' if ok
+                                                           else '(no candidate reaches 99 %: highest share)')),
                '', f'| gate ({a.choose_on} sweep) | confident-truck houses | truly truck-reachable |', '|---|---|---|']
         md += [f"| {s['gate']} | {s['n']} | {'–' if s['share'] is None else f'{s['share']:.1%}'} |" for s in sweep]
         md.append('')

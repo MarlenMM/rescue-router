@@ -58,3 +58,30 @@ def test_job_queue_runs_pending_jobs_once_and_records_failures(tmp_path):
     assert (state / 'done').read_text().split() == ['a', 'c', 'd']   # a, c not run again; b not retried
     out = subprocess.run(cmd + ['--status'], capture_output=True, text=True).stdout
     assert 'FAILED   b' in out and not (state / 'lock').exists()
+
+
+def test_baseline_avg_writes_the_rounded_mean_as_a_run(tmp_path):
+    """src/baseline_avg.py: the seed ensemble cache = rounded mean of the members, with its argmax confusion"""
+    rng = np.random.default_rng(1)
+    out, data = tmp_path / 'baselines', tmp_path / 'data'
+    for d in ('preds', 'metrics', 'logs'):
+        (out / d).mkdir(parents=True)
+    (data / 'floodnet_r768' / 'val' / 'labels').mkdir(parents=True)
+    ids = np.array(['7001', '7002'])
+    for i in ids:
+        Image.fromarray(rng.choice([0, 1, 2, 3, 4, 254], (8, 12)).astype(np.uint8)).save(
+            data / 'floodnet_r768' / 'val' / 'labels' / f'{i}.png')
+    members = []
+    for r in ('m0', 'm1', 'm2'):
+        p = rng.dirichlet(np.ones(6), (2, 8, 12)).transpose(0, 3, 1, 2)[:, :5]           # 5 class channels of a softmax
+        P = np.round(p * 255).astype(np.uint8)
+        members.append(P)
+        np.savez_compressed(out / 'preds' / f'{r}_floodnet_val_tune30.npz', probs=P, ids=ids, cm=np.zeros((6, 6)))
+    np.savez_compressed(out / 'preds' / 'm0_floodnet_test_full.npz', probs=members[0], ids=ids)   # only one member: skipped
+    r = subprocess.run([sys.executable, os.path.join(SRC, 'baseline_avg.py'), '--runs', 'm0,m1,m2', '--out_run', 'ens',
+                        '--baselines', str(out)], env=dict(os.environ, RR_DATA=str(data)), capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    z = np.load(out / 'preds' / 'ens_floodnet_val_tune30.npz')
+    assert np.array_equal(z['probs'], np.round(np.mean([m.astype(np.float32) for m in members], 0)).astype(np.uint8))
+    assert list(z['ids']) == list(ids) and z['cm'].sum() == 2 * 8 * 12
+    assert not (out / 'preds' / 'ens_floodnet_test_full.npz').exists() and 'skip floodnet_test_full' in r.stdout
