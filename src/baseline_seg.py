@@ -23,7 +23,8 @@ Options (defaults = the 14 Oct runs bit for bit):
   --query_dataset rescuenet   predict another dataset's split with this model (zero-label transfer)
   --init CKPT           start from another baseline checkpoint (transfer: FloodNet model -> k RescueNet photos)
   --save_every k        resumable state (<ckpt>.part: weights, optimizer, schedule, every RNG) every k steps; a rerun
-                        after a crash or reboot continues from it and ends with the same weights (test_baseline.py)
+                        after a crash or reboot continues from it: the same weights as an uninterrupted run on the CPU
+                        (test_baseline.py); on MPS the same data order and RNG streams (its kernels are not bit-exact)
 
     python src/baseline_seg.py --shot 50 [--iters 3000] [--device mps] [--splits floodnet_val_tune30,floodnet_test_full]
 """
