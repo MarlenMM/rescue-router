@@ -181,7 +181,8 @@ async function loadScene(key, keepView = false) {             // keepView: the s
   const [W, H] = meta.size;
   if (meta.upload) sc.caption = meta.caption;
   setNoLabels(Boolean(meta.upload));                               // before state.s: setSource redraws the old scene
-  state.s = { sc, dir, mdir, model, meta, grid, blds, W, H, ds: meta.dataset };
+  // an upload names the model that made its map (Gradio: Chameleon on a GPU, or the CPU baseline); no switch there
+  state.s = { sc, dir, mdir, model: meta.upload ? (meta.model === 'b' ? 'b' : 'a') : model, meta, grid, blds, W, H, ds: meta.dataset };
   if (sc.dataset !== state.ds || state.model !== state.browseModel) { state.ds = sc.dataset; drawBrowse(); }
   markPressed();
   drawModelSeg();
@@ -198,7 +199,7 @@ async function loadScene(key, keepView = false) {             // keepView: the s
   drawPwetLegend();
   if (state.cb) applyPalette();
   map.attributionControl._attributions = {};
-  map.attributionControl.addAttribution(`${DATASET[meta.dataset].attrib} · ${MODEL[model].attrib}`);
+  map.attributionControl.addAttribution(`${DATASET[meta.dataset].attrib} · ${MODEL[state.s.model].attrib}`);
   drawLegend();
   $('routeCard').hidden = true;
   solve();
@@ -253,10 +254,11 @@ function drawCaption() {
 }
 
 function drawModelSeg() {                                          // the switch shows the model on screen
-  const has = Boolean(state.s.sc.b);
+  const has = Boolean(state.s.sc.b), up = Boolean(state.s.meta.upload);
   document.querySelectorAll('.seg.models button').forEach(b => {
     b.setAttribute('aria-checked', String(b.dataset.model === state.s.model));
-    if (b.dataset.model === 'b') {
+    b.disabled = up;                                               // an upload has the one model that served it
+    if (b.dataset.model === 'b' && !up) {
       b.disabled = !has;
       b.title = has ? t('DeepLabV3-ResNet50 fine-tuned on the same labelled photos (same-budget baseline)') : t('Not available for this photo');
     }

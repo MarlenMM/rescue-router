@@ -277,12 +277,12 @@ class BaselineLive:
             m.eval()
             self.models.append(m)
         self.model = self.models[0]
-        self.name = os.path.basename(paths[0])[:-3] + (f' + {len(paths) - 1} more (mean)' if len(paths) > 1 else '') \
-            + (', flips' if tta else '')
+        self.run = os.path.basename(paths[0])[:-3]              # e.g. baseline_deeplabv3_r50_50shot_s0 (viewer scene meta)
+        self.name = self.run + (f' + {len(paths) - 1} more (mean)' if len(paths) > 1 else '') + (', flips' if tta else '')
 
     def __call__(self, photo):
         from baseline_seg import predict
-        x = self.torch.from_numpy(np.ascontiguousarray(photo)).permute(2, 0, 1)
+        x = self.torch.from_numpy(np.array(photo)).permute(2, 0, 1)      # a writable copy (uploads may be read-only)
         P = np.mean([predict(m, x, self.device, self.tta) for m in self.models], axis=0)
         return np.round(P * 255).astype(np.uint8)
 
