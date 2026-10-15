@@ -1,0 +1,20 @@
+# Mac side of Phase 2 (PROTOCOL amendment 1, items 3-4): same-photos baseline partners for every Chameleon point and
+# the registered product-model candidates. Run: caffeinate -is ~/.venvs/rr-cham/bin/python src/job_queue.py <this file>
+# (restartable; PLAN §16.6). Restarted 15 Oct after the Mac rebooted at ~03:00 and stopped queues 2-3 part-way.
+# Order: what the Phase 2 reading depends on first (the curve's low end, the second disaster), then the 50-shot
+# draws / seeds, then the candidates. FN50 splits: val30, confirm100 (model choice), eval100, full test (report).
+fn1       src/baseline_seg.py --shot 1 --splits floodnet_val_tune30,floodnet_test_eval100,floodnet_test_full
+rn5       src/baseline_seg.py --dataset rescuenet --shot 5
+rn10      src/baseline_seg.py --dataset rescuenet --shot 10
+rn20      src/baseline_seg.py --dataset rescuenet --shot 20
+rn50      src/baseline_seg.py --dataset rescuenet --shot 50
+draw1     src/baseline_seg.py --shot 50 --seed 0 --support_seed 1 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
+draw2     src/baseline_seg.py --shot 50 --seed 0 --support_seed 2 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
+st50      src/baseline_seg.py --shot 50 --pseudo results/baselines/pseudo/baseline_deeplabv3_r50_50shot_s0_c90 --pseudo_frac 0.5 --bs 8 --accum 2 --iters 3000 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
+st50tta   src/baseline_seg.py --shot 50 --pseudo results/baselines/pseudo/baseline_deeplabv3_r50_50shot_s0_c90 --pseudo_frac 0.5 --bs 8 --accum 2 --iters 3000 --tta --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
+seed1     src/baseline_seg.py --shot 50 --seed 1 --support_seed 0 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
+seed2     src/baseline_seg.py --shot 50 --seed 2 --support_seed 0 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
+all_conf  src/baseline_seg.py --shot 0 --splits floodnet_val_confirm100
+rn20ft    src/baseline_seg.py --dataset rescuenet --shot 20 --init results/baselines/ckpt/baseline_deeplabv3_r50_50shot_s0.pt --tag ft50
+mbv3st    src/baseline_seg.py --arch deeplabv3_mbv3 --shot 50 --pseudo results/baselines/pseudo/baseline_deeplabv3_r50_50shot_s0_c90 --pseudo_frac 0.5 --bs 8 --accum 2 --iters 3000 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
+lrasppst  src/baseline_seg.py --arch lraspp_mbv3 --shot 50 --pseudo results/baselines/pseudo/baseline_deeplabv3_r50_50shot_s0_c90 --pseudo_frac 0.5 --bs 8 --accum 2 --iters 3000 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full

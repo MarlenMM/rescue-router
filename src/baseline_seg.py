@@ -22,6 +22,8 @@ Options (defaults = the 14 Oct runs bit for bit):
   --arch deeplabv3_mbv3 / lraspp_mbv3   small models for CPU / in-browser use
   --query_dataset rescuenet   predict another dataset's split with this model (zero-label transfer)
   --init CKPT           start from another baseline checkpoint (transfer: FloodNet model -> k RescueNet photos)
+  --save_every k        resumable state (<ckpt>.part: weights, optimizer, schedule, every RNG) every k steps; a rerun
+                        after a crash or reboot continues from it and ends with the same weights (test_baseline.py)
 
     python src/baseline_seg.py --shot 50 [--iters 3000] [--device mps] [--splits floodnet_val_tune30,floodnet_test_full]
 """
@@ -124,6 +126,15 @@ def predict(model, x, device, tta=False):
     return p[0, :OTHER_IDX].cpu().numpy()
 
 
+RESUME_FREE = ('stop_after', 'save_every', 'splits', 'tta', 'device')   # may differ between a run and its resume
+
+
+def atomic_save(obj, path):
+    """torch.save via a temporary file, so a crash never leaves a truncated checkpoint behind"""
+    torch.save(obj, path + '.tmp')
+    os.replace(path + '.tmp', path)
+
+
 def run_id(a):
     draw = a.seed if a.support_seed < 0 else a.support_seed
     tag = a.tag or ('st' if a.pseudo else '')
@@ -152,12 +163,15 @@ def main():
     ap.add_argument('--query_dataset', default=None,
                     help='photos of another dataset at prediction (zero-label transfer, e.g. a FloodNet model on '
                          'rescuenet_test_eval100; scored on shared super-classes by transfer_eval.py)')
+    ap.add_argument('--save_every', type=int, default=500, help='steps between resumable states (0 = none)')
+    ap.add_argument('--stop_after', type=int, default=0, help='stop after this many steps, resumable (tests)')
     ap.add_argument('--device', default='mps' if torch.backends.mps.is_available() else 'cpu')
     ap.add_argument('--splits', default=None, help='comma list of split files (default per dataset)')
     ap.add_argument('--out', default='results/baselines')
     a = ap.parse_args()
     ds = DATASETS[a.dataset]
-    names, splits = ds['names'], (a.splits or ds['splits']).split(',')
+    names = ds['names']
+    splits = [f for f in (ds['splits'] if a.splits is None else a.splits).split(',') if f]   # '' = train only
     torch.manual_seed(a.seed)
     rng = np.random.default_rng(a.seed)
     draw = a.seed if a.support_seed < 0 else a.support_seed
@@ -186,19 +200,32 @@ def main():
             assert not set(p_ids) & set(ids), 'pseudo-labelled photos must not include the labelled supports'
             pseudo = [load(ds['support_split'], i, a.dataset, os.path.join(a.pseudo, 'labels')) for i in p_ids]
             n_p = int(round(a.bs * a.pseudo_frac))
-            it = mixed(data, pseudo, a.crop, a.bs, n_p, rng)
             log['pseudo'] = dict(dir=a.pseudo, n_photos=len(p_ids), per_batch=n_p,
                                  meta=json.load(open(os.path.join(a.pseudo, 'meta.json')))
                                  if os.path.exists(os.path.join(a.pseudo, 'meta.json')) else None)
-        else:
-            it = batches(data, a.crop, a.bs, rng)
         heads = [p for n, p in model.named_parameters() if 'classifier' in n]
         body = [p for n, p in model.named_parameters() if 'classifier' not in n]
         opt = torch.optim.AdamW([dict(params=body, lr=a.lr), dict(params=heads, lr=10 * a.lr)], weight_decay=1e-4)
         sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: (1 - s / a.iters) ** 0.9)
+        f_part, start, t_prev = f_ckpt + '.part', 1, 0.0
+        if os.path.exists(f_part):                 # resume: every state the remaining steps depend on
+            st = torch.load(f_part, map_location='cpu', weights_only=False)   # RNG states must stay on the CPU
+            assert st['args'] == {k: v for k, v in vars(a).items() if k not in RESUME_FREE}, \
+                f'{f_part} was written with other arguments; delete it to start over'
+            model.load_state_dict(st['model'])
+            opt.load_state_dict(st['opt'])
+            sched.load_state_dict(st['sched'])
+            rng.bit_generator.state = st['np_rng']
+            torch.set_rng_state(st['torch_rng'])
+            if st.get('mps_rng') is not None and a.device == 'mps':
+                torch.mps.set_rng_state(st['mps_rng'])
+            start, t_prev, log = st['step'] + 1, st['train_s'], st['log']
+            print(f'[{run}] resumed from {f_part} at step {st["step"]}', flush=True)
+        # the crop iterators draw from rng only, one whole batch per next(): rebuilt here they continue the sequence
+        it = mixed(data, pseudo, a.crop, a.bs, n_p, rng) if a.pseudo else batches(data, a.crop, a.bs, rng)
         t0, run_loss = time.time(), []
         model.train()
-        for step in range(1, a.iters + 1):
+        for step in range(start, a.iters + 1):
             opt.zero_grad(set_to_none=True)
             losses = []
             for _ in range(a.accum):                  # --accum k: k micro-batches of --bs per step (k = 1: plain)
@@ -214,11 +241,23 @@ def main():
             sched.step()
             run_loss.append(float(np.mean(losses)))
             if step % 100 == 0:
-                log['losses'].append(dict(step=step, loss=float(np.mean(run_loss)), s=round(time.time() - t0, 1)))
-                print(f'[{run}] step {step} loss {np.mean(run_loss):.4f} ({time.time() - t0:.0f} s)', flush=True)
+                log['losses'].append(dict(step=step, loss=float(np.mean(run_loss)), s=round(t_prev + time.time() - t0, 1)))
+                print(f'[{run}] step {step} loss {np.mean(run_loss):.4f} ({t_prev + time.time() - t0:.0f} s)', flush=True)
                 run_loss = []
-        log['train_s'] = round(time.time() - t0, 1)
-        torch.save(model.state_dict(), f_ckpt)
+            stop = a.stop_after and step == a.stop_after and step < a.iters
+            if (a.save_every and step % a.save_every == 0 and step < a.iters) or stop:
+                atomic_save(dict(step=step, model=model.state_dict(), opt=opt.state_dict(), sched=sched.state_dict(),
+                                 np_rng=rng.bit_generator.state, torch_rng=torch.get_rng_state(),
+                                 mps_rng=torch.mps.get_rng_state() if a.device == 'mps' else None,
+                                 train_s=round(t_prev + time.time() - t0, 1), log=log,
+                                 args={k: v for k, v in vars(a).items() if k not in RESUME_FREE}), f_part)
+            if stop:
+                print(f'[{run}] stopped after step {step} (--stop_after); rerun to continue', flush=True)
+                return
+        log['train_s'] = round(t_prev + time.time() - t0, 1)
+        atomic_save(model.state_dict(), f_ckpt)
+        if os.path.exists(f_part):
+            os.remove(f_part)
     pred_run = run + ('_tta' if a.tta else '')
     for sf in splits:
         split = 'val' if '_val_' in sf else 'test'
