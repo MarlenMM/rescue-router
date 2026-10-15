@@ -189,6 +189,10 @@ Cost: +80 T4 minutes, +41 min of quota (`curve` 385 min instead of 344; curve + 
 On the Mac (no quota) the baseline side gets the realistic cross-disaster competitor at every low-label point:
 DeepLabV3 started from the FloodNet 50-shot baseline and fine-tuned on the same 5 / 10 / 20 RescueNet photos (`ft50`;
 it has also seen 50 FloodNet labels, reported as such, never instead of the plain baseline).
+Equal total labels (16 Oct, after the first RescueNet point showed Chameleon's lead at 20 photos comes from its 30
+tuning photos, the baseline gaining nothing from tuning): baseline partners at k + 30 = 35, 40, 50 and 80 RescueNet
+photos (nested supports, val30 excluded), reported next to Chameleon k (+ 30 tuning) as a second view
+(`curve_figure.py` curve_total.png); no choice depends on it.
 The comparison is reported on the full RescueNet test where both have it (`baseline_report.py` pairs on the largest
 common photo set), on eval100 otherwise; both models' label-free (k labels) decodes are reported next to the tuned
 ones for RescueNet too (16 Oct: the RescueNet chain has no guided filter, so its thresholds are matched on the raw
