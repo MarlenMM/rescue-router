@@ -112,7 +112,7 @@ def main():
         for s in ('curve', 'var', 'var_full'):
             items = session(s)
             _, load = lanes(items)
-            wall = max(load) + 15                  # + setup (clone, pip, data, model load)
+            wall = max(load) + 18                  # + setup (clone, pip, data, model load) and the environment check
             tot += wall if s != 'var_full' else 0
             print(f'{s:8s} {len(items)} runs, T4 minutes {sum(m for _, _, m in items):.0f}, '
                   f'2xT4 wall (= quota) {wall:.0f} min')
@@ -130,9 +130,52 @@ for tar in glob.glob('/kaggle/input/**/rescuenet_r768.tar', recursive=True)[:1]:
     with tarfile.open(tar) as t:
         t.extractall('/content/rr_data', filter='data')
 for f in glob.glob('/kaggle/input/**/rr-final-ckpt/**/floodnet_50shot_s0_stratified.ckpt', recursive=True)[:1]:
-    shutil.copy(f, f'{OUT}/ckpt/floodnet_50shot_s0_stratified.ckpt')     # the submitted model (confirm100)
+    shutil.copy(f, f'{OUT}/ckpt/floodnet_50shot_s0_stratified.ckpt')     # the submitted model (confirm100, env check)
 sh(f'ls /content/rr_data {OUT}/ckpt')
 """
+
+# Environment check (PLAN §16.6), run on GPU 0 before the lanes start (~3 min): the submitted model predicts the first
+# 3 photos of floodnet_test_full_part1 exactly as the published run did (fp16, chunk 1) and src/env_check.py compares
+# them with the published T4 cache (4x4 block means, embedded below). On a failure the session stops at once: runs in
+# a different environment would not be comparable with the published ones, and the rest of the quota is kept.
+ENV_CACHE = os.path.join(ROOT, 'results', 'kaggle_v2', 'rr', 'preds',
+                         'floodnet_50shot_s0_stratified_floodnet_test_full_part1_fp16.npz')
+ENV_CHECK = """
+import base64 as _b64
+_E = '/tmp/envcheck'
+for d in ('ckpt', 'metrics', 'logs', 'preds'):
+    os.makedirs(f'{_E}/{d}', exist_ok=True)
+for sub in ('splits', 'supports'):
+    if not os.path.exists(f'{_E}/{sub}'):
+        os.symlink(f'{OUT}/{sub}', f'{_E}/{sub}')
+open(f'{_E}/ref.npz', 'wb').write(_b64.b64decode(ENV_REF_B64))
+shutil.copy(f'{OUT}/ckpt/floodnet_50shot_s0_stratified.ckpt', f'{_E}/ckpt/')
+sh(f'cd /content/rr/src && CUDA_VISIBLE_DEVICES=0 python predict.py --ckpt {_E}/ckpt/floodnet_50shot_s0_stratified.ckpt '
+   f'--dataset floodnet --query_dataset floodnet --split_file floodnet_test_full_part1 --split test --amp fp16 --chunk 1 '
+   f'--channel_chunk 1 --limit 3 --force --drive {_E} --data /content/rr_data --mt_ckpt /content/generalist.ckpt '
+   f'--chameleon /content/starter0/chameleon --runs /content/runs_envcheck')
+_c = sh(f'python /content/rr/src/env_check.py check --ref {_E}/ref.npz --cache '
+        + (glob.glob(f'{_E}/preds/*.npz') or ['(no prediction)'])[0])
+open(f'{OUT}/logs/envcheck.txt', 'w').write(_c.stdout + _c.stderr)
+if _c.returncode:
+    print('ENVIRONMENT CHECK FAILED: stopping before any run (see logs/envcheck.txt)', flush=True)
+    sys.exit(1)
+print(f'environment check passed after {(time.time() - T0) / 60:.1f} min', flush=True)
+"""
+# the image of every 5-8 Oct Kaggle run (kaggle kernels pull marlenmelis/rr-b13-final -m), pinned for comparability
+DOCKER_IMAGE = 'gcr.io/kaggle-private-byod/python@sha256:2757e0c7d1e0a9cb43da657b97e223c321a98f5014bdf64f44f2f6b083ad2b2f'
+
+
+def env_ref_b64():
+    """the reference of the environment check as base64 (src/env_check.py ref, 3 photos)"""
+    import base64
+    import io
+
+    import numpy as np
+    from env_check import make_ref
+    buf = io.BytesIO()
+    np.savez_compressed(buf, **make_ref(ENV_CACHE, 3))
+    return base64.b64encode(buf.getvalue()).decode()
 
 
 def kernel(name):
@@ -141,12 +184,13 @@ def kernel(name):
     path = os.path.join(HERE, f'plan_{name}.json')
     json.dump({str(g): v for g, v in plan.items()}, open(path, 'w'), indent=1)
     limit = max(load) / 60 + 1.0                    # a job group may still start up to 1 h past the planned end
-    sources = 'marlenmelis/rr-final-ckpt' if name == 'curve' else ''
+    sources = 'marlenmelis/rr-final-ckpt'          # the submitted checkpoint: confirm100 (curve), env check (both)
+    setup = SETUP + f"ENV_REF_B64 = '{env_ref_b64()}'\n" + ENV_CHECK
     subprocess.run([sys.executable, os.path.join(ROOT, 'kaggle', 'b13', 'make_kernel.py'), '--slug', f'rr-p2-{name}',
-                    '--plan', path, '--start_limit', f'{limit:.1f}', '--setup', SETUP]
-                   + (['--datasets', sources] if sources else []), check=True)
-    print(f'plan {path}; lanes {[round(x) for x in load]} min; start limit {limit:.1f} h'
-          + (f'; needs the private dataset {sources} (the submitted checkpoint file)' if sources else ''))
+                    '--plan', path, '--start_limit', f'{limit:.1f}', '--setup', setup, '--datasets', sources,
+                    '--docker_image', DOCKER_IMAGE], check=True)
+    print(f'plan {path}; lanes {[round(x) for x in load]} min; start limit {limit:.1f} h; needs the private dataset '
+          f'{sources} (the submitted checkpoint file); image pinned to the 8 Oct one; environment check first')
 
 
 def preflight(name, n_groups):

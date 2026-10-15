@@ -4,6 +4,7 @@ import os
 import sys
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import phase2_report as P2  # noqa: E402
@@ -168,3 +169,54 @@ def test_model_choice_rule():
     assert choose_best(order, {'chameleon': .52, 'b argmax': .52, 'w=0.0 b': .52, 'w=0.5 b': .5}, labels) == 'b argmax'
     assert choose_best(order, {'chameleon': .52, 'b argmax': .5, 'w=0.0 b': .5, 'w=0.5 b': .52}, labels) == 'chameleon'
     assert choose_best(order, {'chameleon': .5, 'b argmax': .5, 'w=0.0 b': .5200001, 'w=0.5 b': .52}, labels) == 'w=0.0 b'
+
+
+def test_env_check_passes_the_same_predictions_and_stops_on_drift(tmp_path):
+    """src/env_check.py and the kernel's environment-check block (kaggle/phase2/make_plan.py ENV_CHECK)"""
+    import base64
+    import io
+    import env_check as E
+    rng = np.random.default_rng(0)
+    probs = rng.integers(0, 256, (4, 5, 16, 24), dtype=np.uint8)
+    ids = np.array(['7001', '7002', '7003', '7004'])
+    ref_cache = tmp_path / 'published.npz'
+    np.savez_compressed(ref_cache, probs=probs, ids=ids)
+    ref = E.make_ref(str(ref_cache), 3)
+    assert ref['blocks'].shape == (3, 5, 4, 6) and list(ref['ids']) == ['7001', '7002', '7003']
+    same = tmp_path / 'same.npz'
+    np.savez_compressed(same, probs=np.clip(probs[:3].astype(int) + rng.integers(-2, 3, probs[:3].shape), 0, 255).astype(np.uint8), ids=ids[:3])
+    assert E.compare(ref, str(same))[0]                   # +-2/255 noise: the same environment
+    drift = tmp_path / 'drift.npz'
+    np.savez_compressed(drift, probs=np.clip(probs[:3].astype(int) + 12, 0, 255).astype(np.uint8), ids=ids[:3])
+    assert not E.compare(ref, str(drift))[0]
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'kaggle', 'phase2'))
+    import make_plan as MP
+    buf = io.BytesIO()
+    np.savez_compressed(buf, **ref)
+    E_dir = tmp_path / 'envcheck'
+    block = (MP.ENV_CHECK.replace("'/tmp/envcheck'", repr(str(E_dir))).replace('/content/rr/src/env_check.py', f'"{E.__file__}"')
+             .replace("sh(f'python ", f"sh(f'{sys.executable} "))
+    import shutil
+    import subprocess
+    import time
+    out = tmp_path / 'out'
+    for d in ('ckpt', 'logs', 'splits', 'supports'):
+        (out / d).mkdir(parents=True)
+    (out / 'ckpt' / 'floodnet_50shot_s0_stratified.ckpt').write_bytes(b'x')
+    for new, ok in ((same, True), (drift, False)):
+        def sh(cmd, new=new):                             # stand-in for the kernel's sh(): 'predict' writes the cache
+            if 'predict.py' in cmd:
+                shutil.copy(new, E_dir / 'preds' / 'floodnet_50shot_s0_stratified_floodnet_test_full_part1_n3_fp16.npz')
+                return subprocess.CompletedProcess(cmd, 0, '', '')
+            return subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        g = dict(os=os, glob=__import__('glob'), shutil=shutil, sys=sys, time=time, T0=time.time(), OUT=str(out), sh=sh,
+                 ENV_REF_B64=base64.b64encode(buf.getvalue()).decode())
+        if E_dir.exists():
+            shutil.rmtree(E_dir)
+        if ok:
+            exec(block, g)
+            assert 'PASS' in (out / 'logs' / 'envcheck.txt').read_text(), (out / 'logs' / 'envcheck.txt').read_text()
+        else:
+            with pytest.raises(SystemExit):
+                exec(block, g)
+            assert 'FAIL' in (out / 'logs' / 'envcheck.txt').read_text()

@@ -6,7 +6,7 @@ end with the reason. Budget: Kaggle 2×T4 sessions (a session is billed once for
 **Reading guide:** the sections were added in order, all before any Phase 2 run; where they differ, the later one
 holds: "Router parameters" and "Model choice" (14 Oct) and **Amendment 1** (14 Oct night: curve on the full test,
 RescueNet 5/10, lean variance design, baseline candidates, decode floor, label errors). Superseded sentences are
-marked "→ amendment 1".
+marked "→ amendment 1". **Amendment 2** (15 Oct) is procedural: pinned image, environment check, baseline draw seeds.
 
 ## Questions
 
@@ -142,6 +142,21 @@ split exactly and the submitted model's confirm100 prediction runs first):
    gate; among all candidates whose confident-truck houses are ≥ 99 % truly truck-reachable on val30 ∪ confirm100, the
    one with the most confident houses is chosen (for gates alone this is the published rule: the largest gate). It
    changes only which houses are "confident"; statuses and the stranded F1 keep the tuned gate. `src/tiers.py --reach`.
+
+## Amendment 2 (15 Oct 2026, ~21:30 KST; procedural only, before any Phase 2 GPU run)
+
+1. **Environment.** Both kernels pin the Kaggle image of every 5–8 Oct run (`kaggle kernels pull -m`:
+   `gcr.io/kaggle-private-byod/python@sha256:2757e0c7…`) and, before the lanes start, the submitted model predicts the
+   first 3 photos of `floodnet_test_full_part1` as the published run did; `src/env_check.py` compares 4×4 block means
+   with the published T4 cache and **stops the session** if max |diff| > 8/255 or mean > 1/255 (cross-device repeats
+   stay within 2/255). Both sessions therefore mount `marlenmelis/rr-final-ckpt`. A stopped session is an
+   infrastructure failure (re-run once after the cause is found), not a result.
+2. **Baseline draws** (amendment 1 item 3, Mac): the 50-shot support draws 1 and 2 run with training seed 0
+   (`--seed 0 --support_seed d`, runs `…_50shot_s0_sup<d>`), mirroring Chameleon's L design (seed 0, draw d), instead of
+   seed = draw as first queued on 14 Oct (that run was killed part-way by a reboot of the Mac at ~03:00 on 15 Oct;
+   nothing of it was evaluated). Every Mac job is in `experiments/phase2/mac_queue.txt` (`src/job_queue.py`, resumes
+   after a crash).
+3. Nothing else changes: runs, recipes, decodes, splits and choice rules are as registered.
 
 ## Deviation log
 

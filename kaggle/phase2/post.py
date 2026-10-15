@@ -4,7 +4,7 @@
 
 Before: ~/.venvs/kaggle/bin/python kaggle/fetch_output.py marlenmelis/rr-p2-<session> results/phase2
 (the kernel writes /kaggle/working/rr/..., so the files land in results/phase2/rr/).
-Steps (each skipped when its output exists; --dry prints them):
+Steps (each skipped when its output exists; --dry prints them); first it prints the kernel's environment check:
   1. eval100 caches cut from the full-test caches of the FloodNet 1-20-shot runs (src/subset_cache.py)
   2. the submitted model's own prediction caches (val30, eval100, full test) linked into the Phase 2 folder,
      so it is decoded and reported with the new runs (seed 0, draw 0); its confirm100 cache (curve session) copied to
@@ -53,6 +53,10 @@ def main():
         if not a.dry:
             subprocess.run([str(c) for c in cmd], check=True, cwd=ROOT)
 
+    env = os.path.join(R, 'logs', 'envcheck.txt')        # the kernel's environment check (PLAN §16.6)
+    lines = open(env).read().splitlines() if os.path.exists(env) else []
+    print(next((x for x in lines if x.startswith('ENVCHECK')), 'WARNING no ENVCHECK line in logs/envcheck.txt: the '
+               'session ran without the environment check, or it crashed'))
     missing = [r for r in runs if not glob.glob(os.path.join(R, 'preds', f'{r}_*'))]
     if missing:
         print('WARNING no prediction cache for', missing)
