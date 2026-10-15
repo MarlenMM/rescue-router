@@ -290,3 +290,13 @@ def test_supports_never_overlap_tuning_photos():
     for d in (1, 2):
         with pytest.raises(SystemExit):
             check_supports('rescuenet', draw('rescuenet', d, 20), splits)
+
+
+def test_registered_candidates_match_the_mac_queue():
+    """post.py makes the model choice only with every registered candidate (amendments 1, 3); the list is the one the
+    Mac queue's choice_bl job uses, already in the tie-break order"""
+    sys.path.insert(0, os.path.join(REPO, 'kaggle', 'phase2'))
+    import post
+    line = next(x for x in open(os.path.join(REPO, 'experiments', 'phase2', 'mac_queue.txt')) if x.startswith('choice_bl'))
+    queue = line.split('--baseline ')[1].split()[0].split(',')
+    assert queue == post.REGISTERED == sorted(post.REGISTERED, key=post.candidate_order)
