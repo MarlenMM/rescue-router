@@ -215,8 +215,10 @@ def preflight(name, n_groups):
     lock = open(os.path.expanduser('~/rr_local/preflight.lock'), 'w')
     fcntl.flock(lock, fcntl.LOCK_EX)
     out = os.path.expanduser('~/rr_local/preflight')
-    for d in ('ckpt', 'metrics', 'logs', 'preds'):
-        os.makedirs(os.path.join(out, d), exist_ok=True)
+    import shutil
+    for d in ('ckpt', 'metrics', 'logs', 'preds'):        # a clean slate: toy snapshots left by an earlier pre-flight
+        shutil.rmtree(os.path.join(out, d), ignore_errors=True)   # made finetune skip training (15 Oct: 13 groups)
+        os.makedirs(os.path.join(out, d))
     for sub in ('splits', 'supports'):
         link = os.path.join(out, sub)
         if os.path.islink(link) and os.readlink(link) != os.path.join(ROOT, sub):
@@ -230,7 +232,6 @@ def preflight(name, n_groups):
     for rid, jobs, _ in session(name)[:n_groups]:
         trains = any(script == 'finetune' for script, _ in jobs)
         if not trains:                                    # predict-only group: the submitted checkpoint itself
-            import shutil
             shutil.copy(os.path.join(ROOT, 'results', 'kaggle_v2', 'rr', 'ckpt', f'{rid}.ckpt'), os.path.join(out, 'ckpt'))
         for script, args in jobs:
             args = [str(x).replace('{OUT}', out) for x in args]
@@ -252,6 +253,8 @@ def preflight(name, n_groups):
             print(f'  rc={r.returncode}', *tail, sep='\n  ', flush=True)
             if r.returncode:
                 sys.exit(f'PREFLIGHT FAILED: {script}')
+            if script == 'finetune' and 'skipping' in r.stdout + r.stderr:
+                sys.exit('PREFLIGHT FAILED: finetune skipped training (stale outputs?), so this code was not run')
     print('PREFLIGHT OK')
     print(f'SRC_SHA256 {src_hash()}')               # launch_check.py: the code this pre-flight ran (content, not time)
 
