@@ -13,7 +13,8 @@ Steps (each skipped when its output exists; --dry prints them); first it prints 
   3. run_decode.py (--sam) for every FloodNet run; decode_tune.py for the RescueNet runs
   4. phase2_report.py --routing
   5. curve only: router_sweep (gate) and tiers (cautious gate) on val30 + confirm100, ensemble.py model choice on
-     val30 + confirm100 (the pre-registered rules); baseline_report.py pairs the baselines with the Phase 2 runs
+     val30 + confirm100 (the pre-registered rules); baseline_report.py pairs the baselines with the Phase 2 runs and
+     curve_figure.py draws the curves with the one-recipe Phase 2 points
 Then refresh the off-site backup (src/backup.py pack; release/backup/upload.sh) and send the notification.
 """
 import argparse
@@ -121,6 +122,7 @@ def main():
                     key=candidate_order)
         run([py, os.path.join(SRC, 'ensemble.py'), '--choose_on', 'val30,confirm100'] + (['--baseline', ','.join(bl)] if bl else []))
     run([py, os.path.join(SRC, 'baseline_report.py'), '--phase2', R, '--out', a.baseline_out])
+    run([py, os.path.join(SRC, 'curve_figure.py'), '--phase2', R, '--out', os.path.join(a.baseline_out, 'curve')])
     print('\nnext: src/backup.py pack && bash release/backup/upload.sh; PushNotification; PLAN §16.4; PROTOCOL deviation log')
 
 
