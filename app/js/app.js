@@ -225,7 +225,8 @@ function solveOther() {                                            // the other 
   const s = state.s, o = s.other;
   if (!o) return;
   if (o.lam !== state.lam) { o.grids = sceneGrids(o.grid, state.lam); o.lam = state.lam; }
-  const sol = o.grids.pred.solve(state.entry || o.grid.base);
+  const entry = state.entry || o.grid.base;                       // no entry on the other map: nothing to compare
+  const sol = entry ? o.grids.pred.solve(entry) : null;
   s.status.other = sol ? o.blds.map(b => sol.status(b.goals)) : null;
 }
 
