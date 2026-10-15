@@ -261,9 +261,10 @@ function drawModelSeg() {                                          // the switch
   document.querySelectorAll('.seg.models button').forEach(b => {
     b.setAttribute('aria-checked', String(b.dataset.model === state.s.model));
     b.disabled = up;                                               // an upload has the one model that served it
+    if (b.dataset.model === 'a') b.title = `${t('Chameleon as submitted: few-shot, plus 30 labelled photos for tuning')} (M)`;
     if (b.dataset.model === 'b' && !up) {
       b.disabled = !has;
-      b.title = has ? t('DeepLabV3-ResNet50 fine-tuned on the same labelled photos (same-budget baseline)') : t('Not available for this photo');
+      b.title = has ? `${t('DeepLabV3-ResNet50 fine-tuned on the same labelled photos (same-budget baseline)')} (M)` : t('Not available for this photo');
     }
   });
 }
@@ -811,6 +812,9 @@ addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
   if (e.key === 'n' || e.key === 'N') step(1);
   else if (e.key === 'p' || e.key === 'P') step(-1);
+  else if ((e.key === 'm' || e.key === 'M') && state.s && state.s.sc.b && !state.s.meta.upload) {
+    setModel(state.s.model === 'b' ? 'a' : 'b');                   // the other model, same view
+  }
   else if (e.key === 'Escape' && state.picking) setPicking(false);
   else if (e.key === 'Escape' && state.sel) { clearSelection(); writeHash(); }
 });
