@@ -6,9 +6,10 @@ Few-shot flood mapping from drone photos, and rescue routes on the predicted map
 **Status (16 Oct 2026).** Submitted on 8 Oct (tag `submitted-2026-10-08`; the sections below describe that model).
 Since then: an ordinary segmenter (DeepLabV3-ResNet50) fine-tuned on the same photos beats the submitted Chameleon
 model at 50 labels and, with the same labels for both, at every FloodNet label count measured (1 level, 5–50 ahead).
-On the second disaster (RescueNet, 20 photos) Chameleon is ahead when it also uses its 30 tuning photos and level
-with equal labels. The one-recipe Chameleon curve, its training variance and the RescueNet points (incl. two more
-support draws of the 20-photo point) are the next GPU round (Phase 2, prepared, not started). The local web viewer
+On the second disaster (RescueNet) Chameleon is ahead at 20 photos when it also uses its 30 tuning photos (level
+with equal labels), but the baseline overtakes it by 50 photos (eval100 .456 vs .402, paired +.054 [+.019, +.088]).
+The one-recipe Chameleon curve, its training variance and the RescueNet points (incl. two more support draws of the
+20-photo point) are the next GPU round (Phase 2, prepared, not started). The local web viewer
 shows every test scene with either model and marks the houses they route differently. Details: "Since submission"
 below, `PLAN.md` §16.
 
