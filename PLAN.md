@@ -968,6 +968,45 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
   whether `var` (3.0 h) still runs: it is the only measure of Chameleon's training variance (A3) and pairs with the
   baseline's draws; recommended, after `curve`.
 
+### 16.7 Pre-Phase-2 review #4 (16 Oct, ~02:00–; Marlen: "every part of the project, improve and fix in cycles before Phase 2")
+- **Cycle 9, viewer model switch finished** (the side session had stopped at its usage limit with FloodNet done):
+  RescueNet baseline layers exported, all 200 scenes have `b/`; the printed briefing quotes the measured false-safe
+  rate of the model AND dataset on screen (`scenes.json` `models.<a|b>.false_safe`: Chameleon FloodNet 11 % on 448
+  photos / RescueNet 3 % on 100, baseline 8 % / 4 %; before, the FloodNet rate was printed on RescueNet photos too);
+  the index is revalidated on each visit (a cached `scenes.json` hid the switch in the browser check); `rebuild_all`
+  step `baseline_tiers` (reproduces both baseline tier reports byte for byte); JS parity 404/404. Checked in the
+  browser: both directions keep house and entry, `mo=b` links, both datasets, phone width, Korean.
+- **Cycle 9, a data problem found before any use (PROTOCOL amendment 5 item 2):** RescueNet's supports and its val30
+  come from the same val pool, and val30 was cut outside the draw-0 supports only, so the published RescueNet draws 1
+  and 2 contain 8 and 5 val30 photos (3 and 1 in their first 20): a run on them would tune on photos it trained on.
+  No run ever used them. New draws 3 and 4 (same rule, pool without val30; `src/splits_local.py rn_draws`, hashes
+  appended to `splits/SHA256SUMS`, published files unchanged); `finetune.py` and `baseline_seg.py` now refuse any
+  support photo in val30 or confirm100 (`rr.runs.check_supports`, test).
+- **Phase 2 (amendment 5, for Marlen to keep or drop at the launch):** the only Chameleon lead so far (RescueNet 20)
+  rests on one support draw, so `var` gets RescueNet 20-shot draws 3 and 4 (recipe p2, full RescueNet test; +91 min of
+  quota: var 269 min, curve + var 10.9 h); the baseline partners `rn20d3`/`rn20d4` are in the Mac queue, and
+  `baseline_report.cham_for` pairs them by draw. Lane order (procedural): prediction-only group, then the RescueNet
+  runs, then longest first: same split and lane lengths, but the open question's runs exist first if a session is cut
+  short (test). `launch_check.py` now names both keep-or-drop decisions (amendment 4 +41 min, amendment 5 +91 min).
+  `post.py var` dry-run on stand-in files: the new runs go through subset_cache, decode_tune, phase2_report,
+  baseline_report and the curve figure.
+- **Cycle 9, viewer:** the other model's word on every house where the two models disagree (same entry point and
+  risk setting; counter line, house list, CSV column, briefing sentence; none for uploads or when the other map has
+  no entry). Segmented controls follow the ARIA radio-group pattern (one tab stop, arrow keys).
+- **Cycle 9, Gradio:** an upload served by the CPU baseline (`--live_baseline`) was written with Chameleon's run name,
+  so the viewer's model line, attribution, CSV and briefing said "Chameleon (+30 for tuning)" for a DeepLabV3 map;
+  the scene now records the serving model and the viewer shows it (model switch disabled on uploads). Checked with a
+  baseline-served upload scene in the browser.
+- **Exploratory (CPU, not a choice; `scratchpad` script, numbers here):** Chameleon + baseline probability average on
+  RescueNet 20 (thresholds tuned on RescueNet val30 per weight, eval100, paired with Chameleon's published decode
+  .421): w = 0 (baseline, tuned) .359, .25 .380, .5 .402, **.75 .430** (+.009 [−.003, +.021]; also the best val30,
+  .569), 1 (Chameleon, thresholds only) .407 (its building vote adds +.014). Unlike FloodNet, where every mix with
+  w < 1 beat Chameleon and the plain baseline was best, on RescueNet the baseline adds at most a non-significant
+  +.009: Chameleon carries the second disaster by itself. No choice is made from this (no registered RescueNet rule).
+- Viewer: sort by "models disagree most" (`scenes.json` `n_models`: 44 of 200 scenes have houses the two models route
+  differently; FloodNet 7300 the most, 15 houses; the live count matches).
+- Data and model cards, README status brought up to date. CI green on every push.
+
 ## 15. Status / handoff (updated Wed 7 Oct, 18:15 KST)
 
 ### Quick summary (read this first; details below)
