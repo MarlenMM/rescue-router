@@ -20,6 +20,7 @@ def main():
     ap.add_argument('--datasets', default='', help='datasets to mount (small private ones mount reliably)')
     ap.add_argument('--start_limit', type=float, default=3.0)
     ap.add_argument('--setup', default='', help='python lines run after setup (e.g. copy inputs)')
+    ap.add_argument('--docker_image', default='', help='pin the Kaggle image (digest), e.g. the one of the 8 Oct runs')
     a = ap.parse_args()
     subprocess.run(['zsh', os.path.join(ROOT, 'kaggle/build_rr_code.sh')], check=True, capture_output=True)
     b64 = base64.b64encode(open(os.path.expanduser('~/rr_push/ds/rr_code.tar.gz'), 'rb').read()).decode()
@@ -39,6 +40,8 @@ def main():
                 is_private=True, enable_gpu=True, enable_internet=True, machine_shape='NvidiaTeslaT4', dataset_sources=[x for x in a.datasets.split(',') if x],
                 competition_sources=[], kernel_sources=['marlenmelis/rr-fetch-data'] + [x for x in a.sources.split(',') if x],
                 model_sources=[])
+    if a.docker_image:                  # the published runs' image: same torch / CUDA / cuDNN (kernels pull -m shows it)
+        meta.update(docker_image_pinning_type='original', docker_image=a.docker_image)
     json.dump(meta, open(os.path.join(out, 'kernel-metadata.json'), 'w'), indent=1)
     compile(s, 'run_b13_kaggle.py', 'exec')
     print('wrote', out, len(s), 'bytes; push: cd', out, '&& ~/.venvs/kaggle/bin/kaggle kernels push -p .')

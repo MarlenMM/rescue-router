@@ -4,20 +4,25 @@
 
 Checks, in the checklist's order: the code is committed and pushed (the kernel embeds git HEAD); the session's
 pre-flight log ends with PREFLIGHT OK (~/rr_local/preflight_<session>*.log, newer than the last change to src/);
-the kernel folder was built from HEAD with the current plan; the private checkpoint dataset is staged (curve).
+the kernel folder was built from HEAD with the current plan, pins the 8 Oct image and embeds the environment check;
+the private checkpoint dataset is staged (both sessions mount it).
 Then prints the remaining manual steps (Kaggle quota in the browser, dataset upload, kernel push) as commands.
 """
+import base64
 import glob
+import io
 import json
 import os
 import re
 import subprocess
 import sys
 
+import numpy as np
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
-from make_plan import lanes, session  # noqa: E402
+from make_plan import DOCKER_IMAGE, lanes, session  # noqa: E402
 
 PUSH = os.path.expanduser('~/rr_push')
 CKPT_DS = os.path.join(PUSH, 'rr-final-ckpt')
@@ -52,8 +57,6 @@ def main():
     built = os.path.exists(os.path.join(kdir, 'run_b13_kaggle.py'))
     if built:
         s = open(os.path.join(kdir, 'run_b13_kaggle.py')).read()
-        import base64
-        import io
         import tarfile
         t = tarfile.open(fileobj=io.BytesIO(base64.b64decode(re.search(r"CODE_B64 = '([^']+)'", s).group(1))))
         version = t.extractfile('./VERSION').read().decode().strip()
@@ -68,16 +71,25 @@ def main():
         meta = json.load(open(os.path.join(kdir, 'kernel-metadata.json')))
         check(meta.get('is_private') and meta.get('enable_gpu') and meta.get('machine_shape') == 'NvidiaTeslaT4',
               'kernel metadata: private, GPU, T4')
+        check(meta.get('docker_image') == DOCKER_IMAGE and 'marlenmelis/rr-final-ckpt' in meta.get('dataset_sources', []),
+              "kernel metadata: the 8 Oct image pinned, the submitted checkpoint's dataset mounted",
+              f'python kaggle/phase2/make_plan.py kernel {name}')
+        ref = re.search(r"ENV_REF_B64 = '([^']+)'", s)
+        n_ref = len(np.load(io.BytesIO(base64.b64decode(ref.group(1))))['ids']) if ref else 0
+        check(n_ref == 3 and 'ENVIRONMENT CHECK FAILED' in s, f'environment check embedded ({n_ref} reference photos)',
+              f'python kaggle/phase2/make_plan.py kernel {name}')
     else:
         check(False, f'kernel folder {kdir}', f'python kaggle/phase2/make_plan.py kernel {name}')
-    if name == 'curve':
-        ck = glob.glob(os.path.join(CKPT_DS, '**', 'floodnet_50shot_s0_stratified.ckpt'), recursive=True)
-        check(ck and os.path.exists(os.path.join(CKPT_DS, 'dataset-metadata.json')),
-              f'checkpoint dataset staged in {CKPT_DS}', 'see PLAN §16.4 cycle 2 (stage the submitted checkpoint)')
-        notes.append(f'cd {CKPT_DS} && ~/.venvs/kaggle/bin/kaggle datasets create -p .   # once (private dataset)')
+    ck = glob.glob(os.path.join(CKPT_DS, '**', 'floodnet_50shot_s0_stratified.ckpt'), recursive=True)
+    check(ck and os.path.exists(os.path.join(CKPT_DS, 'dataset-metadata.json')),
+          f'checkpoint dataset staged in {CKPT_DS}', 'see PLAN §16.4 cycle 2 (stage the submitted checkpoint)')
+    notes.append(f'cd {CKPT_DS} && ~/.venvs/kaggle/bin/kaggle datasets create -p .   # once (private dataset; both '
+                 'sessions mount it); wait for `kaggle datasets status marlenmelis/rr-final-ckpt` = ready')
+    notes.append('if the push is refused over docker_image: delete the two docker_* keys from kernel-metadata.json and '
+                 'push again (the environment check still guards the session)')
     _, load = lanes(session(name))
     print(f'\n{"READY" if ok else "NOT READY"}: {name}, {len(session(name))} job groups, lanes {[round(x) for x in load]} min, '
-          f'~{(max(load) + 15) / 60:.1f} h of quota')
+          f'~{(max(load) + 18) / 60:.1f} h of quota')
     print('Manual steps (Marlen\'s go first; memory phase2-gate):\n  1. Kaggle GPU quota in the browser (memory '
           'kaggle-operations)\n' + ''.join(f'  {k}. {n}\n' for k, n in enumerate(notes, 2))
           + f'  {len(notes) + 2}. cd {kdir} && ~/.venvs/kaggle/bin/kaggle kernels push -p .\n'
