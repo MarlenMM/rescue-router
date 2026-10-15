@@ -165,7 +165,9 @@ def main():
     ap.add_argument('--chunk', type=int, default=1)
     ap.add_argument('--channel_chunk', type=int, default=1)
     ap.add_argument('--live_baseline', default=None,
-                    help='CPU live inference with this baseline checkpoint (results/baselines/ckpt/<run>.pt)')
+                    help='CPU live inference with this baseline checkpoint (results/baselines/ckpt/<run>.pt); a comma list '
+                         'of checkpoints = their mean (the seed ensemble)')
+    ap.add_argument('--live_tta', action='store_true', help='with --live_baseline: average the four flips (as --tta)')
     a = ap.parse_args()
     assert a.viewer, 'built viewer not found: run src/build_viewer.py (docs/) or pass --viewer'
     a.results, a.data = os.path.abspath(a.results), os.path.abspath(a.data)
