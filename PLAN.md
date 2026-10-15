@@ -1027,7 +1027,8 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
      skip training in 9 of curve's and 4 of var's groups ("training done already"), so the training code of 15 Oct
      was never run by them. The pre-flight now empties its toy folders before every job group (at toy size the
      curve's 1/5/10/20/100-shot runs share one 1-shot run name, so later groups reused the first one's snapshots) and
-     fails if a training step skips. Clean re-runs: `var` OK (6 groups, 24 steps, every one trained).
+     fails if a training step skips. Clean re-runs on 16 Oct: **`var` OK (6 groups, 24 steps) and `curve` OK (9
+     groups, 36 steps), every training step run**, for src SHA-256 67e14330 (the current code).
   4. The RescueNet mix is reproducible from the repo: `experiments/rescuenet_mix.py` (same numbers;
      `results/baselines/report/rescuenet_mix.json`). Viewer About (EN/KO) explains the "differs" marks.
 
