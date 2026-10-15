@@ -116,21 +116,36 @@ def label_free_decodes(results, out, shots=(1, 5, 10, 20, 50)):
                        stdout=subprocess.DEVNULL)
 
 
-def label_free_tau(folder, run, lf_dir):
-    """Chameleon's thresholds from its k training labels only (run_decode.py 'prior_tau': guided filter -> class shares
-    of the supports matched on the photos); the run's own decode first (Phase 2), else the published runs' (lf_dir)"""
+def label_free_tau(folder, run, lf_dir, ds='floodnet', k=50, draw=0):
+    """Chameleon's thresholds from its k training labels only. FloodNet: run_decode.py 'prior_tau' (guided filter ->
+    class shares of the supports matched on the val30 photos, their labels unused), the run's own decode first (Phase
+    2), else the published runs' (lf_dir). RescueNet (its chain has no guided filter): the same matching on the raw
+    probabilities, computed here once and kept in <lf_dir>/decode/<run>.json"""
     for f in (os.path.join(folder, 'decode', f'{run}.json'), os.path.join(lf_dir, 'decode', f'{run}.json')):
         if os.path.exists(f):
             d = json.load(open(f))
             if 'prior_tau' in d:
                 return d['prior_tau']
-    return None
+    vf = cache(folder, run, f'{ds}_val_tune30')
+    if ds != 'rescuenet' or vf is None:
+        return None
+    from prior_decode import match, support_prior
+    tau, _ = match([P[:, ::4, ::4] for P in probs(vf).values()], support_prior(k, draw, ds))
+    f = os.path.join(lf_dir, 'decode', f'{run}.json')
+    os.makedirs(os.path.dirname(f), exist_ok=True)
+    json.dump(dict(run=run, prior_tau=[float(t) for t in tau], rule='prior matching on the raw val30 probabilities '
+                   f'(labels unused) to the class shares of the {k} support labels (baseline_report.label_free_tau)'),
+              open(f, 'w'), indent=1)
+    return [float(t) for t in tau]
 
 
 def cham_label_free_cms(folder, run, ds, sf, gts, tau):
-    """per-photo confusions of a FloodNet Chameleon run decoded with its label-free thresholds (no SAM)"""
+    """per-photo confusions of a Chameleon run decoded with its label-free thresholds (FloodNet: after the guided
+    filter, as run_decode.py; no SAM; RescueNet: on the raw probabilities)"""
     P = probs(cache(folder, run, sf))
     split = 'val' if '_val_' in sf else 'test'
+    if ds == 'rescuenet':
+        return {i: confusion(decode(P[i], tau=tau), g) for i, g in gts.items()}
     return {i: confusion(decode(PS.guided_filter(photo(RR_DATA, ds, split, i)().mean(2).astype(np.float32) / 255, P[i], *GF),
                                 tau=tau), g) for i, g in gts.items()}
 
@@ -236,7 +251,7 @@ def main():
             r = dict(per_class={n: summarize(tot, NAMES[ds], WET[ds])[f'iou_{n}'] for n in NAMES[ds]})
             if cmp:
                 r.update(paired(cms, cc, ids, fn, a.B))
-                tau = label_free_tau(cmp[0], cmp[1], a.label_free) if name == 'argmax' and ds == 'floodnet' else None
+                tau = label_free_tau(cmp[0], cmp[1], a.label_free, ds, b['k'], b['draw']) if name == 'argmax' else None
                 if tau:                                # label-fair: both models see only the k training labels
                     if key + ('lf',) not in cham_cache:
                         cham_cache[key + ('lf',)] = cham_label_free_cms(cmp[0], cmp[1], ds, sf, g, tau)
@@ -313,7 +328,8 @@ def report(rows):
         md += ['', '## Same labels for both: k training labels each, no tuning labels', '',
                "Chameleon decoded with its label-free thresholds (`run_decode.py` prior_tau: guided filter, then thresholds "
                "that give the 30 validation photos, without their labels, the class shares of the k support labels; no "
-               "SAM) vs the baseline's argmax. The table above gives Chameleon its 30 tuning labels as well.", '',
+               "SAM; RescueNet: the same matching on the raw probabilities, as its chain has no filter) vs the baseline's "
+               "argmax. The table above gives Chameleon its 30 tuning labels as well.", '',
                '| dataset | k | variant | photos | baseline | Chameleon label-free | baseline − Chameleon |',
                '|---|---|---|---|---|---|---|']
         for r in sorted(lf, key=key):
