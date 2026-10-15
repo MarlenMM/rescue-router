@@ -29,6 +29,10 @@ rn5ft     src/baseline_seg.py --dataset rescuenet --shot 5 --init results/baseli
 rn10ft    src/baseline_seg.py --dataset rescuenet --shot 10 --init results/baselines/ckpt/baseline_deeplabv3_r50_50shot_s0.pt --tag ft50 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
 mbv3st    src/baseline_seg.py --arch deeplabv3_mbv3 --shot 50 --pseudo results/baselines/pseudo/baseline_deeplabv3_r50_50shot_s0_c90 --pseudo_frac 0.5 --bs 8 --accum 2 --iters 3000 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
 lrasppst  src/baseline_seg.py --arch lraspp_mbv3 --shot 50 --pseudo results/baselines/pseudo/baseline_deeplabv3_r50_50shot_s0_c90 --pseudo_frac 0.5 --bs 8 --accum 2 --iters 3000 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
+# equal TOTAL labels on RescueNet (amendment 4, 16 Oct): baseline partners at k + 30 for Chameleon's k + 30 tuning photos
+rn35      src/baseline_seg.py --dataset rescuenet --shot 35 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
+rn40      src/baseline_seg.py --dataset rescuenet --shot 40 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
+rn80      src/baseline_seg.py --dataset rescuenet --shot 80 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
 # last: the CPU reports on everything above (baseline_report incl. the label-fair table, ensemble, curve figure, transfer)
 reports   ~/.venvs/rr/bin/python src/rebuild_all.py --only transfer,same_budget
 # the registered choice rule among the baselines alone (val30 + confirm100), before Chameleon's confirm100 exists
