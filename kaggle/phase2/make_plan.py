@@ -149,6 +149,10 @@ for sub in ('splits', 'supports'):
     if not os.path.exists(f'{_E}/{sub}'):
         os.symlink(f'{OUT}/{sub}', f'{_E}/{sub}')
 open(f'{_E}/ref.npz', 'wb').write(_b64.b64decode(ENV_REF_B64))
+if not os.path.exists(f'{OUT}/ckpt/floodnet_50shot_s0_stratified.ckpt'):
+    open(f'{OUT}/logs/envcheck.txt', 'w').write('ENVCHECK FAIL: no submitted checkpoint (rr-final-ckpt not mounted)')
+    print('ENVIRONMENT CHECK FAILED: the dataset marlenmelis/rr-final-ckpt is not mounted', flush=True)
+    sys.exit(1)
 shutil.copy(f'{OUT}/ckpt/floodnet_50shot_s0_stratified.ckpt', f'{_E}/ckpt/')
 sh(f'cd /content/rr/src && CUDA_VISIBLE_DEVICES=0 python predict.py --ckpt {_E}/ckpt/floodnet_50shot_s0_stratified.ckpt '
    f'--dataset floodnet --query_dataset floodnet --split_file floodnet_test_full_part1 --split test --amp fp16 --chunk 1 '

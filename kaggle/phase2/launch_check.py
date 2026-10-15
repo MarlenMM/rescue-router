@@ -25,6 +25,9 @@ sys.path.insert(0, HERE)
 from make_plan import DOCKER_IMAGE, lanes, session  # noqa: E402
 
 PUSH = os.path.expanduser('~/rr_push')
+QUOTA_JS = ("fetch('/api/i/kernels.KernelsService/GetAcceleratorQuotaStatistics', {method: 'POST', headers: "
+            "{'content-type': 'application/json', 'x-xsrf-token': decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)[1])}, "
+            "body: '{}'}).then(r => r.json()).then(j => console.log(j.gpuQuota, j.quotaRefreshTime))")
 CKPT_DS = os.path.join(PUSH, 'rr-final-ckpt')
 
 
@@ -90,8 +93,9 @@ def main():
     _, load = lanes(session(name))
     print(f'\n{"READY" if ok else "NOT READY"}: {name}, {len(session(name))} job groups, lanes {[round(x) for x in load]} min, '
           f'~{(max(load) + 18) / 60:.1f} h of quota')
-    print('Manual steps (Marlen\'s go first; memory phase2-gate):\n  1. Kaggle GPU quota in the browser (memory '
-          'kaggle-operations)\n' + ''.join(f'  {k}. {n}\n' for k, n in enumerate(notes, 2))
+    print('Manual steps (Marlen\'s go first; memory phase2-gate):\n  1. Kaggle GPU quota: in a logged-in kaggle.com tab, '
+          f'console:\n     {QUOTA_JS}\n     (timeUsed / totalTimeAllowed in s; the session needs '
+          f'~{(max(load) + 18) * 60:.0f} s)\n' + ''.join(f'  {k}. {n}\n' for k, n in enumerate(notes, 2))
           + f'  {len(notes) + 2}. cd {kdir} && ~/.venvs/kaggle/bin/kaggle kernels push -p .\n'
           f'  then: kaggle/fetch_output.py marlenmelis/rr-p2-{name} results/phase2; python kaggle/phase2/post.py {name}')
     sys.exit(0 if ok else 1)
