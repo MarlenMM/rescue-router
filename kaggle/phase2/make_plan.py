@@ -216,9 +216,12 @@ def preflight(name, n_groups):
     fcntl.flock(lock, fcntl.LOCK_EX)
     out = os.path.expanduser('~/rr_local/preflight')
     import shutil
-    for d in ('ckpt', 'metrics', 'logs', 'preds'):        # a clean slate: toy snapshots left by an earlier pre-flight
-        shutil.rmtree(os.path.join(out, d), ignore_errors=True)   # made finetune skip training (15 Oct: 13 groups)
-        os.makedirs(os.path.join(out, d))
+
+    def clean():                  # toy outputs of an earlier group or pre-flight made finetune skip training (15 Oct:
+        for d in ('ckpt', 'metrics', 'logs', 'preds'):      # 13 groups): at toy size the curve's 1/5/10/20/100-shot
+            shutil.rmtree(os.path.join(out, d), ignore_errors=True)   # runs all become the same 1-shot run name
+            os.makedirs(os.path.join(out, d))
+    clean()
     for sub in ('splits', 'supports'):
         link = os.path.join(out, sub)
         if os.path.islink(link) and os.readlink(link) != os.path.join(ROOT, sub):
@@ -230,6 +233,7 @@ def preflight(name, n_groups):
               '--mt_ckpt', os.path.expanduser('~/rr_data/weights/generalist.ckpt'),
               '--chameleon', os.path.expanduser('~/rr_local/chameleon')]
     for rid, jobs, _ in session(name)[:n_groups]:
+        clean()
         trains = any(script == 'finetune' for script, _ in jobs)
         if not trains:                                    # predict-only group: the submitted checkpoint itself
             shutil.copy(os.path.join(ROOT, 'results', 'kaggle_v2', 'rr', 'ckpt', f'{rid}.ckpt'), os.path.join(out, 'ckpt'))
