@@ -1005,6 +1005,12 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
   +.009: Chameleon carries the second disaster by itself. No choice is made from this (no registered RescueNet rule).
 - Viewer: sort by "models disagree most" (`scenes.json` `n_models`: 44 of 200 scenes have houses the two models route
   differently; FloodNet 7300 the most, 15 houses; the live count matches).
+- **Mac queue results (16 Oct ~04:50; `baseline_report.py` re-run):** **RescueNet 50 photos: the baseline overtakes
+  Chameleon** (eval100 .456 vs the published 50-shot .402: +.054 [+.019, +.088]; with equal labels +.082 [+.030, +.131];
+  full RescueNet test .479). With 20 photos Chameleon (+30 tuning) leads (−.061 [−.098, −.027]): the crossover on the
+  second disaster lies between 20 and 50 labels, which the Phase 2 RescueNet points (5-50, one recipe), the
+  equal-total-label partners (35/40/80) and amendment 5's draws will place. Baseline RescueNet 5 / 10 photos on the
+  full test: .189 / .291. FloodNet support draw 1 (seed 0): full test .593 (draw 0 .581; mean .587 ± .008).
 - Data and model cards, README status brought up to date. CI green on every push.
 - **Cycle 10 (re-audit):**
   1. `rebuild_all.py --only baseline_tiers,export,viewer,tests`: headline all as published, but `scenes.json` differed
@@ -1017,7 +1023,9 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
      Chameleon job rewrites. `make_plan preflight` takes a lock now (Kaggle lanes have their own starter copies).
      **And the 15 Oct "PREFLIGHT OK" did not train:** toy snapshots left by the 14 Oct pre-flights made `finetune.py`
      skip training in 9 of curve's and 4 of var's groups ("training done already"), so the training code of 15 Oct
-     was never run by them. The pre-flight now empties its toy folders first and fails if a training step skips.
+     was never run by them. The pre-flight now empties its toy folders before every job group (at toy size the
+     curve's 1/5/10/20/100-shot runs share one 1-shot run name, so later groups reused the first one's snapshots) and
+     fails if a training step skips. Clean re-runs: `var` OK (6 groups, 24 steps, every one trained).
   4. The RescueNet mix is reproducible from the repo: `experiments/rescuenet_mix.py` (same numbers;
      `results/baselines/report/rescuenet_mix.json`). Viewer About (EN/KO) explains the "differs" marks.
 

@@ -47,8 +47,10 @@ With fewer labels the two are level (eval100, baseline − Chameleon: 5 photos �
 (5: +.021 [−.012, +.053], 10: +.035 [+.004, +.066], 20: +.096, 50: +.114 [+.083, +.148]); at 1 label they are level
 (.139 vs .138; Chameleon with its 30 tuning labels .264). The second disaster (RescueNet, 20 photos, eval100) is the
 first place where Chameleon with its 30 tuning labels is ahead of the baseline (+.061 [+.027, +.098]; stranded F1 .818
-vs .605), on 4 of the 5 classes; with equal labels the two are level (+.018 [−.033, +.063] for the baseline). The
-baseline's RescueNet curve: 5 / 10 / 20 photos .186 / .278 / .360 (eval100); Chameleon's 5 and 10 come with Phase 2.
+vs .605), on 4 of the 5 classes; with equal labels the two are level (+.018 [−.033, +.063] for the baseline). At 50
+RescueNet photos the baseline is ahead again (.456 vs .402, +.054 [+.019, +.088]; equal labels +.082 [+.030, +.131]):
+Chameleon's advantage on a new disaster is a low-label one. The baseline's RescueNet curve: 5 / 10 / 20 / 50 photos
+.186 / .278 / .360 / .456 (eval100); Chameleon's 5 and 10 come with Phase 2.
 
 Training variance (seeds, choice of the photos) is not yet measured: every number is one run (Phase 2: A3 at 50
 FloodNet photos, and two more draws of the RescueNet 20-photo point, PROTOCOL amendment 5).
