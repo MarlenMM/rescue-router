@@ -200,7 +200,7 @@ common photo set), on eval100 otherwise; both models' label-free (k labels) deco
 ones for RescueNet too (16 Oct: the RescueNet chain has no guided filter, so its thresholds are matched on the raw
 probabilities, `baseline_report.label_free_tau`).
 
-## Amendment 5 (16 Oct 2026, ~03:30 KST; before any Phase 2 GPU run; item 1 for Marlen to keep or drop at the launch)
+## Amendment 5 (16 Oct 2026, ~02:25 KST; before any Phase 2 GPU run; item 1 for Marlen to keep or drop at the launch)
 
 1. **RescueNet 20 shots, two more support draws** (`var`): the only point where Chameleon leads so far (RescueNet 20
    photos with its 30 tuning photos: baseline −.061 [−.098, −.027] on eval100, stranded F1 .605 vs .818) rests on one

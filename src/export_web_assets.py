@@ -352,6 +352,11 @@ def index_entry(out, ds, i, cap):
              n_check=m['tiers_pred']['PROBABLE_TRUCK'], miou=m['miou'])
     if os.path.exists(os.path.join(d, 'b', 'meta.json')):
         e['b'] = summary(json.load(open(os.path.join(d, 'b', 'meta.json'))))
+        refs = [os.path.join(d, *sub, 'ref.json') for sub in ((), ('b',))]
+        if all(os.path.exists(f) for f in refs):              # houses the two models route differently (default view)
+            ra, rb = (json.load(open(f)) for f in refs)
+            if [r['id'] for r in ra] == [r['id'] for r in rb]:
+                e['n_models'] = sum(x['py']['lam5']['pred']['status'] != y['py']['lam5']['pred']['status'] for x, y in zip(ra, rb))
     return e
 
 
