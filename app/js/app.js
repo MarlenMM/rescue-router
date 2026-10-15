@@ -109,8 +109,11 @@ function drawBrowse() {
     b.dataset.key = sc.key;
     b.setAttribute('role', 'listitem');
     b.setAttribute('aria-pressed', String(sc.key === state.key));
-    b.title = `${DATASET[sc.dataset].name} ${sc.id}: ${sc.n_buildings} houses, ${cut} not reachable by truck (prediction), ` +
-      `${sc.n_disagree} disagreement${sc.n_disagree === 1 ? '' : 's'} with the labelled map${sc.miou != null ? `, mean IoU ${fmt(sc.miou)}` : ''}`;
+    b.title = LANG === 'ko'
+      ? `${DATASET[sc.dataset].name} ${sc.id}: 가구 ${sc.n_buildings}곳, 트럭 도달 불가 ${cut}곳 (예측), 라벨 지도와 불일치 ${sc.n_disagree}곳` +
+        (sc.miou != null ? `, 평균 IoU ${fmt(sc.miou)}` : '')
+      : `${DATASET[sc.dataset].name} ${sc.id}: ${sc.n_buildings} houses, ${cut} not reachable by truck (prediction), ` +
+        `${sc.n_disagree} disagreement${sc.n_disagree === 1 ? '' : 's'} with the labelled map${sc.miou != null ? `, mean IoU ${fmt(sc.miou)}` : ''}`;
     b.setAttribute('aria-label', b.title);
     b.innerHTML = `<img src="scenes/${sc.key}/thumb.jpg" alt="" loading="lazy"><span class="tag">${sc.id}</span>` +
       (sc.n_buildings ? `<span class="cnt${cut ? ' cut' : ''}">${cut}/${sc.n_buildings}</span>` : '') +
@@ -216,7 +219,11 @@ function fit() {
   map.fitBounds([[0, 0], [state.s.H, state.s.W]], {
     paddingTopLeft: [12, phone ? top : 12],
     paddingBottomRight: phone ? [12, panel.height + counter + 16] : [panel.width + 24, 12],
-  });
+  }, { animate: false });
+  if (phone) {                                                     // a wide photo on a tall screen: no gap above it
+    const gap = map.latLngToContainerPoint([state.s.H, 0]).y - top;
+    if (gap > 1) map.panBy([0, gap], { animate: false });
+  }
 }
 
 // ---------- routing ----------
@@ -294,6 +301,7 @@ function drawHouses() {
 // ---------- house list (keyboard access to every house) ----------
 function drawHouseList() {
   const s = state.s, side = state.src === 'gt' ? 'gt' : 'pred', box = $('houses');
+  box.dataset.empty = t('No houses in this photo.');
   $('housesNote').textContent = s.blds.length ? `${s.blds.length} · ${t(SIDE[side]).toLowerCase()}` : '';
   box.innerHTML = '';
   s.blds.forEach((b, i) => {
@@ -306,9 +314,11 @@ function drawHouseList() {
     el.dataset.i = i;
     el.innerHTML = `<span class="st ${kind}" aria-hidden="true">${SVG[kind]}</span><span class="what">${t('House')} ${b.id}: ${word}` +
       `<br><span class="sub">${t(CLASS_LABEL[s.ds][b.cls])}</span></span>` +
-      (dis ? `<span class="dis" title="Prediction and labelled map disagree">≠ ${t(WORD[s.status[side === 'pred' ? 'gt' : 'pred'][i]])}</span>` : '');
-    el.setAttribute('aria-label', `House ${b.id}: ${word}, ${CLASS_LABEL[s.ds][b.cls]}` +
-      (dis ? `; the ${side === 'pred' ? 'labelled map' : 'prediction'} says ${WORD[s.status[side === 'pred' ? 'gt' : 'pred'][i]]}` : ''));
+      (dis ? `<span class="dis" title="${t('Prediction and labelled map disagree')}">≠ ${t(WORD[s.status[side === 'pred' ? 'gt' : 'pred'][i]])}</span>` : '');
+    const otherWord = WORD[s.status[side === 'pred' ? 'gt' : 'pred'][i]];
+    el.setAttribute('aria-label', LANG === 'ko'
+      ? `${t('House')} ${b.id}: ${word}, ${t(CLASS_LABEL[s.ds][b.cls])}` + (dis ? `; ${t(side === 'pred' ? 'Labelled map' : 'Prediction')}: ${t(otherWord)}` : '')
+      : `House ${b.id}: ${word}, ${CLASS_LABEL[s.ds][b.cls]}` + (dis ? `; the ${side === 'pred' ? 'labelled map' : 'prediction'} says ${otherWord}` : ''));
     el.addEventListener('click', () => { if (base()) { select(i, side); writeHash(); } });
     box.appendChild(el);
   });
@@ -706,24 +716,72 @@ addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
   if (e.key === 'n' || e.key === 'N') step(1);
   else if (e.key === 'p' || e.key === 'P') step(-1);
+  else if (e.key === 'Escape' && state.picking) setPicking(false);
+  else if (e.key === 'Escape' && state.sel) { clearSelection(); writeHash(); }
 });
 // ---------- house list as CSV (for a field team's sheet; same routes and ETAs as the route card) ----------
+function houseRows() {                                           // prediction: what a field team would have
+  const s = state.s;
+  const stopOf = (i) => { const n = (s.stops ? s.stops.pred : []).findIndex(g => g.houses.includes(i)); return n < 0 ? '' : String.fromCharCode(65 + n); };
+  return s.blds.map((b, i) => {
+    const st = s.status.pred[i], tr = s.tier[i];
+    const solR = tr === 'CONFIDENT_TRUCK' ? s.sol.cautious : s.sol.pred;
+    const r = solR.route(b.goals), e = r ? eta(r, solR.grid, s.grid.eta, s.meta.m_per_cell) : null;
+    return { i, id: b.id, cls: CLASS_LABEL[s.ds][b.cls], st, tier: tr === 'CONFIDENT_TRUCK' ? 'confident' : tr === 'PROBABLE_TRUCK' ? 'check first' : '',
+      minutes: e ? Math.max(1, Math.round(e.minutes)) : '', metres: e ? e.metres.map(v => Math.round(v)) : ['', '', ''],
+      x: Math.round(b.centroid[0]), y: Math.round(b.centroid[1]), stop: stopOf(i), gt: s.status.gt[i] };
+  });
+}
+
 function houseCsv() {
   const s = state.s, q = (v) => `"${String(v).replace(/"/g, '""')}"`;
   const rows = [['photo', 'house', 'class', 'status', 'tier', 'minutes', 'truck_m', 'boat_m', 'foot_m', 'x_px', 'y_px',
     'truck_stop', ...(state.nolabels ? [] : ['labelled_map_status'])]];
-  const stopOf = (i) => { const n = (s.stops ? s.stops.pred : []).findIndex(g => g.houses.includes(i)); return n < 0 ? '' : String.fromCharCode(65 + n); };
-  s.blds.forEach((b, i) => {
-    const st = s.status.pred[i], tr = s.tier[i];
-    const solR = tr === 'CONFIDENT_TRUCK' ? s.sol.cautious : s.sol.pred;
-    const r = solR.route(b.goals), e = r ? eta(r, solR.grid, s.grid.eta, s.meta.m_per_cell) : null;
-    const tierWord = tr === 'CONFIDENT_TRUCK' ? 'confident' : tr === 'PROBABLE_TRUCK' ? 'check first' : '';
-    rows.push([`${DATASET[s.ds].name} ${s.sc.id}`, b.id, CLASS_LABEL[s.ds][b.cls], WORD[st], tierWord,
-      e ? Math.max(1, Math.round(e.minutes)) : '', ...(e ? e.metres.map(v => Math.round(v)) : ['', '', '']),
-      Math.round(b.centroid[0]), Math.round(b.centroid[1]), stopOf(i), ...(state.nolabels ? [] : [WORD[s.status.gt[i]]])]);
-  });
+  for (const h of houseRows()) {
+    rows.push([`${DATASET[s.ds].name} ${s.sc.id}`, h.id, h.cls, WORD[h.st], h.tier, h.minutes, ...h.metres, h.x, h.y, h.stop,
+      ...(state.nolabels ? [] : [WORD[h.gt]])]);
+  }
   return rows.map(r => r.map(q).join(',')).join('\r\n') + '\r\n';
 }
+
+// ---------- printed briefing: one page per photo for a field team (same rows as the CSV, in the reader's language) ----------
+function buildBriefing() {
+  const s = state.s, ko = LANG === 'ko', esc = (v) => String(v).replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`);
+  const rows = houseRows(), n = (k) => s.status.pred.filter(v => v === k).length;
+  const conf = s.tier.filter(x => x === 'CONFIDENT_TRUCK').length, check = s.tier.filter(x => x === 'PROBABLE_TRUCK').length;
+  const word = (h) => t(h.tier === 'confident' ? 'truck (confident)' : h.tier === 'check first' ? 'truck, check first' : WORD[h.st]);
+  const shots = s.meta.run.match(/_(\d+)shot/)[1];
+  const view = t(state.src === 'gt' ? 'Labelled map' : state.src === 'swipe' ? 'Swipe' : 'Prediction');
+  const head = ko ? ['가구', '건물', '상태', '분', '트럭 m', '보트 m', '도보 m', '트럭 정차']
+    : ['House', 'Building', 'Status', 'Min', 'Truck m', 'Boat m', 'Foot m', 'Truck stop'];
+  const stops = (s.stops ? s.stops.pred : []).map((g, k) => `${String.fromCharCode(65 + k)}: ${t(g.boat ? 'boat launch' : 'walk-on point')}, ${g.houses.length}`).join(' · ');
+  $('briefing').innerHTML = (ko
+    ? `<h2>가구 목록: ${esc(DATASET[s.ds].name)} ${esc(s.sc.id)} (예측)</h2><p>가구 ${s.blds.length}곳: 트럭 ${n(TRUCK)}곳 (확실 ${conf}, 먼저 확인 ${check}), 보트 ${n(BOAT)}, 도보 ${n(FOOT)}, 경로 없음 ${n(ISOLATED)}. 지도: ${esc(view)}. ` +
+      `진입: ${esc($('entryMode').textContent)}. 모델: Chameleon, 라벨 사진 ${shots}장(+조정용 30장).</p>`
+    : `<h2>Houses: ${esc(DATASET[s.ds].name)} ${esc(s.sc.id)} (prediction)</h2><p>${s.blds.length} houses: ${n(TRUCK)} by truck (${conf} confident, ${check} check first), ` +
+      `${n(BOAT)} boat, ${n(FOOT)} on foot, ${n(ISOLATED)} no route. Map shown: ${esc(view)}. Entry: ${esc($('entryMode').textContent)}. ` +
+      `Model: Chameleon adapted from ${shots} labelled photos (+30 for tuning).</p>`) +
+    (stops ? `<p>${t('Truck stops')}: ${esc(stops)} ${t('houses')}</p>` : '') +
+    `<table><thead><tr>${head.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>` +
+    rows.map(h => `<tr${h.tier === 'check first' ? ' class="warn"' : ''}><td>${h.id}</td><td>${esc(t(h.cls))}</td><td>${esc(word(h))}</td>` +
+      `<td class="n">${h.minutes}</td>${h.metres.map(v => `<td class="n">${v}</td>`).join('')}<td>${h.stop}</td></tr>`).join('') +
+    '</tbody></table>' +
+    `<p class="fine">${ko ? '운영용이 아닙니다: 테스트 사진에서 트럭 도달 가능으로 표시된 가구의 약 11 %는 실제로 그렇지 않았습니다. "먼저 확인" 가구는 트럭을 보내기 전에 드론이나 무전으로 확인하세요. 시간과 거리는 대략적인 추정입니다.'
+      : 'Not for operational use: on test photos about 11 % of the houses shown as truck-reachable were not. Confirm "check first" houses by drone or radio before sending a truck. Minutes and metres are rough estimates.'} ` +
+    `${esc(new Date().toLocaleString(ko ? 'ko-KR' : 'en-GB'))} · ${esc(location.href)}</p>`;
+}
+
+addEventListener('beforeprint', () => {
+  if (!state.s) return;
+  buildBriefing();
+  const w = 680, h = Math.round(w * state.s.H / state.s.W);           // A4 width at 96 dpi, the photo's aspect
+  Object.assign($('map').style, { width: `${w}px`, height: `${h}px` });
+  map.invalidateSize({ animate: false });
+  map.fitBounds([[0, 0], [state.s.H, state.s.W]], { padding: [0, 0], animate: false });
+  if (state.sel) select(state.sel.i, state.sel.side, false);           // the whole route, not a frame of the animation
+});
+addEventListener('afterprint', () => { $('map').style.width = $('map').style.height = ''; fit(); });
+$('printBrief').addEventListener('click', () => { if (state.s) window.print(); });
 $('csvHouses').addEventListener('click', () => {
   if (!state.s || !state.s.blds.length) return;
   const url = URL.createObjectURL(new Blob([houseCsv()], { type: 'text/csv' }));
@@ -778,23 +836,36 @@ function writeHash(push = false) {
   if (url !== location.hash) history[push ? 'pushState' : 'replaceState'](null, '', url);
 }
 
+// A link names the whole view: a key it leaves out means that key's default (map 'pred', layer 'classes', risk-aware
+// truck, auto entry, no house), also when it is pasted into an open viewer. Colour palette and language are the
+// reader's preferences and change only when the link names them.
 async function applyHash() {
   const p = readHash();
   if (!state.s || (p.s && p.s !== state.key)) await loadScene(p.s);
-  if (p.r != null && (p.r !== '0') !== Boolean(state.lam)) { $('tRisk').checked = p.r !== '0'; state.lam = p.r === '0' ? 0 : 5; solve(); }
-  if (p.l) setLayer(p.l);
+  const lam = p.r === '0' ? 0 : 5;
+  if (lam !== state.lam) { $('tRisk').checked = Boolean(lam); state.lam = lam; solve(); }
+  setLayer(p.l || 'classes');
   if (p.lang && p.lang !== LANG && ['en', 'ko'].includes(p.lang)) relabel(p.lang);
   if (p.cb != null && (p.cb === '1') !== state.cb) { state.cb = p.cb === '1'; $('tCb').checked = state.cb; await applyPalette(); }
-  if (p.m && ['pred', 'gt', 'swipe'].includes(p.m)) setSource(p.m);
-  if (p.e) {
-    const [x, y] = p.e.split(',').map(Number);
-    if (Number.isFinite(x) && Number.isFinite(y)) setEntry(Math.min(state.s.W - 1, Math.max(0, x)), Math.min(state.s.H - 1, Math.max(0, y)));
-  }
-  if (p.h) {
-    const i = state.s.blds.findIndex(b => b.id === parseInt(p.h, 10));
-    if (i >= 0 && base()) select(i, state.src === 'swipe' ? (p.h.endsWith('gt') ? 'gt' : 'pred') : state.src);
-  }
+  const m = ['pred', 'gt', 'swipe'].includes(p.m) ? p.m : 'pred';
+  if (m !== state.src) setSource(m);
+  const [x, y] = (p.e || '').split(',').map(Number);
+  if (p.e && Number.isFinite(x) && Number.isFinite(y)) setEntry(Math.min(state.s.W - 1, Math.max(0, x)), Math.min(state.s.H - 1, Math.max(0, y)));
+  else if (state.entry) { state.entry = null; state.entryMsg = null; solve(); }
+  const i = p.h ? state.s.blds.findIndex(b => b.id === parseInt(p.h, 10)) : -1;
+  if (i >= 0 && base()) select(i, state.src === 'swipe' ? (p.h.endsWith('gt') ? 'gt' : 'pred') : state.src);
+  else if (state.sel) clearSelection();
   writeHash();
+}
+
+function clearSelection() {
+  state.sel = null;
+  stopAnim();
+  groups.route.clearLayers();
+  $('routeCard').hidden = true;
+  markHouse();
+  drawHouses();
+  drawCounter();
 }
 
 // ---------- language (English / 한국어) ----------

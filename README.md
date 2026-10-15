@@ -52,7 +52,7 @@ uploaded photo.
 | `kaggle/` | the Kaggle GPU notebooks (training queue, checkpoint selection, test-time flips, live checks, Gradio share link) |
 | `splits/`, `supports/` | fixed evaluation splits and the support (training) photo lists, with SHA-256 sums |
 | `demo/uploads/` | three FloodNet test photos (not in eval100) for the live-upload demo |
-| `experiments/phase2/` | the pre-registered protocol of the next GPU round |
+| `experiments/phase2/` | the pre-registered protocol of the next GPU round and the Mac's baseline job list |
 | `kaggle/phase2/` | its session plans, Kaggle kernel builder and the local pre-flight |
 | `release/backup/` | off-site backup manifest (SHA-256 of every backed-up file) and upload script |
 | `MODEL_CARD.md`, `DATA.md` | what the model is, how far to trust it; data sources, licences and splits |
@@ -65,16 +65,24 @@ Work since then (PLAN §16; §16.5 for the latest review):
 
 - **Same-budget baseline** (`src/baseline_seg.py`, `src/baseline_report.py`): DeepLabV3-ResNet50 fine-tuned on the
   same 50 photos beats Chameleon on the full test (mIoU .581 vs .507, stranded F1 .813 vs .752, false safe .081 vs
-  .111; paired intervals exclude 0) and runs on a CPU. At 5 photos the two are level (eval100 .340 vs .353). A curve
-  over 1–1,445 photos, other support draws and RescueNet are running (Mac) or planned (Phase 2).
+  .111; paired intervals exclude 0) and runs on a CPU. **Learning curve** (eval100, same photos, baseline − Chameleon;
+  `results/baselines/report/baselines.md`, `curve/curve.png`): 5 photos −.013 [−.053, +.025], 10 photos −.014
+  [−.061, +.032] (level, although Chameleon's decode also uses the 30 tuning labels), 20 photos +.047 [+.004, +.090],
+  50 photos +.074 on the full test; the baseline reaches .609 with 100 photos and .728 with all 1,445 (full test).
+  1 photo, RescueNet 5–50, other support draws and training seeds run on the Mac
+  (`experiments/phase2/mac_queue.txt`, restartable: `src/job_queue.py`); Chameleon's one-recipe curve is Phase 2.
 - **FloodNet label errors** (`src/label_audit.py`, `splits/floodnet_label_errors.tsv`): 11 test and 2 validation
   photos label large dry areas as water; results are given with and without them.
 - **Phase 2** (GPU, not started): pre-registered in `experiments/phase2/PROTOCOL.md` (amendment 1: one-recipe curve
   paired with the baseline on the full test, lean variance design, RescueNet 5–50 shots, product-model candidates);
-  `kaggle/phase2/make_plan.py` builds the sessions, `kaggle/phase2/post.py` runs every CPU step afterwards.
+  `kaggle/phase2/make_plan.py` builds the sessions (pinned to the 8 Oct Kaggle image; each session first checks that
+  the submitted model reproduces its published predictions, `src/env_check.py`, and stops otherwise),
+  `kaggle/phase2/launch_check.py` checks the launch list, `kaggle/phase2/post.py` runs every CPU step afterwards.
 - Engineering: off-site backup (`src/backup.py`), configurable paths (`RR_DATA`), `pyproject.toml` + `uv.lock`, CI,
   the Chameleon scripts on Apple MPS / CPU for pre-flight checks (`RR_DEVICE`), calibration, label-free decode,
-  false-safe analysis, CSV house list, truck stop points and a Korean interface in the viewer (local `docs/`).
+  false-safe analysis, CSV house list, truck stop points and a Korean interface in the viewer (local `docs/`;
+  links now open exactly the view they name, Esc closes a route, the About text states the false-safe rate and the
+  baseline result). Baseline training resumes after a crash or reboot (`--save_every`).
   Model and data: `MODEL_CARD.md`, `DATA.md`.
 
 ## Setup (CPU)

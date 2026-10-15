@@ -41,7 +41,9 @@ Recipe: 1,000 steps, cosine lr 1e-3, batch 2, fp16, 384-px crops of 768×576 pho
 
 The last row (14 Oct) is better than this model on all three (paired intervals exclude zero, `results/baselines/report/`):
 on FloodNet at 50 labels, Chameleon's few-shot adaptation does not beat ordinary fine-tuning of a pretrained segmenter.
-Where it might (fewer labels, another disaster) is being measured.
+With fewer labels the two are level (eval100, baseline − Chameleon: 5 photos −.013 [−.053, +.025], 10 photos −.014
+[−.061, +.032], although Chameleon's decode also uses the 30 tuning labels); from 20 photos the baseline leads (+.047
+[+.004, +.090]). One label and the second disaster (RescueNet) are being measured.
 
 Training variance (seeds, choice of the 50 photos) is not yet measured: every number is one run (Phase 2, A3).
 
