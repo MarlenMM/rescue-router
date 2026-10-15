@@ -32,10 +32,12 @@ function recost(grid, r) {
   return c;
 }
 
-for (const s of index.scenes) {
-  test(`${s.key}: statuses and costs match Python`, async () => {
-    const { grid: gj, buildings: blds } = await parseScene(readFileSync(join(SCENES, s.key, 'scene.rrb')));
-    const ref = JSON.parse(readFileSync(join(SCENES, s.key, 'ref.json'), 'utf8'));
+// every scene with Chameleon's layers, and with the baseline's (b/) where the index lists them (model switch)
+const dirs = index.scenes.flatMap(s => [s.key, ...(s.b ? [`${s.key}/b`] : [])]);
+for (const dir of dirs) {
+  test(`${dir}: statuses and costs match Python`, async () => {
+    const { grid: gj, buildings: blds } = await parseScene(readFileSync(join(SCENES, dir, 'scene.rrb')));
+    const ref = JSON.parse(readFileSync(join(SCENES, dir, 'ref.json'), 'utf8'));
     assert.equal(ref.length, blds.length);
     blds.forEach((b, k) => { assert.equal(ref[k].id, b.id); b.py = ref[k].py; b.tier_pred = ref[k].tier_pred; });
     let checked = 0;

@@ -67,6 +67,7 @@ h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: v
 .seg { display: flex; background: #0f172a; border: 1px solid var(--line); border-radius: 10px; padding: 3px; margin-bottom: 8px; }
 .seg button { flex: 1; border: 0; background: transparent; color: var(--muted); padding: 7px 4px; border-radius: 7px; cursor: pointer; font: inherit; font-weight: 600; }
 .seg button[aria-checked="true"] { background: #1e293b; color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+.seg button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .row { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
 .row input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
