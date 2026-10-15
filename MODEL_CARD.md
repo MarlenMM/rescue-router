@@ -43,7 +43,9 @@ The last row (14 Oct) is better than this model on all three (paired intervals e
 on FloodNet at 50 labels, Chameleon's few-shot adaptation does not beat ordinary fine-tuning of a pretrained segmenter.
 With fewer labels the two are level (eval100, baseline − Chameleon: 5 photos −.013 [−.053, +.025], 10 photos −.014
 [−.061, +.032], although Chameleon's decode also uses the 30 tuning labels); from 20 photos the baseline leads (+.047
-[+.004, +.090]). One label and the second disaster (RescueNet) are being measured.
+[+.004, +.090]). With the same k labels for both (Chameleon's label-free decode) the baseline is ahead at every point
+(5: +.021 [−.012, +.053], 10: +.035 [+.004, +.066], 20: +.096, 50: +.114 [+.083, +.148]). One label and the second
+disaster (RescueNet) are being measured.
 
 Training variance (seeds, choice of the 50 photos) is not yet measured: every number is one run (Phase 2, A3).
 

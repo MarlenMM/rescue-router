@@ -33,23 +33,6 @@ def point(cms, fn, B=1000):
     return dict(value=float(r['value']), lo=float(r['lo']), hi=float(r['hi']), n=r['n'])
 
 
-def label_free_decodes(results, out, shots=(1, 5, 10, 20, 50)):
-    """run_decode.py (no SAM) on the published FloodNet runs into <out>/decode/, for their label-free thresholds"""
-    import subprocess
-    os.makedirs(os.path.join(out, 'preds'), exist_ok=True)
-    for k in shots:
-        run = f'floodnet_{k}shot_s0_stratified'
-        if os.path.exists(os.path.join(out, 'decode', f'{run}.json')):
-            continue
-        for sf in ('floodnet_val_tune30', 'floodnet_test_eval100'):
-            src = BR.cache(results, run, sf)
-            dst = os.path.join(out, 'preds', os.path.basename(src))
-            if not os.path.lexists(dst):
-                os.symlink(os.path.abspath(src), dst)
-        subprocess.run([sys.executable, os.path.join(HERE, 'run_decode.py'), '--results', out, '--run', run], check=True,
-                       stdout=subprocess.DEVNULL)
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--baselines', default='results/baselines')
@@ -60,7 +43,7 @@ def main():
     ap.add_argument('--out', default='results/baselines/report/curve')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
-    label_free_decodes(a.results, a.label_free)
+    BR.label_free_decodes(a.results, a.label_free)
     gts = BR.Labels()
     res = {}
     for ds in ('floodnet', 'rescuenet'):

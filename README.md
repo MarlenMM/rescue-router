@@ -15,7 +15,7 @@ snapshots, a guided-filter decode and SAM to redraw building outlines; `writeup/
 +.035 [+.013, +.057] (paired). PSPNet trained on 1,445 labelled photos scores .848 on the same classes, so this is far
 below full supervision; flooded roads are the gap (IoU .31 vs .82). **A standard supervised model trained on the same
 50 photos does better** (14 Oct, `src/baseline_seg.py`, `results/baselines/report/`): DeepLabV3-ResNet50 (COCO
-weights) reaches **.581** with no tuning labels (paired +.074 [+.045, +.108]), routes better (stranded F1 .813 vs .752)
+weights) reaches **.581** with no tuning labels (paired +.074 [+.045, +.107]), routes better (stranded F1 .813 vs .752)
 and more safely (false safe 8 % vs 11 %), and runs in 0.5 s per photo on a CPU (Chameleon: 17 s on a T4 GPU). Learning curve and the second dataset (RescueNet, Hurricane Michael, 20 labels: .421 on eval100, a fixed
 100-photo subset of the test set) are in `results/kaggle_v2/report/`.
 
@@ -69,6 +69,8 @@ Work since then (PLAN §16; §16.5 for the latest review):
   `results/baselines/report/baselines.md`, `curve/curve.png`): 5 photos −.013 [−.053, +.025], 10 photos −.014
   [−.061, +.032] (level, although Chameleon's decode also uses the 30 tuning labels), 20 photos +.047 [+.004, +.090],
   50 photos +.074 on the full test; the baseline reaches .609 with 100 photos and .728 with all 1,445 (full test).
+  **With equal labels** (Chameleon decoded with thresholds from its k training labels only) the baseline is ahead at
+  every point: 5 +.021 [−.012, +.053], 10 +.035 [+.004, +.066], 20 +.096 [+.054, +.138], 50 +.114 [+.083, +.148].
   1 photo, RescueNet 5–50, other support draws and training seeds run on the Mac
   (`experiments/phase2/mac_queue.txt`, restartable: `src/job_queue.py`); Chameleon's one-recipe curve is Phase 2.
 - **FloodNet label errors** (`src/label_audit.py`, `splits/floodnet_label_errors.tsv`): 11 test and 2 validation

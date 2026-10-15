@@ -27,6 +27,10 @@
 | `floodnet_stratified_s{0,1,2}` | 100 each | nested support orders (the k-shot set is the first k), three independent draws |
 | `rescuenet_*` | same roles | RescueNet supports come from its val split |
 
+Unlabelled use (14 Oct, PROTOCOL amendment 1 item 4): the self-trained baseline candidates also train on the other
+1,395 FloodNet train photos **without their labels**, with pseudo-labels from the 50-shot baseline
+(`src/baseline_pseudo.py`; evaluation photos excluded).
+
 Near-duplicates: 14 of 448 FloodNet test photos are near-duplicate frames of a support photo (same flight);
 removing them changes mIoU by ≤ .004 (`results/kaggle_v2/report/dupes/`).
 
