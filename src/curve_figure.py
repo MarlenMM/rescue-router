@@ -5,7 +5,8 @@ every series at its k training photos; curve_total.png plots Chameleon's tuned d
 chose their thresholds), the other view of "same budget" (e.g. Chameleon 20 + 30 vs the baseline on 50). Baseline: argmax
 (k labels, no tuning). Chameleon: its chosen decode (k + 30 tuning labels): the published runs (first recipe at
 1-20 shots, the submitted model at 50) and, with --phase2, the one-recipe `p2` runs. 95 % bootstrap intervals over
-photos. FloodNet and RescueNet panels; all 1,445 FloodNet photos plotted at 1,445.
+photos. FloodNet and RescueNet panels; all 1,445 FloodNet photos plotted at 1,445. curve_routing.png: the routing
+safety metrics (stranded-house F1, false-safe rate) by k from baseline_report.py's paired eval100 routing.
 
     python src/curve_figure.py [--phase2 results/phase2/rr] [--out results/baselines/report/curve]
 """
@@ -117,6 +118,55 @@ def main():
         fig.savefig(os.path.join(a.out, fname), dpi=140)
         plt.close(fig)
         print('wrote', os.path.join(a.out, fname))
+
+    routing_figure(os.path.join(os.path.dirname(a.out.rstrip('/')), 'baselines.json'), a.out)
+
+
+def routing_figure(baselines_json, out):
+    """curve_routing.png: the routing safety metrics by number of labels, both models, from baseline_report.py's paired
+    eval100 routing (router v3, the published gate; baseline argmax maps, Chameleon's chosen decode of the same k):
+    stranded-house F1 (higher is better) and false-safe rate (lower is better), 95 % intervals over photos"""
+    if not os.path.exists(baselines_json):
+        return
+    rows = [r for r in json.load(open(baselines_json)) if r['arch'] == 'deeplabv3_r50' and (r['seed'], r['draw']) == (0, 0)
+            and not r['tag'] and not r['tta'] and 'routing_eval100' in r]
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    fig, axs = plt.subplots(2, 2, figsize=(10, 6.5))
+    for col, ds in enumerate(('floodnet', 'rescuenet')):
+        for row, (m, name) in enumerate((('stranded_f1', 'stranded-house F1 (higher is better)'),
+                                         ('false_safe', 'false-safe rate (lower is better)'))):
+            ax = axs[row, col]
+            for who, color, marker, dx in (('baseline', 'tab:orange', 'o', 0.97), ('chameleon', 'tab:blue', 's', 1.03)):
+                pts = sorted((r['k'] or ALL[ds], r['routing_eval100'][m].get(who)) for r in rows if r['dataset'] == ds)
+                pts = [(k, v) for k, v in pts if v]
+                if not pts:
+                    continue
+                k = np.array([p[0] for p in pts]) * dx
+                v = np.array([[p[1]['value'], p[1]['lo'], p[1]['hi']] for p in pts])
+                ax.errorbar(k, v[:, 0], yerr=[v[:, 0] - v[:, 1], v[:, 2] - v[:, 0]], color=color, marker=marker, capsize=3,
+                            ms=5, lw=1.5, label='baseline (k labels)' if who == 'baseline' else 'Chameleon (k + 30 labels)')
+            ticks = [1, 5, 10, 20, 50, 100, ALL[ds]]
+            ax.set_xscale('log')
+            ax.set_xticks(ticks, [f'{t:,}' for t in ticks])
+            ax.minorticks_off()
+            ax.set_xlim(0.8, ALL[ds] * 1.3)
+            ax.set_ylim(0, 1 if m == 'stranded_f1' else 0.3)
+            ax.grid(alpha=0.3)
+            ax.set_ylabel(name, fontsize=8)
+            if row == 0:
+                ax.set_title({'floodnet': 'FloodNet (Hurricane Harvey)', 'rescuenet': 'RescueNet (Hurricane Michael)'}[ds])
+            else:
+                ax.set_xlabel('labelled training photos k (log scale)')
+            ax.legend(fontsize=7, loc='lower right' if m == 'stranded_f1' else 'upper right')
+    fig.suptitle('Routing on the predicted maps vs the labelled map (router v3, eval100; 95 % CIs over photos)\n'
+                 'RescueNet eval100 holds few stranded houses: wide intervals', fontsize=9)
+    fig.tight_layout()
+    fig.savefig(os.path.join(out, 'curve_routing.png'), dpi=140)
+    plt.close(fig)
+    print('wrote', os.path.join(out, 'curve_routing.png'))
+
 
 if __name__ == '__main__':
     main()
