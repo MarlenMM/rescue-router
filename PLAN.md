@@ -1023,6 +1023,12 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
   2. `curve_routing.png` (`curve_figure.py`): stranded-house F1 and false-safe rate by k, both models, both datasets.
   3. Test that `docs/` is exactly the viewer built from `app/` (CI); viewer: `M` switches the model; no local paths
      in any tracked file (checked before the repo goes public).
+  4. Viewer: the printed briefing opens with a dispatch plan (truck to the door; per truck stop the houses reached by
+     boat or on foot, longest trip; no route), print colours readable on paper (headless-Chrome PDFs, EN/KO); the
+     built viewer loads its scripts with `?v=<content hash>` (`build_viewer.stamped`): a cached old `i18n.js` ran with
+     a new `app.js` in the browser check (also checked through Gradio's file route).
+  5. Mac queue: FloodNet baseline support draw 2: full test .572 (draws 0/1/2 .581 / .593 / .572, mean .582 ± .011;
+     Chameleon .507). Pre-flights re-run for the new `src/`: `var` OK 24/24 (src SHA-256 51c8575d), `curve` OK 36/36; every training step run.
 - Data and model cards, README status brought up to date. CI green on every push.
 - **Cycle 10 (re-audit):**
   1. `rebuild_all.py --only baseline_tiers,export,viewer,tests`: headline all as published, but `scenes.json` differed
