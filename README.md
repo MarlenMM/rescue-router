@@ -100,7 +100,9 @@ Work since then (PLAN §16; §16.5 for the latest review):
 - **Viewer model switch** (local `docs/`): every one of the 200 scenes can be shown with the submitted Chameleon model
   or the same-budget DeepLabV3-ResNet50 (same photos and router, each model's own statuses, tiers, per-photo IoU and
   measured false-safe rate in the printed briefing; link key `mo=b`); `src/export_web_assets.py` writes the second
-  model's layers to `scenes/<key>/b/`, and the JS router parity test covers both models (400 scenes).
+  model's layers to `scenes/<key>/b/`, and the JS router parity test covers both models (400 scenes). Where the
+  other model routes a house differently (from the same entry point), the house list, the counter, the CSV and the
+  briefing say so: a disagreement between two independent models is a natural "check first" signal.
   Model and data: `MODEL_CARD.md`, `DATA.md`.
 
 ## Setup (CPU)
