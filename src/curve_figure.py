@@ -45,15 +45,16 @@ def main():
     for ds in ('floodnet', 'rescuenet'):
         sf, fn = f'{ds}_test_eval100', BR.miou_fn(ds)
         g = gts(ds, sf)
-        series = {'baseline': {}, 'chameleon (published)': {}, 'chameleon (one recipe, Phase 2)': {},
-                  'chameleon label-free (k labels)': {}}
+        series = {'baseline': {}, 'baseline from the FloodNet model': {}, 'chameleon (published)': {},
+                  'chameleon (one recipe, Phase 2)': {}, 'chameleon label-free (k labels)': {}}
         runs = [BR.parse(r) for r in sorted({f[:-len(f'_{sf}.npz')] for f in os.listdir(os.path.join(a.baselines, 'preds'))
                                               if f.endswith(f'_{sf}.npz')})]
         for b in runs:
             if b and b['dataset'] == ds and b['arch'] == 'deeplabv3_r50' and (b['seed'], b['draw']) == (0, 0) \
-                    and not b['tag'] and not b['tta']:
+                    and b['tag'] in ('', 'ft50') and not b['tta']:
                 P = BR.probs(BR.cache(a.baselines, b['run'], sf))
-                series['baseline'][b['k'] or ALL[ds]] = point(
+                name = 'baseline' if not b['tag'] else 'baseline from the FloodNet model'
+                series[name][b['k'] or ALL[ds]] = point(
                     {i: confusion(decode_photo(P[i], {'argmax': True}), g[i]) for i in g}, fn)
         for k in (1, 5, 10, 20, 50, 100):
             for label, folder, run in (('chameleon (published)', a.results, f'{ds}_{k}shot_s0_stratified'),
@@ -78,7 +79,8 @@ def main():
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     fig, axs = plt.subplots(1, 2, figsize=(10, 4))
-    style = {'baseline': ('tab:orange', 'o'), 'chameleon (published)': ('tab:blue', 's'),
+    style = {'baseline': ('tab:orange', 'o'), 'baseline from the FloodNet model': ('tab:red', '^'),
+             'chameleon (published)': ('tab:blue', 's'),
              'chameleon (one recipe, Phase 2)': ('tab:green', 'D'), 'chameleon label-free (k labels)': ('tab:purple', 'v')}
     for ax, ds in zip(axs, res):
         for s, pts in res[ds].items():
@@ -86,6 +88,7 @@ def main():
             v = np.array([[pts[k]['value'], pts[k]['lo'], pts[k]['hi']] for k in pts])
             ax.errorbar(ks, v[:, 0], yerr=[v[:, 0] - v[:, 1], v[:, 2] - v[:, 0]], color=style[s][0], marker=style[s][1],
                         capsize=3, ms=5, lw=1.5, label=s + (' (k labels)' if s == 'baseline' else
+                                                             ' (k + 50 FloodNet labels)' if 'FloodNet model' in s else
                                                              '' if 'label-free' in s else ' (k + 30 labels)'))
         if ds == 'floodnet':
             ax.axhline(0.848, color='grey', ls=':', lw=1)

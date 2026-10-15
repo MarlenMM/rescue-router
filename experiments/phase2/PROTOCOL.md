@@ -186,6 +186,9 @@ second disaster at few labels is where Chameleon may still win, and 100 photos c
 points (FloodNet eval100 paired intervals are ±.04-.05 wide). RescueNet 50 shots stays on eval100 (17 s per photo).
 Cost: +80 T4 minutes, +41 min of quota (`curve` 385 min instead of 344; curve + var 9.4 h). If dropped: in
 `kaggle/phase2/make_plan.py` give the three runs their default splits again (one line), and nothing else changes.
+On the Mac (no quota) the baseline side gets the realistic cross-disaster competitor at every low-label point:
+DeepLabV3 started from the FloodNet 50-shot baseline and fine-tuned on the same 5 / 10 / 20 RescueNet photos (`ft50`;
+it has also seen 50 FloodNet labels, reported as such, never instead of the plain baseline).
 The comparison is reported on the full RescueNet test where both have it (`baseline_report.py` pairs on the largest
 common photo set), on eval100 otherwise; both models' label-free (k labels) decodes are reported next to the tuned
 ones for RescueNet too (16 Oct: the RescueNet chain has no guided filter, so its thresholds are matched on the raw
