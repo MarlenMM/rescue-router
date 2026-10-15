@@ -60,13 +60,18 @@ def predict_only(ckpt_run, ds, splits):
 FULL = ['floodnet_val_tune30', 'floodnet_test_full']
 # amendment 4: the same for RescueNet 5-20 shots (its 450 test photos; 50 shots stay on eval100, prediction is 17 s/photo)
 RN_FULL = ['rescuenet_val_tune30', 'rescuenet_test_full']
+# amendment 5 (for Marlen to keep or drop at the launch): Chameleon's only lead so far (RescueNet 20 photos, with its 30
+# tuning photos) rests on one support draw; two more draws of the same 20-shot point (recipe p2, full RescueNet test)
+# in `var`. Draws 3 and 4: RescueNet's draws 1 and 2 overlap its val30 (src/splits_local.py rn_draws). Drop: ().
+VAR_RN_DRAWS = (3, 4)
 
 
 def session(name):
     """list of (run id, job group, minutes), longest first is not needed: lanes are balanced greedily below"""
     if name == 'var':            # A3, lean L design (amendment 1): support draws 1, 2 with seed 0 and training seeds
         # 1, 2 with draw 0; (0, 0) is the submitted model. Pairs with the baseline's draws 0-2 by draw.
-        return [run_jobs('floodnet', 50, s, d) for s, d in ((0, 1), (0, 2), (1, 0), (2, 0))]
+        return [run_jobs('floodnet', 50, s, d) for s, d in ((0, 1), (0, 2), (1, 0), (2, 0))] + \
+               [run_jobs('rescuenet', 20, 0, d, tag='p2', splits=RN_FULL) for d in VAR_RN_DRAWS]
     if name == 'var_full':       # A3 as first registered: 3 training seeds x 3 support draws (two-way variance split)
         return [run_jobs('floodnet', 50, s, d) for d in (0, 1, 2) for s in (0, 1, 2) if (s, d) != (0, 0)]
     if name == 'curve':          # A4: one recipe for the curve and RescueNet (tag p2: the published runs keep their
@@ -84,7 +89,8 @@ def lanes(items, n=2):
     """job groups -> GPUs; returns ({gpu: [group, ...]}, minutes per gpu). Two GPUs: the exact best split (all 2^k
     assignments; k <= 16 here), else greedy longest-first. In each lane, prediction-only groups (the submitted model on
     confirm100: the model choice and F2 depend on it) go first, so a long session can never skip them, then the
-    longest first."""
+    RescueNet runs (the open question: where Chameleon may still win), then the longest first. The order within a
+    lane does not change its length; it decides what exists if a session is cut short."""
     items = list(items)
     if n == 2 and len(items) <= 16:
         best = min(range(2 ** len(items)), key=lambda mask: max(
@@ -99,7 +105,8 @@ def lanes(items, n=2):
             load[g] += m
     plan, load = {g: [] for g in range(n)}, [0.0] * n
     first = lambda x: any(sc == 'finetune' for sc, _ in x[1])                  # noqa: E731
-    for (rid, jobs, m), g in sorted(zip(items, assign), key=lambda xg: (first(xg[0]), -xg[0][2])):
+    for (rid, jobs, m), g in sorted(zip(items, assign), key=lambda xg: (first(xg[0]), not xg[0][0].startswith('rescuenet'),
+                                                                         -xg[0][2])):
         plan[g].append(jobs)
         load[g] += m
     return plan, load

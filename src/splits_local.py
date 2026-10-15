@@ -4,6 +4,12 @@
                                        # pools, RescueNet full test, support orders s1/s2: on Drive only until now);
                                        # each is written only if its SHA-256 matches the published sum
   python src/splits_local.py confirm   # splits/floodnet_val_confirm100.txt (fix F2, below)
+  python src/splits_local.py rn_draws  # supports/rescuenet_stratified_s3/s4.txt: RescueNet draws without val30 (below)
+
+rn_draws: RescueNet's supports and its val30 come from the same val pool; val30 was cut outside the draw-0 supports
+only (5 Oct), so the published draws 1 and 2 hold 8 and 5 val30 photos (3 and 1 in their first 20). Draws 3 and 4 are
+made by the same rule (prep_data.support_order, seeds 3 and 4) on the pool without val30; the published files stay
+as they are (their hashes are in the submitted notebook). finetune.py / baseline_seg.py refuse overlapping supports.
 
 confirm: a second FloodNet validation split, disjoint from val30, for confirming choices.
 
@@ -92,5 +98,24 @@ def confirm():
     print(f'{rel}: {N} photos ({n_pos} with a flooded class), sha256 {h[:12]}')
 
 
+def rn_draws(seeds=(3, 4)):
+    val30 = set(open(os.path.join(ROOT, 'splits', 'rescuenet_val_tune30.txt')).read().split())
+    pool = open(os.path.join(ROOT, 'splits', 'rescuenet_support_pool.txt')).read().split()
+    rows = [r for r in label_rows('rescuenet', ('val',)) if r['id'] in set(pool) - val30]
+    assert len(rows) == len(pool) - len(val30) == 419, len(rows)
+    s0 = open(os.path.join(ROOT, 'supports', 'rescuenet_stratified_s0.txt')).read().split()
+    assert P.support_order('rescuenet', label_rows('rescuenet', ('val',)), 0) == s0, 'stats do not reproduce draw 0'
+    sums = os.path.join(ROOT, 'splits', 'SHA256SUMS')
+    for seed in seeds:
+        ids = P.support_order('rescuenet', rows, seed)
+        assert not set(ids) & val30 and len(set(ids)) == P.N_SUPPORT
+        rel = f'supports/rescuenet_stratified_s{seed}.txt'
+        open(os.path.join(ROOT, rel), 'w').write('\n'.join(ids) + '\n')
+        h = sha(os.path.join(ROOT, rel))
+        lines = [x for x in open(sums).read().splitlines() if not x.endswith(rel)] + [f'{h}  {rel}']
+        open(sums, 'w').write('\n'.join(lines) + '\n')
+        print(f'{rel}: {len(ids)} photos, first 20 share {len(set(ids[:20]) & set(s0[:20]))} with draw 0, sha256 {h[:12]}')
+
+
 if __name__ == '__main__':
-    {'regen': regen, 'confirm': confirm}[sys.argv[1] if len(sys.argv) > 1 else 'confirm']()
+    {'regen': regen, 'confirm': confirm, 'rn_draws': rn_draws}[sys.argv[1] if len(sys.argv) > 1 else 'confirm']()

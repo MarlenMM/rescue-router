@@ -159,6 +159,8 @@ def cham_for(b, a):
             cands.append((a.phase2, f'{SUBMITTED}_sup{draw}' if draw else SUBMITTED, 'Phase 2 draw' if draw else 'submitted'))
         elif draw == 0:
             cands.append((a.phase2, f'{ds}_{k}shot_s0_stratified_p2', 'Phase 2 (one recipe)'))
+        else:                                       # amendment 5: RescueNet 20-shot draws 3-4 (recipe p2)
+            cands.append((a.phase2, f'{ds}_{k}shot_s0_stratified_sup{draw}_p2', 'Phase 2 draw'))
     if draw == 0:
         cands.append((a.results, f'{ds}_{k}shot_s0_stratified', 'submitted' if (ds, k) == ('floodnet', 50) else 'published (first recipe)'))
     for folder, run, label in cands:

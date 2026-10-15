@@ -9,6 +9,8 @@ RescueNet 5/10, lean variance design, baseline candidates, decode floor, label e
 marked "→ amendment 1". **Amendment 2** (15 Oct) is procedural: pinned image, environment check, baseline draw seeds.
 **Amendment 3** (15 Oct) adds two product-model candidates: the baselines' seed ensemble, without and with flips.
 **Amendment 4** (16 Oct) moves RescueNet 5-20 shots to its full test set (+41 min of quota; Marlen keeps or drops it).
+**Amendment 5** (16 Oct) adds two support draws of RescueNet 20 shots to `var` (+91 min of quota; Marlen keeps or drops
+it), replaces RescueNet's draws 1-2 by clean draws 3-4 (the old ones overlap val30), and runs RescueNet first in each lane.
 
 ## Questions
 
@@ -197,6 +199,32 @@ The comparison is reported on the full RescueNet test where both have it (`basel
 common photo set), on eval100 otherwise; both models' label-free (k labels) decodes are reported next to the tuned
 ones for RescueNet too (16 Oct: the RescueNet chain has no guided filter, so its thresholds are matched on the raw
 probabilities, `baseline_report.label_free_tau`).
+
+## Amendment 5 (16 Oct 2026, ~03:30 KST; before any Phase 2 GPU run; item 1 for Marlen to keep or drop at the launch)
+
+1. **RescueNet 20 shots, two more support draws** (`var`): the only point where Chameleon leads so far (RescueNet 20
+   photos with its 30 tuning photos: baseline −.061 [−.098, −.027] on eval100, stranded F1 .605 vs .818) rests on one
+   support draw and one training run, and the bootstrap intervals cover test photos only. Draws 3 and 4 with training
+   seed 0 and the one recipe (`p2`), predicted on RescueNet's full test like amendment 4
+   (`rescuenet_20shot_s0_stratified_sup{3,4}_p2`); with the `curve` session's draw-0 run they give mean ± sd over
+   three draws (`phase2_report.py`, lean spread). The baseline gets the same draws on the Mac (`rn20d3`, `rn20d4`,
+   seed 0, full test) and `baseline_report.py` pairs them by draw. Reported: Chameleon − baseline per draw (paired
+   bootstrap on the full RescueNet test) and the three draws' mean ± sd of both models, tuned and label-free. No
+   choice depends on it; it says whether "Chameleon wins on RescueNet at 20 photos" holds beyond one draw.
+   Cost: +182 T4 minutes, **+91 min of quota** (`var` 269 min instead of 178; curve + var 10.9 h of 30 h/week).
+   If dropped: `VAR_RN_DRAWS = ()` in `kaggle/phase2/make_plan.py` (one line), and the two Mac jobs are reported
+   as baseline draws only.
+2. **RescueNet support draws 3 and 4 instead of 1 and 2** (a fix found before any use of them): RescueNet's supports and
+   its val30 come from the same val pool, and val30 was cut outside the draw-0 supports only (5 Oct), so the
+   published draws 1 and 2 contain 8 and 5 val30 photos (3 and 1 among their first 20). A run on them would tune its
+   thresholds on photos it trained on. Draws 3 and 4 use the same rule (`prep_data.support_order`, seeds 3 and 4) on
+   the pool without val30 (`src/splits_local.py rn_draws`; hashes appended to `splits/SHA256SUMS`; the published
+   files are unchanged). `finetune.py` and `baseline_seg.py` now stop when a support photo is in the dataset's val30 or
+   confirm100 (`rr.runs.check_supports`). FloodNet's draws are train photos and are not affected; no published or
+   queued run used RescueNet draws 1-2.
+3. **Lane order** (procedural): within each GPU lane the prediction-only group still runs first, then the RescueNet
+   runs, then the rest longest first (`make_plan.lanes`). The 2-GPU split and each lane's length are unchanged; if a
+   session is cut short, the runs of the open question exist first.
 
 ## Deviation log
 
