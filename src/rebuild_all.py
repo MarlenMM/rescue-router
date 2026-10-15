@@ -7,7 +7,8 @@
     python src/rebuild_all.py --list       # the steps and what each depends on
 
 Inputs (not in git): the prediction caches and decodes in results/kaggle_v2/rr/ (preds/, metrics/) and the data in
-~/rr_data (PLAN §15 "Key files"); the test-time-flip caches in results/kaggle_v2/flips/ (optional, step 'tta').
+~/rr_data (PLAN §15 "Key files"); the test-time-flip caches in results/kaggle_v2/flips/ (optional, step 'tta'); the
+same-budget baselines in results/baselines/ (optional, steps same_budget, label_audit, consensus; src/baseline_seg.py).
 GPU work (fine-tuning, prediction caches) is not part of this: see kaggle/ and PLAN §15.
 Every step is one of the documented scripts; logs go to results/rebuild_logs/<step>.log. All randomness is seeded
 (bootstrap, RANSAC), so a rebuild reproduces the published numbers exactly; --check verifies the headline ones.
@@ -95,6 +96,8 @@ STEPS = {
               'Python tests + JS router parity (bit-exact on all scenes)'),
 }
 
+NEEDS_BASELINES = ('same_budget', 'label_audit', 'consensus')     # the same-budget baselines' prediction caches
+
 # headline numbers as published (PLAN §15 Quick summary); --check compares the rebuilt files with these (3 decimals).
 # Updated 8 Oct (Batch 13.6): FloodNet 50-shot = the Batch 13 model (the published 7 Oct values: results/published_7oct.tar)
 EXPECTED = {
@@ -162,6 +165,11 @@ def main():
     if 'tta' in todo and not os.path.isdir(os.path.join(ROOT, 'results/kaggle_v2/flips/rr/preds')):
         print('no flip caches (results/kaggle_v2/flips/): skipping tta')
         todo.remove('tta')
+    if not os.path.isdir(os.path.join(ROOT, 'results/baselines/preds')):    # made on the Mac (baseline_seg.py), not in the data zip
+        skip = [s for s in NEEDS_BASELINES if s in todo]
+        if skip:
+            print(f'no baseline predictions (results/baselines/, src/baseline_seg.py): skipping {", ".join(skip)}')
+            todo = [s for s in todo if s not in skip]
     for d in ('results/rebuild_logs', f'{RT}/full', f'{RT}/tta'):
         os.makedirs(os.path.join(ROOT, d), exist_ok=True)
     log_dir = os.path.join(ROOT, 'results/rebuild_logs')
