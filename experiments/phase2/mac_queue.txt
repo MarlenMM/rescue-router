@@ -37,3 +37,7 @@ rn80      src/baseline_seg.py --dataset rescuenet --shot 80 --splits rescuenet_v
 reports   ~/.venvs/rr/bin/python src/rebuild_all.py --only transfer,same_budget
 # the registered choice rule among the baselines alone (val30 + confirm100), before Chameleon's confirm100 exists
 choice_bl ~/.venvs/rr/bin/python src/ensemble.py --choose_on val30,confirm100 --baselines_only --baseline baseline_deeplabv3_r50_50shot_s0,baseline_deeplabv3_r50_50shot_s0_tta,baseline_deeplabv3_r50_50shot_s0_st,baseline_deeplabv3_r50_50shot_s0_st_tta,baseline_deeplabv3_mbv3_50shot_s0_st,baseline_lraspp_mbv3_50shot_s0_st,baseline_deeplabv3_r50_50shot_s0_ens3,baseline_deeplabv3_r50_50shot_s0_ens3_tta
+# PROTOCOL amendment 5 (16 Oct, before any Phase 2 run): the baseline partners of Chameleon's RescueNet 20-shot draws
+# 3 and 4 (RescueNet's draws 1-2 overlap its val30: src/splits_local.py rn_draws), seed 0, full test; after the reports
+rn20d3    src/baseline_seg.py --dataset rescuenet --shot 20 --seed 0 --support_seed 3 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
+rn20d4    src/baseline_seg.py --dataset rescuenet --shot 20 --seed 0 --support_seed 4 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full

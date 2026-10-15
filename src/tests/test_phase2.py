@@ -123,8 +123,9 @@ def test_lean_variance_plan_and_full_test_curve():
     sys.path.insert(0, os.path.join(REPO, 'kaggle', 'phase2'))
     import make_plan as MP
     var = [rid for rid, _, _ in MP.session('var')]
-    assert var == ['floodnet_50shot_s0_stratified_sup1', 'floodnet_50shot_s0_stratified_sup2',
-                   'floodnet_50shot_s1_stratified_sup0', 'floodnet_50shot_s2_stratified_sup0']
+    assert var[:4] == ['floodnet_50shot_s0_stratified_sup1', 'floodnet_50shot_s0_stratified_sup2',
+                       'floodnet_50shot_s1_stratified_sup0', 'floodnet_50shot_s2_stratified_sup0']
+    assert var[4:] == [f'rescuenet_20shot_s0_stratified_sup{d}_p2' for d in MP.VAR_RN_DRAWS]     # amendment 5
     assert len(MP.session('var_full')) == 8
     curve = {rid: jobs for rid, jobs, _ in MP.session('curve')}
     for k in (1, 5, 10, 20):
@@ -257,3 +258,35 @@ def test_src_hash_follows_content_not_time(tmp_path):
     assert MP.src_hash(str(tmp_path)) == h0
     (tmp_path / 'src' / 'a.py').write_text('x = 2\n')
     assert MP.src_hash(str(tmp_path)) != h0
+
+
+def test_lanes_put_rescuenet_first_without_changing_lengths():
+    """lanes(): the exact 2-GPU split is unchanged; in each lane the prediction-only group, then the RescueNet runs,
+    then the longest first (what exists if a session is cut short)"""
+    sys.path.insert(0, os.path.join(REPO, 'kaggle', 'phase2'))
+    import make_plan as MP
+    for name in ('curve', 'var'):
+        items = MP.session(name)
+        plan, load = MP.lanes(items)
+        assert abs(sum(load) - sum(m for _, _, m in items)) < 1e-9
+        for groups in plan.values():
+            kinds = []
+            for g in groups:
+                train = [a for sc, a in g if sc == 'finetune']
+                kinds.append(2 if not train else 0 if train[0][train[0].index('--dataset') + 1] == 'rescuenet' else 1)
+            pred_only = [k for k in kinds if k == 2]
+            assert kinds[:len(pred_only)] == pred_only and kinds[len(pred_only):] == sorted(kinds[len(pred_only):])
+
+
+def test_supports_never_overlap_tuning_photos():
+    """rr.runs.check_supports refuses RescueNet draws 1-2 (they hold val30 photos); every draw a run uses passes"""
+    from rr.runs import check_supports
+    splits = os.path.join(REPO, 'splits')
+
+    def draw(ds, d, k):
+        return open(os.path.join(REPO, 'supports', f'{ds}_stratified_s{d}.txt')).read().split()[:k]
+    for ds, d in (('floodnet', 0), ('floodnet', 1), ('floodnet', 2), ('rescuenet', 0), ('rescuenet', 3), ('rescuenet', 4)):
+        check_supports(ds, draw(ds, d, 100), splits)
+    for d in (1, 2):
+        with pytest.raises(SystemExit):
+            check_supports('rescuenet', draw('rescuenet', d, 20), splits)

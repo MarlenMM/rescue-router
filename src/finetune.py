@@ -42,6 +42,7 @@ import torch
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from rr import device as D  # noqa: E402
+from rr.runs import check_supports  # noqa: E402
 
 NAMES = {'floodnet': ['road_clear', 'road_flooded', 'bldg_flooded', 'bldg_dry', 'water'],
          'rescuenet': ['road_clear', 'road_blocked', 'bldg_intact', 'bldg_damaged', 'water']}
@@ -170,6 +171,7 @@ def main():
 
     data_root = os.path.join(a.data, f'{a.dataset}_{a.res}')
     supports = read_ids(os.path.join(a.drive, 'supports', f'{a.dataset}_{a.sel}_s{sup_seed}.txt'))[:a.shot]
+    check_supports(a.dataset, supports, os.path.join(a.drive, 'splits'))
     val_file = a.val_split or f'{a.dataset}_val_tune30'
     val_ids = read_ids(os.path.join(a.drive, 'splits', f'{val_file}.txt')) if val_file else []
     val_split = 'val'

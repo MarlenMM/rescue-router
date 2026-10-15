@@ -43,6 +43,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from rr.metrics import OTHER_IDX, WET, confusion, gt_classes, summarize  # noqa: E402
 from rr.paths import RR_DATA  # noqa: E402
+from rr.runs import check_supports  # noqa: E402
 
 REPO = os.path.dirname(HERE)
 NAMES = ['road_clear', 'road_flooded', 'bldg_flooded', 'bldg_dry', 'water']
@@ -178,6 +179,7 @@ def main():
     draw = a.seed if a.support_seed < 0 else a.support_seed
     if a.shot:
         ids = open(os.path.join(REPO, 'supports', f'{a.dataset}_stratified_s{draw}.txt')).read().split()[:a.shot]
+        check_supports(a.dataset, ids, os.path.join(REPO, 'splits'))
     else:
         ids = open(os.path.join(REPO, 'splits', f'{a.dataset}_support_pool.txt')).read().split()
         if a.dataset == 'rescuenet':                # its pool is the val split, which also holds val30
