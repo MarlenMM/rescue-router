@@ -220,6 +220,7 @@ async function loadOther(s) {
   solveOther();
   drawHouseList();
   drawCounter();
+  if (state.sel) select(state.sel.i, state.sel.side, false);       // a card opened before this arrived (a house link)
 }
 
 function solveOther() {                                            // the other model's statuses, this view's entry
@@ -516,8 +517,12 @@ function select(i, side, animate = true) {
   } else {
     body += `<p>${t('No truck, boat or walking route from the entry point on this map.')}</p>`;
   }
-  const agree = st === stO || state.nolabels;
+  const agree = st === stO || state.nolabels, ko0 = LANG === 'ko';
   if (!state.nolabels) body += `<p class="${agree ? 'gtline' : 'mismatch'}">${t(SIDE[other])}: ${t(WORD[stO])}${agree ? ' ✓' : LANG === 'ko' ? ` (${t(SIDE[side])}: ${t(WORD[st])})` : ` (${SIDE[side].toLowerCase()} says ${WORD[st]})`}</p>`;
+  if (side === 'pred' && s.status.other) {                       // the other model, same entry point (model switch)
+    const so = s.status.other[i], nm = MODEL[s.other.model].name;
+    body += `<p class="${so === st ? 'gtline' : 'mismatch'}">${nm}: ${t(WORD[so])}${so === st ? ' ✓' : ko0 ? ' (다른 판단: 먼저 확인)' : ' (the models disagree: check first)'}</p>`;
+  }
   body += `<p class="gtline">${t(state.nolabels ? 'Predicted' : 'Label')}: ${t(CLASS_LABEL[s.ds][b.cls])} · ${t(SIDE[side])}, ${t(state.lam ? 'risk-aware truck' : 'shortest truck')}</p>`;
   const ts = s.meta.tier_stats, pct = (v) => `${Math.round(100 * v)} %`;
   let kind = KIND[st], title = t(TITLE[st]);
