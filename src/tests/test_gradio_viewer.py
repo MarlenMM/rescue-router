@@ -62,8 +62,10 @@ def test_cpu_live_baseline_upload(tmp_path):
     probs = live(photo)
     assert probs.shape == (5, 576, 768) and probs.dtype == np.uint8
     s = E.build_scene('floodnet', photo, probs, live.decode, gt=None)
-    status = V.export_upload(s, str(tmp_path / 'up' / 'cpu'), 'test', 'baseline')
+    status = V.export_upload(s, str(tmp_path / 'up' / 'cpu'), 'test', live.run, 'b', live.name)
     assert len(status) == len(s['buildings']) > 0
+    meta = json.load(open(tmp_path / 'up' / 'cpu' / 'meta.json'))
+    assert meta['model'] == 'b' and meta['run'] == 'baseline_deeplabv3_r50_50shot_s0' and meta['tier_stats'] is None
     js = tmp_path / 'check.mjs'
     js.write_text(JS % os.path.join(REPO, 'app', 'js', 'router.js'))
     if shutil.which('node'):

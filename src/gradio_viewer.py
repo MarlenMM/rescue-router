@@ -41,8 +41,9 @@ START = 'rescuenet_12195&h=8&m=gt'           # canal row: truck, boat across the
 KEEP = 30                                    # uploaded scenes kept in the work folder
 
 
-def export_upload(s, d, caption, run):
-    """viewer scene folder for an uploaded photo (no labels); returns the Python statuses (TRUCK/BOAT/FOOT/ISOLATED)"""
+def export_upload(s, d, caption, run, model='a', model_name=''):
+    """viewer scene folder for an uploaded photo (no labels); returns the Python statuses (TRUCK/BOAT/FOOT/ISOLATED).
+    model 'b' = the CPU baseline served it (--live_baseline): the viewer then names the baseline, not Chameleon"""
     os.makedirs(d, exist_ok=True)
     ds = s['dataset']
     g = make_grids(s)                                                # pred (tuned gate) and pred_cautious
@@ -65,7 +66,8 @@ def export_upload(s, d, caption, run):
                 size=[int(s['img'].shape[1]), int(s['img'].shape[0])], photo_px=[int(s['img'].shape[1]), int(s['img'].shape[0])],
                 class_names=NAMES[ds], class_colors=[COLORS[ds][c] for c in range(5)], iou={}, miou=None,
                 n_buildings=len(s['buildings']), status_pred={k: status.count(k) for k in R.STATUS},
-                tier_stats=tier_stats(ds), m_per_cell=R.PROFILES[ds]['cell_m'], scale_source='dataset value')
+                tier_stats=None if model == 'b' else tier_stats(ds), m_per_cell=R.PROFILES[ds]['cell_m'],
+                scale_source='dataset value', model=model, **({'model_name': model_name} if model_name else {}))
     json.dump(meta, open(os.path.join(d, 'meta.json'), 'w'), indent=1)
     return status
 
@@ -109,7 +111,9 @@ def build_app(args, live, work):
                    if isinstance(live, G.FakeLive) else f'Your photo: CPU baseline {live.name}, live (no labels)'
                    if isinstance(live, G.BaselineLive) else 'Your photo: FloodNet 50-shot model, live (no labels)')
         up = os.path.join(work, 'scenes', 'up')
-        status = export_upload(s, os.path.join(up, token), caption, RUNS['floodnet'])
+        base = isinstance(live, G.BaselineLive)                     # the viewer names the model that made the map
+        status = export_upload(s, os.path.join(up, token), caption, live.run if base else RUNS['floodnet'],
+                               'b' if base else 'a', live.name if base else '')
         old = sorted((os.path.getmtime(os.path.join(up, t)), t) for t in os.listdir(up))
         for _, t in old[:-KEEP]:
             shutil.rmtree(os.path.join(up, t), ignore_errors=True)
