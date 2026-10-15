@@ -34,18 +34,26 @@ def parse(run):
 
 
 def routing(results, run, dec, out_dir, ds='floodnet'):
+    """router v3 (chosen decode, lam 5) on eval100 (<run>.json) and, when the run predicted the whole test set, on it
+    too (<run>_full.json: 4.5x the photos, for baseline_report's paired full-test routing)"""
     os.makedirs(out_dir, exist_ok=True)
-    f = os.path.join(out_dir, f'{run}.json')
-    if not os.path.exists(f):
-        preds = next(p for p in (os.path.join(results, 'preds', f'{run}_{ds}_test_eval100{s}.npz') for s in ('_fp16', ''))
-                     if os.path.exists(p))
-        tmp = os.path.join(out_dir, f'{run}_decode.json')
-        json.dump({k: v for k, v in dec.items() if k != 'variant'}, open(tmp, 'w'))
-        subprocess.run([sys.executable, os.path.join(HERE, 'route_eval.py'), '--dataset', ds, '--split_file',
-                        f'{ds}_test_eval100', '--preds', preds, '--decode', tmp, '--lams', '5', '--out', f],
-                       check=True, stdout=subprocess.DEVNULL)
-    r = json.load(open(f))['routing']['lam5']
-    return dict(stranded_f1=r['stranded_f1'], false_safe=r['false_safe_rate'], infeasible=r['infeasible_rate'])
+    out = {}
+    for split, suffix in (('test_eval100', ''), ('test_full', '_full')):
+        f = os.path.join(out_dir, f'{run}{suffix}.json')
+        if not os.path.exists(f):
+            preds = next((p for p in (os.path.join(results, 'preds', f'{run}_{ds}_{split}{s}.npz') for s in ('_fp16', ''))
+                          if os.path.exists(p)), None)
+            if preds is None:
+                continue
+            tmp = os.path.join(out_dir, f'{run}_decode.json')
+            json.dump({k: v for k, v in dec.items() if k != 'variant'}, open(tmp, 'w'))
+            subprocess.run([sys.executable, os.path.join(HERE, 'route_eval.py'), '--dataset', ds, '--split_file',
+                            f'{ds}_{split}', '--preds', preds, '--decode', tmp, '--lams', '5', '--out', f],
+                           check=True, stdout=subprocess.DEVNULL)
+        r = json.load(open(f))['routing']['lam5']
+        out.update({f'stranded_f1{suffix}': r['stranded_f1'], f'false_safe{suffix}': r['false_safe_rate'],
+                    f'infeasible{suffix}': r['infeasible_rate']})
+    return out
 
 
 def label_free_miou(a, run):
@@ -112,8 +120,8 @@ def main():
         if a.routing:
             row.update(routing(a.results, run, d['chosen'], os.path.join(os.path.dirname(a.out), 'routing')))
         rows.append(row)
-    metrics = [k for k in ('chosen', 'chosen_sam', 'prior', 'tau05', 'val30', 'confirm100', 'stranded_f1', 'false_safe')
-               if any(r.get(k) is not None for r in rows)]
+    metrics = [k for k in ('chosen', 'chosen_sam', 'prior', 'tau05', 'val30', 'confirm100', 'stranded_f1', 'false_safe',
+                           'stranded_f1_full', 'false_safe_full') if any(r.get(k) is not None for r in rows)]
     md = ['# Phase 2 runs (eval100 unless noted)', '',
           'Class columns are the five slots; RescueNet\'s are ' + ', '.join(RN_NAMES) + '. "prior": thresholds from the '
           'run\'s own k support labels only (no tuning labels).', '',

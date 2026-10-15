@@ -1013,6 +1013,16 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
   full test: .189 / .291. FloodNet support draw 1 (seed 0): full test .593 (draw 0 .581; mean .587 ± .008). Note:
   Chameleon's published RescueNet 50-shot run (.402, first recipe) is below its 20-shot run (.421); the one-recipe
   `rescuenet_50shot_s0_stratified_p2` in `curve` re-measures exactly that point.
+- **Cycle 11 (16 Oct morning; Marlen: Phase 2 still on hold, "continue improving"):**
+  1. **Routing on the full test for every curve point:** Phase 2 predicts FloodNet 1-20 and RescueNet 5-20 on the whole
+     test set, but routing was compared on eval100 only (RescueNet eval100 holds so few stranded houses that the
+     baseline's stranded-F1 intervals span .08-.74). `phase2_report.py --routing` now also routes a run on the full test
+     when it was predicted there (`routing/<run>_full.json`), and `baseline_report.py` pairs full-test routing for every
+     baseline with such a Chameleon partner (before: FloodNet 50 draw 0 only; today's report unchanged apart from a
+     photo count). Not a choice: the registered routing metrics stay on eval100; this adds resolution.
+  2. `curve_routing.png` (`curve_figure.py`): stranded-house F1 and false-safe rate by k, both models, both datasets.
+  3. Test that `docs/` is exactly the viewer built from `app/` (CI); viewer: `M` switches the model; no local paths
+     in any tracked file (checked before the repo goes public).
 - Data and model cards, README status brought up to date. CI green on every push.
 - **Cycle 10 (re-audit):**
   1. `rebuild_all.py --only baseline_tiers,export,viewer,tests`: headline all as published, but `scenes.json` differed

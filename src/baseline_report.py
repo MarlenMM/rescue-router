@@ -193,11 +193,14 @@ def paired(xb, xc, ids, fn, B):
 
 
 def cham_routing_file(folder, run, sf):
+    """Chameleon's routing (route_eval JSON, chosen decode) on eval100 or the full test; None where it was never routed
+    (the published 1-20-shot and RescueNet runs predicted eval100 only)"""
+    full = sf.endswith('test_full')
     if run == SUBMITTED and sf == 'floodnet_test_full':
         return os.path.join(REPO, 'results', 'routing', 'full', 'pred_floodnet_50shot_full_tuned.json')
     if folder.endswith(os.path.join('kaggle_v2', 'rr')):
-        return os.path.join(REPO, 'results', 'routing', f'pred_{run}_tuned.json')
-    return os.path.join(os.path.dirname(folder), 'routing', f'{run}.json')        # phase2_report.py --routing
+        return None if full else os.path.join(REPO, 'results', 'routing', f'pred_{run}_tuned.json')
+    return os.path.join(os.path.dirname(folder), 'routing', f'{run}_full.json' if full else f'{run}.json')  # phase2_report
 
 
 def main():
@@ -275,12 +278,18 @@ def main():
                 common = sorted(set(sb) & set(sc)) if sc else sorted(sb)
                 row['routing_eval100'][m] = paired(sb, sc, common, f, a.B) if sc else \
                     dict(baseline=boot(sb, common, f, a.B, np.random.default_rng(0))[0])
-        if ds == 'floodnet' and b['k'] == 50 and b['draw'] == 0 and cache(a.baselines, b['run'], 'floodnet_test_full'):
-            sb = route(a, b, 'floodnet_test_full', cache(a.baselines, b['run'], 'floodnet_test_full'))
-            sc = per_photo_status(cham_routing_file(a.results, SUBMITTED, 'floodnet_test_full'))
+        # and on the full test wherever both predicted it (FloodNet 50 draw 0 vs the submitted model; with Phase 2 the
+        # one-recipe curve points, FloodNet 1-20 and RescueNet 5-20): 4.5x the photos of eval100, so far tighter
+        # intervals on the safety metrics (eval100 holds few stranded houses, RescueNet's especially)
+        full_sf = f'{ds}_test_full'
+        fc = cmp and cache(a.baselines, b['run'], full_sf) and cham_routing_file(cmp[0], cmp[1], full_sf)
+        if fc and os.path.exists(fc):
+            sb = route(a, b, full_sf, cache(a.baselines, b['run'], full_sf))
+            sc = per_photo_status(fc)
             common = sorted(set(sb) & set(sc))
             row['routing_full'] = {m: paired(sb, sc, common, f, a.B) for m, f in (('stranded_f1', f1_from),
                                                                                   ('false_safe', false_safe_from))}
+            row['routing_full_n'] = len(common)
         rows.append(row)
         x = row['argmax']
         print(b['run'], sf, round(x['baseline']['value'], 4), 'vs', cmp and cmp[1],
@@ -354,12 +363,13 @@ def report(rows):
         md.append(f"| {r['run']} | {cell(f)} | {cell(s)} |")
     full = [r for r in rows if 'routing_full' in r]
     if full:
-        md += ['', '## Routing on the full FloodNet test (448 photos), 50 shots, vs the submitted Chameleon model', '',
-               '| run | metric | baseline [95 % CI] | Chameleon | baseline − Chameleon [95 % CI] |', '|---|---|---|---|---|']
+        md += ['', '## Routing on the full test, vs Chameleon of the same k (where both predicted the whole test set)', '',
+               '| run | photos | metric | baseline [95 % CI] | Chameleon (which) | baseline − Chameleon [95 % CI] |',
+               '|---|---|---|---|---|---|']
         for r in full:
             for m, x in r['routing_full'].items():
-                md.append(f"| {r['run']} | {m.replace('_', ' ')} | {f3(x['baseline'])} | {x['chameleon']['value']:.3f} | "
-                          f"{fd(x['diff'])} |")
+                md.append(f"| {r['run']} | {r.get('routing_full_n', '')} | {m.replace('_', ' ')} | {f3(x['baseline'])} | "
+                          f"{x['chameleon']['value']:.3f} ({r['chameleon']['label']}) | {fd(x['diff'])} |")
     groups = defaultdict(list)
     for r in rows:
         if not r['tag'] and not r['tta']:
