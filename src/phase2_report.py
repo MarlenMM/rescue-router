@@ -48,6 +48,20 @@ def routing(results, run, dec, out_dir, ds='floodnet'):
     return dict(stranded_f1=r['stranded_f1'], false_safe=r['false_safe_rate'], infeasible=r['infeasible_rate'])
 
 
+def label_free_miou(a, run):
+    """RescueNet eval100 mIoU with thresholds from the run's k support labels only (baseline_report.label_free_tau: prior
+    matching on the raw val30 probabilities, labels unused; FloodNet runs get theirs from run_decode.py)"""
+    import baseline_report as BR
+    from rr.metrics import WET, summarize
+    p = parse(run)
+    tau = BR.label_free_tau(a.results, run, os.path.join(a.out, 'label_free'), p['dataset'], p['shot'], p['draw'])
+    if not tau or not BR.cache(a.results, run, f"{p['dataset']}_test_eval100"):
+        return None
+    g = BR.Labels()(p['dataset'], f"{p['dataset']}_test_eval100")
+    cms = BR.cham_label_free_cms(a.results, run, p['dataset'], f"{p['dataset']}_test_eval100", g, tau)
+    return float(summarize(sum(cms.values()), RN_NAMES if p['dataset'] == 'rescuenet' else NAMES, WET[p['dataset']])['miou'])
+
+
 def anova2(grid):
     """grid[draw][seed] (full, no replication) -> mean squares and variance components"""
     Y = np.asarray(grid, float)
@@ -75,7 +89,7 @@ def main():
         if 'splits' not in d and d.get('eval100'):      # decode_tune.py format (RescueNet): its own chosen rule, no SAM
             v = d['chosen']['variant']
             rows.append(dict(run=d['run'], **parse(d['run']), val30=d['val30'][v]['miou'], tau05=d['eval100']['default']['miou'],
-                             prior=None, chosen=d['eval100'][v]['miou'], chosen_sam=None, decode=v,
+                             prior=label_free_miou(a, d['run']), chosen=d['eval100'][v]['miou'], chosen_sam=None, decode=v,
                              drivable_precision=d['eval100'][v]['drivable_precision'],
                              **{n: d['eval100'][v][f'iou_{c}'] for n, c in zip(NAMES, RN_NAMES)}))
             if a.routing:
@@ -101,7 +115,9 @@ def main():
     metrics = [k for k in ('chosen', 'chosen_sam', 'prior', 'tau05', 'val30', 'confirm100', 'stranded_f1', 'false_safe')
                if any(r.get(k) is not None for r in rows)]
     md = ['# Phase 2 runs (eval100 unless noted)', '',
-          '| run | shot | seed | draw | val30 | τ .5 | prior (50 labels) | chosen | + SAM | ' +
+          'Class columns are the five slots; RescueNet\'s are ' + ', '.join(RN_NAMES) + '. "prior": thresholds from the '
+          'run\'s own k support labels only (no tuning labels).', '',
+          '| run | shot | seed | draw | val30 | τ .5 | prior (k labels) | chosen | + SAM | ' +
           ' | '.join(NAMES) + ' | drv P' + (' | stranded F1 | false safe' if a.routing else '') + ' |',
           '|' + '---|' * (14 + (2 if a.routing else 0))]
     f3 = lambda x: '–' if x is None else f'{x:.3f}'                     # noqa: E731
