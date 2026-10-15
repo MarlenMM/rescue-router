@@ -948,6 +948,12 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
   RescueNet 5/10/20-shot `p2` runs predict the whole RescueNet test (450 photos), eval100 cut on the CPU, paired with
   the baseline on all 450 (+41 min of quota: curve 385 min, curve + var 9.4 h). The Mac queue predicts the full
   RescueNet test for every RescueNet baseline (rn20/rn50 lines, rn5full, rn10full, rn20ft).
+- **Cycle 7, post-Phase-2 path checked on a stand-in** (the published RescueNet 20-shot caches under the p2 name,
+  eval100 cut from a "full" cache): decode_tune picks the published decode (eval100 .421), `phase2_report.py` now
+  gives RescueNet's label-free mIoU (.342) and names the RescueNet class slots, routing F1 .818 / false safe .026 as
+  published; `post.py` also draws the curve figure with the Phase 2 points (`curve_figure.py --phase2`, checked).
+  CPU uploads can serve the seed ensemble (`--live_baseline a,b,c`, `--live_tta`; tested). Credential scan of every
+  tracked file in all 170 commits: clean (before the repo goes public after the grade).
 - **Viewer switch** (session started by Marlen, stopped at its usage limit, uncommitted in this folder; Marlen chose
   to commit the generated `b/` assets, ~12 MB of history): FloodNet done and parity-tested (304 JS tests); left:
   RescueNet (needs `tiers_rn20`), browser check, pytest, docs/, commit. Its notes: the session's hand-over file.
