@@ -1,0 +1,90 @@
+{
+ "id": "15833",
+ "dataset": "rescuenet",
+ "run": "baseline_deeplabv3_r50_rescuenet_20shot_s0",
+ "decode": {
+  "argmax": true
+ },
+ "caption": "Hurricane Michael: clear road, intact and damaged houses",
+ "size": [
+  768,
+  576
+ ],
+ "photo_px": [
+  768,
+  576
+ ],
+ "class_names": [
+  "road clear",
+  "road blocked",
+  "building intact",
+  "building damaged",
+  "water"
+ ],
+ "class_colors": [
+  [
+   46,
+   204,
+   64
+  ],
+  [
+   200,
+   0,
+   160
+  ],
+  [
+   245,
+   180,
+   0
+  ],
+  [
+   230,
+   40,
+   40
+  ],
+  [
+   0,
+   31,
+   120
+  ]
+ ],
+ "iou": {
+  "road clear": 0.566,
+  "road blocked": 0.0,
+  "building intact": 0.359,
+  "building damaged": 0.052,
+  "water": null
+ },
+ "miou": 0.244,
+ "n_buildings": 8,
+ "status_pred": {
+  "TRUCK": 8,
+  "BOAT": 0,
+  "FOOT": 0,
+  "ISOLATED": 0
+ },
+ "status_gt": {
+  "TRUCK": 8,
+  "BOAT": 0,
+  "FOOT": 0,
+  "ISOLATED": 0
+ },
+ "n_disagree": 0,
+ "tiers_pred": {
+  "CONFIDENT_TRUCK": 8,
+  "PROBABLE_TRUCK": 0,
+  "BOAT": 0,
+  "FOOT": 0,
+  "ISOLATED": 0
+ },
+ "tier_stats": {
+  "cautious_gate": 0.15,
+  "tuned_gate": 0.2,
+  "confident": 0.9597069597069597,
+  "probable": 0.0
+ },
+ "m_per_cell": 0.344,
+ "scale_source": "3 labelled cars",
+ "model": "b",
+ "model_name": "DeepLabV3-ResNet50"
+}

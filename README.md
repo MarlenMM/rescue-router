@@ -97,6 +97,10 @@ Work since then (PLAN §16; §16.5 for the latest review):
   false-safe analysis, CSV house list, truck stop points and a Korean interface in the viewer (local `docs/`;
   links now open exactly the view they name, Esc closes a route, the About text states the false-safe rate and the
   baseline result). Baseline training resumes after a crash or reboot (`--save_every`).
+- **Viewer model switch** (local `docs/`): every one of the 200 scenes can be shown with the submitted Chameleon model
+  or the same-budget DeepLabV3-ResNet50 (same photos and router, each model's own statuses, tiers, per-photo IoU and
+  measured false-safe rate in the printed briefing; link key `mo=b`); `src/export_web_assets.py` writes the second
+  model's layers to `scenes/<key>/b/`, and the JS router parity test covers both models (400 scenes).
   Model and data: `MODEL_CARD.md`, `DATA.md`.
 
 ## Setup (CPU)

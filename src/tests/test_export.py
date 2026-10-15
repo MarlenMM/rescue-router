@@ -40,3 +40,23 @@ def test_pack_roundtrip():
     assert [b['id'] for b in head['buildings']] == [r['id'] for r in s['buildings']]
     assert head['buildings'][0]['goals'] == s['buildings'][0]['goals']
     assert E.pack_scene(s) == E.pack_scene(s)                      # deterministic (gzip mtime 0)
+
+
+@pytest.mark.skipif(not E.b_cache('floodnet') or not os.path.exists(DATA), reason='needs the baseline caches')
+def test_model_b_scene():
+    """the viewer's second model (b/): the baseline's own run and argmax map, Chameleon's photo and labels"""
+    a, b = E.scene('floodnet', '7241', RESULTS, DATA), E.scene('floodnet', '7241', RESULTS, DATA, 'b')
+    assert b['run'] == E.MODEL_B['runs']['floodnet'] and b['model'] == 'b'
+    assert np.array_equal(a['img'], b['img']) and np.array_equal(a['gt'], b['gt'])
+    assert [r['id'] for r in a['buildings']] == [r['id'] for r in b['buildings']]     # houses come from the labels
+    assert not np.array_equal(a['pred'], b['pred'])
+
+
+def test_false_safe_per_model_and_dataset():
+    """the briefing's rate: per model and dataset, the full test where routed (FloodNet), else eval100"""
+    fs = E.false_safe('a', 'floodnet')
+    if fs is None:
+        pytest.skip('needs the routing reports')
+    assert fs['split'] == 'test_full' and fs['n_photos'] == 448 and abs(fs['rate'] - 0.1106) < 1e-4   # published .111
+    rn = E.false_safe('a', 'rescuenet')
+    assert rn and rn['split'] == 'test_eval100' and abs(rn['rate'] - 0.0256) < 1e-4                      # published .026

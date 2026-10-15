@@ -90,13 +90,20 @@ STEPS = {
              route('floodnet', 'floodnet_test_full', f'{RT}/tta/pred_floodnet_50shot_tta4_full_default.json', TTA_FULL),
              py('tta.py', 'report')], ['decode', 'route_full'], 'report/tta/: test-time flips (not adopted)'),
     'b13': ([py('b13_report.py')], ['decode'], 'report/b13/: Batch 13 headline switch recomputed (val30 chain, paired test)'),
-    'export': ([py('export_web_assets.py', '--out', 'app/scenes')], ['tiers'], 'app/scenes/: 200 viewer scenes'),
+    'baseline_tiers': ([py('tiers.py', '--results', 'results/baselines', '--run', 'baseline_deeplabv3_r50_50shot_s0', '--argmax',
+                           '--choose_on', 'val30,confirm100', '--out', 'results/baselines/report/tiers', '--fig', 'none'),
+                        py('tiers.py', '--results', 'results/baselines', '--run', 'baseline_deeplabv3_r50_rescuenet_20shot_s0',
+                           '--dataset', 'rescuenet', '--argmax', '--fixed_gate', '--out',
+                           'results/baselines/report/tiers_rescuenet', '--fig', 'none')], [],
+                       'results/baselines/report/tiers*/: the baseline\'s tiers (cautious gate; the viewer\'s model switch)'),
+    'export': ([py('export_web_assets.py', '--out', 'app/scenes')], ['tiers', 'route_full', 'same_budget', 'baseline_tiers'],
+               'app/scenes/: 200 viewer scenes, each with Chameleon and (b/) the baseline'),
     'viewer': ([py('build_viewer.py')], ['export'], 'docs/: the built web viewer'),
     'tests': ([[PY, '-m', 'pytest', 'src/tests', '-q'], ['node', '--test', 'app/test/router.test.mjs', 'app/test/i18n.test.mjs']], ['export'],
               'Python tests + JS router parity (bit-exact on all scenes)'),
 }
 
-NEEDS_BASELINES = ('same_budget', 'label_audit', 'consensus')     # the same-budget baselines' prediction caches
+NEEDS_BASELINES = ('same_budget', 'label_audit', 'consensus', 'baseline_tiers')     # the same-budget baselines' prediction caches
 
 # headline numbers as published (PLAN §15 Quick summary); --check compares the rebuilt files with these (3 decimals).
 # Updated 8 Oct (Batch 13.6): FloodNet 50-shot = the Batch 13 model (the published 7 Oct values: results/published_7oct.tar)

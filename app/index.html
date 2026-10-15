@@ -54,6 +54,11 @@
         <option value="iou" data-i18n>lowest mean IoU</option>
       </select></label>
       <div class="all" id="allScenes" data-i18n-attr="aria-label:" role="list" aria-label="Test photos"></div>
+      <h2 class="sub"><span data-i18n>Model</span> <span class="h2-note" id="modelNote"></span></h2>
+      <div class="seg models" role="radiogroup" aria-label="Model" data-i18n-attr="aria-label:">
+        <button role="radio" data-model="a" aria-checked="true" data-i18n-attr="title:" title="Chameleon as submitted: few-shot, plus 30 labelled photos for tuning">Chameleon</button>
+        <button role="radio" data-model="b" aria-checked="false">DeepLabV3</button>
+      </div>
       <p class="model" id="model"></p>
       <button id="copyLink" class="link-btn" data-i18n>Copy link to this view</button>
     </section>
@@ -129,7 +134,9 @@
       <p data-i18n-html="About numbers">FloodNet 50-shot: mIoU .51 on the full 448-image test (PSPNet with 1,445 labels: .85 on these classes).
         One showcase scene is an honest failure: shallow water read as dry land. A standard segmenter (DeepLabV3-ResNet50)
         fine-tuned on the same 50 photos, without the 30 tuning photos, does better: mIoU .58, and 8 % instead of 11 % of its
-        truck-reachable houses are not; this viewer shows the Chameleon model as submitted.</p>
+        truck-reachable houses are not. The Model switch shows it on the same 200 photos, with the same router and gates
+        and its own statuses, tiers and per-photo IoU (its confident tier: 97 % truly truck-reachable on FloodNet, Chameleon's
+        100 %); Chameleon is the model as submitted.</p>
       <p data-i18n-html="About browse">Besides the 8 showcase scenes you can browse all 200 test photos of the evaluation split (100 FloodNet,
         100 RescueNet), not picked by us: an orange count is the houses a truck cannot reach on the prediction, a pink dot
         marks a photo where prediction and labelled map disagree. "Water probability" shows what the model believes

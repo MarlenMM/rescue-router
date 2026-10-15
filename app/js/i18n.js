@@ -65,7 +65,9 @@ const KO = {
   'About numbers': `FloodNet 50-shot: 전체 448장 테스트에서 mIoU .51 (라벨 1,445장으로 학습한 PSPNet: 같은 클래스에서 .85).
     대표 장면 하나는 정직한 실패 사례입니다: 얕은 물을 마른 땅으로 읽었습니다. 같은 사진 50장으로 미세 조정한 일반적인 분할
     모델(DeepLabV3-ResNet50)은 조정용 사진 30장 없이도 더 낫습니다: mIoU .58, 트럭 도달 가능으로 표시한 가구 중 실제로는
-    아닌 비율 8 %(Chameleon 11 %). 이 뷰어는 제출한 Chameleon 모델을 그대로 보여 줍니다.`,
+    아닌 비율 8 %(Chameleon 11 %). '모델' 전환으로 같은 사진 200장에서 같은 경로 탐색기와 임계값으로 이 모델의 상태, 신뢰
+    등급, 사진별 IoU를 볼 수 있습니다(확실 등급: FloodNet에서 97 % 실제로 트럭 도달 가능, Chameleon 100 %). Chameleon은
+    제출한 모델 그대로입니다.`,
   'About browse': `8개 대표 장면 외에 평가 세트의 테스트 사진 200장(FloodNet 100, RescueNet 100) 전체를 볼 수 있으며,
     우리가 고른 것이 아닙니다. 주황색 숫자는 예측 지도에서 트럭이 닿지 못하는 가구 수, 분홍색 점은 예측과 라벨 지도가 다른
     사진입니다. '물 확률'은 모델이 셀마다 믿는 값을 보여 줍니다. 주소창에 장면, 가구, 진입 지점, 보기가 저장되므로 링크를
@@ -101,6 +103,11 @@ const KO = {
     '현장 팀용 한 장: 지금 보이는 지도와 경로, 모든 가구의 상태, 소요 시간, 트럭 정차 지점 (예측)',
   'No houses in this photo.': '이 사진에는 가구가 없습니다.',
   'Truck stops': '트럭 정차', 'boat launch': '보트 출발', 'walk-on point': '도보 출발',
+  // model switch
+  'Model': '모델',
+  'Chameleon as submitted: few-shot, plus 30 labelled photos for tuning': '제출한 Chameleon: 퓨샷, 조정용 라벨 사진 30장 추가',
+  'DeepLabV3-ResNet50 fine-tuned on the same labelled photos (same-budget baseline)': '같은 라벨 사진으로 미세 조정한 DeepLabV3-ResNet50 (같은 예산 기준 모델)',
+  'Not available for this photo': '이 사진에는 아직 없음',
 };
 
 const params = () => new URLSearchParams(location.hash.slice(1));

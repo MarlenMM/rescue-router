@@ -19,6 +19,13 @@ Per scene (folder <out>/<dataset>_<id>/):
                   tier): only for the JS parity test (app/test/), not copied to docs/
 plus <out>/scenes.json (index: showcase scenes first, then every eval100 photo of both datasets). The predicted map uses the run's tuned decode and the off-road gate
 (route_eval.PRED_OFFROAD_MAXWET, per dataset); the GT map has no gate, as in route_eval.py.
+
+Model switch (PLAN §16.6): the same-budget baseline (MODEL_B: DeepLabV3-ResNet50 on the same 50 / 20 photos,
+src/baseline_seg.py, argmax decode) gets its own layers per scene in <out>/<dataset>_<id>/b/: pred.png, scene.rrb,
+meta.json and ref.json as above (photo, thumbnail and labelled map are shared), where its eval100 cache exists. Same
+router and gates as Chameleon; the route card's tier shares come from the baseline's own tiers report.
+
+    python src/export_web_assets.py --out app/scenes --models b    # only the baseline layers (index rebuilt)
 """
 
 import argparse
@@ -46,6 +53,21 @@ from viz import COLORS, NAMES, blend, colorize, load_image, load_label  # noqa: 
 from rr.paths import RR_DATA  # noqa: E402
 
 RUNS = {'floodnet': 'floodnet_50shot_s0_stratified', 'rescuenet': 'rescuenet_20shot_s0_stratified'}
+ROOT = os.path.dirname(HERE)
+# the viewer's second model ('b', scenes/<key>/b/): same photos and labels as Chameleon, no tuning labels; tier shares
+# from `src/tiers.py --results results/baselines --run <run> --argmax ...` (its tiers.json, per dataset)
+MODEL_B = dict(name='DeepLabV3-ResNet50', results=os.path.join(ROOT, 'results/baselines'), decode={'argmax': True},
+               runs={'floodnet': 'baseline_deeplabv3_r50_50shot_s0', 'rescuenet': 'baseline_deeplabv3_r50_rescuenet_20shot_s0'},
+               tiers={'floodnet': os.path.join(ROOT, 'results/baselines/report/tiers/tiers.json'),
+                      'rescuenet': os.path.join(ROOT, 'results/baselines/report/tiers_rescuenet/tiers.json')})
+# where each model's measured false-safe rate (houses shown truck-reachable that are not, router v3, lam 5) comes from,
+# per dataset: the full test where it was routed, else eval100. The printed briefing quotes the rate of the model and
+# dataset on screen (one FloodNet number on RescueNet photos would overstate Chameleon's .026 there by 4x).
+ROUTING = {'a': {'floodnet': ['results/routing/full/pred_floodnet_50shot_full_tuned.json',
+                              'results/routing/pred_floodnet_50shot_s0_stratified_tuned.json'],
+                 'rescuenet': ['results/routing/pred_rescuenet_20shot_s0_stratified_tuned.json']},
+           'b': {ds: [f'results/baselines/report/routing_full_{r}.json', f'results/baselines/report/routing_{r}.json']
+                 for ds, r in MODEL_B['runs'].items()}}
 LAMS = (5.0, 0.0)
 STATUS_RGB = {R.TRUCK: (46, 204, 64), R.BOAT: (255, 140, 0), R.FOOT: (167, 139, 250), R.ISOLATED: (230, 30, 60)}
 
@@ -78,12 +100,22 @@ def polygon(mask, tol=1.5):
     return [[round(float(x), 1), round(float(y), 1)] for y, x in c]
 
 
-def load_cached(dataset, i, results, data):
-    """photo, GT class map, cached uint8 probabilities and the tuned decode of one eval100 image."""
-    run = RUNS[dataset]
-    z = np.load(os.path.join(results, 'preds', f'{run}_{dataset}_test_eval100_fp16.npz'))
+def b_cache(dataset):
+    """the baseline's eval100 prediction cache (no _fp16 suffix), or None before it is predicted"""
+    f = os.path.join(MODEL_B['results'], 'preds', f"{MODEL_B['runs'][dataset]}_{dataset}_test_eval100.npz")
+    return f if os.path.exists(f) else None
+
+
+def load_cached(dataset, i, results, data, model='a'):
+    """photo, GT class map, cached uint8 probabilities and the tuned decode of one eval100 image (model 'a' =
+    Chameleon; 'b' = MODEL_B with its argmax decode)."""
+    if model == 'b':
+        run, z, dec = MODEL_B['runs'][dataset], np.load(b_cache(dataset)), MODEL_B['decode']
+    else:
+        run = RUNS[dataset]
+        z = np.load(os.path.join(results, 'preds', f'{run}_{dataset}_test_eval100_fp16.npz'))
+        dec = json.load(open(os.path.join(results, 'decode', f'{run}.json')))['chosen']
     ids = [str(x) for x in z['ids']]
-    dec = json.load(open(os.path.join(results, 'decode', f'{run}.json')))['chosen']
     return dict(img=load_image(data, dataset, 'test', i), gt=gt_classes(load_label(data, dataset, 'test', i)),
                 probs=z['probs'][ids.index(i)], decode=dec, run=run)
 
@@ -119,11 +151,11 @@ def make_grids(s, lam=R.DEFAULTS['lam'], boat_cost=R.DEFAULTS['boat_cost']):
     return out
 
 
-def scene(dataset, i, results, data):
+def scene(dataset, i, results, data, model='a'):
     """Everything about one cached eval100 scene, with the Python reference statuses and costs (lam 5, 0)."""
-    c = load_cached(dataset, i, results, data)
+    c = load_cached(dataset, i, results, data, model)
     s = build_scene(dataset, c['img'], c['probs'], c['decode'], c['gt'], photo_id=i, split_file=f'{dataset}_test_eval100')
-    s.update(id=i, run=c['run'], grids={lam: make_grids(s, lam) for lam in LAMS})
+    s.update(id=i, run=c['run'], model=model, grids={lam: make_grids(s, lam) for lam in LAMS})
     g = s['grids'][LAMS[0]]['gt']
     for r, b in zip(s['buildings'], s['bld']):                      # goal rings per mode (same on both maps)
         r['goals'] = [g.goal(b, layer).tolist() for layer in (R.TRUCK, R.BOAT, R.FOOT)]
@@ -198,14 +230,33 @@ def pack_scene(s):
     return gzip.compress(struct.pack('<I', len(head)) + head + bytes(data), 9, mtime=0)
 
 
-def tier_stats(ds, path=os.path.join(os.path.dirname(HERE), 'results/routing/tiers/tiers.json')):
-    """share of truly truck-reachable houses per tier on eval100 (src/tiers.py), for the route card"""
+def tier_stats(ds, path=os.path.join(ROOT, 'results/routing/tiers/tiers.json')):
+    """share of truly truck-reachable houses per tier on eval100 (src/tiers.py), for the route card; None without
+    the report, or when its gates are not the ones the viewer routes with"""
     if not os.path.exists(path):
         return None
     t = json.load(open(path))
+    if f'{ds}_eval100' not in t['tiers']:
+        return None
+    if (t['gates'][ds]['tuned'], t['gates'][ds]['cautious']) != (PRED_OFFROAD_MAXWET[ds], PRED_CAUTIOUS_MAXWET[ds]):
+        print(f'  {path}: {ds} gates {t["gates"][ds]["tuned"]} / {t["gates"][ds]["cautious"]} are not the router\'s '
+              f'{PRED_OFFROAD_MAXWET[ds]} / {PRED_CAUTIOUS_MAXWET[ds]}: no tier shares on the route card')
+        return None
     tt = t['tiers'][f'{ds}_eval100']
     return dict(cautious_gate=t['gates'][ds]['cautious'], tuned_gate=t['gates'][ds]['tuned'],
                 confident=tt['CONFIDENT_TRUCK']['gt_truck_share'], probable=tt['PROBABLE_TRUCK']['gt_truck_share'])
+
+
+def false_safe(model, ds, root=ROOT):
+    """{rate, n_houses, split} of the first routing report that exists (ROUTING), or None"""
+    for f in ROUTING[model][ds]:
+        f = os.path.join(root, f)
+        if os.path.exists(f):
+            j = json.load(open(f))
+            r = j['routing']['lam5']
+            return dict(rate=round(r['false_safe_rate'], 4), n_false_safe=r['n_false_safe'],
+                        split=j['split_file'].replace(f'{ds}_', ''), n_photos=j['n_images'])
+    return None
 
 
 def scene_scale(s, data=RR_DATA):
@@ -240,15 +291,18 @@ def photo_hi(s, data, max_diff=6.0):
 
 
 def export(s, out, caption='', data=RR_DATA):
-    d = os.path.join(out, f"{s['dataset']}_{s['id']}")
+    """the scene's files; for model 'b' only its own layers, in the b/ subfolder"""
+    b = s.get('model') == 'b'
+    d = os.path.join(out, f"{s['dataset']}_{s['id']}", *(['b'] if b else []))
     os.makedirs(d, exist_ok=True)
     for old in ('grid.json', 'buildings.json'):                     # pre-Batch-4 format
         if os.path.exists(os.path.join(d, old)):
             os.remove(os.path.join(d, old))
     hi = photo_hi(s, data)
-    (hi or Image.fromarray(s['img'])).save(os.path.join(d, 'photo.jpg'), quality=86 if hi else 90)
-    Image.fromarray(s['img']).resize((192, 144), Image.LANCZOS).save(os.path.join(d, 'thumb.jpg'), quality=82)
-    for k in ('pred', 'gt'):
+    if not b:
+        (hi or Image.fromarray(s['img'])).save(os.path.join(d, 'photo.jpg'), quality=86 if hi else 90)
+        Image.fromarray(s['img']).resize((192, 144), Image.LANCZOS).save(os.path.join(d, 'thumb.jpg'), quality=82)
+    for k in ('pred',) if b else ('pred', 'gt'):
         Image.fromarray(colorize(s[k], s['dataset'])).save(os.path.join(d, f'{k}.png'), optimize=True)
     open(os.path.join(d, 'scene.rrb'), 'wb').write(pack_scene(s))
     json.dump([dict(id=r['id'], py=r['py'], tier_pred=r['tier_pred']) for r in s['buildings']],
@@ -265,7 +319,9 @@ def export(s, out, caption='', data=RR_DATA):
                 status_gt=counts(s['buildings'], 'status_gt'),
                 n_disagree=sum(r['status_pred'] != r['status_gt'] for r in s['buildings']),
                 tiers_pred={t: sum(r['tier_pred'] == t for r in s['buildings']) for t in R.TIERS},
-                tier_stats=tier_stats(s['dataset']), **scene_scale(s))
+                tier_stats=tier_stats(s['dataset'], *([MODEL_B['tiers'][s['dataset']]] if b else [])), **scene_scale(s))
+    if b:
+        meta.update(model='b', model_name=MODEL_B['name'])
     json.dump(meta, open(os.path.join(d, 'meta.json'), 'w'), indent=1)
     return meta
 
@@ -276,13 +332,27 @@ def eval100_ids(dataset, results):
 
 
 def _export_one(job):
-    ds, i, cap, results, data, out = job
-    s = scene(ds, i, results, data)
-    m = export(s, out, cap, data)
-    print(ds, i, m['status_gt'], m['status_pred'], flush=True)
-    return dict(key=f'{ds}_{i}', dataset=ds, id=i, caption=cap, showcase=bool(cap), n_buildings=m['n_buildings'],
-                status_pred=m['status_pred'], status_gt=m['status_gt'], n_disagree=m['n_disagree'],
-                n_check=m['tiers_pred']['PROBABLE_TRUCK'], miou=m['miou'])
+    ds, i, cap, results, data, out, model = job
+    m = export(scene(ds, i, results, data, model), out, cap, data)
+    print(ds, i, model, m['status_gt'], m['status_pred'], flush=True)
+
+
+def summary(m):
+    """what the browse list shows of one exported model (badges, sorting)"""
+    return dict(status_pred=m['status_pred'], n_disagree=m['n_disagree'], n_check=m['tiers_pred']['PROBABLE_TRUCK'],
+                miou=m['miou'])
+
+
+def index_entry(out, ds, i, cap):
+    """scenes.json entry, read back from the exported meta.json files (Chameleon's and, if exported, b/)"""
+    d = os.path.join(out, f'{ds}_{i}')
+    m = json.load(open(os.path.join(d, 'meta.json')))
+    e = dict(key=f'{ds}_{i}', dataset=ds, id=i, caption=cap, showcase=bool(cap), n_buildings=m['n_buildings'],
+             status_pred=m['status_pred'], status_gt=m['status_gt'], n_disagree=m['n_disagree'],
+             n_check=m['tiers_pred']['PROBABLE_TRUCK'], miou=m['miou'])
+    if os.path.exists(os.path.join(d, 'b', 'meta.json')):
+        e['b'] = summary(json.load(open(os.path.join(d, 'b', 'meta.json'))))
+    return e
 
 
 def sheet_row(s, caption):
@@ -320,7 +390,10 @@ def main():
     ap.add_argument('--showcase', action='store_true', help='only the 8 showcase scenes')
     ap.add_argument('--sheet', default=None, help='write a contact sheet PNG instead of the assets')
     ap.add_argument('--workers', type=int, default=8)
+    ap.add_argument('--models', default='a,b', help='a = Chameleon (the scene folder), b = MODEL_B (b/, where its '
+                                                     'eval100 cache exists); the index is rebuilt from the files')
     a = ap.parse_args()
+    models = a.models.split(',')
     caps = {(d, i): c for d, i, c in SCENES}
     if a.scenes:
         todo = [tuple(x.split(':')) for x in a.scenes.split(',')]
@@ -341,13 +414,23 @@ def main():
         for d in glob.glob(os.path.join(a.out, '*_*/')):
             if os.path.basename(d.rstrip('/')) not in keep:
                 shutil.rmtree(d)
-    jobs = [(ds, i, caps.get((ds, i), ''), a.results, a.data, a.out) for ds, i in todo]
+    jobs = [(ds, i, caps.get((ds, i), ''), a.results, a.data, a.out, 'a') for ds, i in todo] if 'a' in models else []
+    if 'b' in models:
+        have = {ds for ds in RUNS if b_cache(ds)}
+        for ds in sorted(set(RUNS) - have):
+            print(f"no {MODEL_B['runs'][ds]} eval100 cache in {MODEL_B['results']}/preds: {ds} without model b")
+        jobs += [(ds, i, caps.get((ds, i), ''), a.results, a.data, a.out, 'b') for ds, i in todo if ds in have]
     with Pool(a.workers) as pool:
-        index = pool.map(_export_one, jobs)
+        pool.map(_export_one, jobs)
+    index = [index_entry(a.out, ds, i, caps.get((ds, i), '')) for ds, i in todo]
+    have_b = {e['dataset'] for e in index if 'b' in e}
     json.dump(dict(scenes=index, runs=RUNS, offroad_maxwet_pred=PRED_OFFROAD_MAXWET,
-                   offroad_maxwet_cautious=PRED_CAUTIOUS_MAXWET),
+                   offroad_maxwet_cautious=PRED_CAUTIOUS_MAXWET,
+                   models=dict(a=dict(name='Chameleon', runs=RUNS, false_safe={d: false_safe('a', d) for d in RUNS}),
+                               b=dict(name=MODEL_B['name'], runs={d: r for d, r in MODEL_B['runs'].items() if d in have_b},
+                                      false_safe={d: false_safe('b', d) for d in have_b}))),
               open(os.path.join(a.out, 'scenes.json'), 'w'), separators=(',', ':'))
-    print(f'{len(index)} scenes -> {a.out}')
+    print(f"{len(index)} scenes -> {a.out} ({sum('b' in e for e in index)} with model b)")
 
 
 if __name__ == '__main__':

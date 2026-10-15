@@ -34,12 +34,19 @@ const CB_CLASS = {
   floodnet: [[86, 180, 233], [0, 114, 178], [213, 94, 0], [240, 228, 66], [0, 31, 120]],
   rescuenet: [[86, 180, 233], [0, 158, 115], [240, 228, 66], [213, 94, 0], [0, 31, 120]],
 };
-const MODEL_ATTRIB = '<a href="https://github.com/GitGyun/chameleon">Chameleon</a> (Kim et al., ECCV 2024)'
-  + ' · FloodNet building outlines: <a href="https://github.com/facebookresearch/segment-anything">SAM</a>';
+// the two models of the switch (scenes.json 'models'; model b's layers in scenes/<key>/b/): the submitted Chameleon
+// and the same-budget baseline on the same labelled photos. Their measured false-safe rates per dataset (for the
+// printed briefing) are in scenes.json: models.<a|b>.false_safe.<dataset>
+const MODEL = {
+  a: { name: 'Chameleon', attrib: '<a href="https://github.com/GitGyun/chameleon">Chameleon</a> (Kim et al., ECCV 2024)'
+    + ' · FloodNet building outlines: <a href="https://github.com/facebookresearch/segment-anything">SAM</a>' },
+  b: { name: 'DeepLabV3-ResNet50', attrib: '<a href="https://pytorch.org/vision/stable/models/deeplabv3.html">DeepLabV3-ResNet50</a>'
+    + ' (Chen et al. 2017; torchvision, COCO-pretrained)' },
+};
 
 const $ = (id) => document.getElementById(id);
 const state = { index: null, key: null, s: null, src: 'pred', layer: 'classes', lam: 5, swipe: 0.5, sel: null, anim: null,
-  entry: null, picking: false, ds: 'floodnet', sort: 'id', cb: false };
+  entry: null, picking: false, ds: 'floodnet', sort: 'id', cb: false, model: 'a' };
 
 // ---------- map and panes ----------
 const map = L.map('map', { crs: L.CRS.Simple, zoomSnap: 0.25, zoomDelta: 0.5, minZoom: -4, maxZoom: 4,
@@ -74,7 +81,9 @@ function badgeIcon(kind, sel) {
 
 // ---------- scene loading ----------
 async function loadIndex() {
-  state.index = await (await fetch('scenes/scenes.json')).json();
+  // revalidated on every visit (a 304 when unchanged): a cached index from an older build would hide new scenes or
+  // the model switch until the browser's heuristic cache expires
+  state.index = await (await fetch('scenes/scenes.json', { cache: 'no-cache' })).json();
   const box = $('scenes');
   for (const sc of state.index.scenes.filter(s => s.showcase)) {
     const b = document.createElement('button');
@@ -89,13 +98,17 @@ async function loadIndex() {
   }
 }
 
+// ---------- model switch: 'a' Chameleon, 'b' the baseline where its layers exist (scenes.json entry has 'b') ----------
+const modelOf = (sc) => (state.model === 'b' && sc && sc.b ? 'b' : 'a');
+const summary = (sc) => (modelOf(sc) === 'b' ? { ...sc, ...sc.b } : sc);     // the browse badges of the shown model
+
 // ---------- browsing all eval100 photos ----------
-const cutOff = (sc) => sc.n_buildings - sc.status_pred.TRUCK;    // houses not reachable by truck on the prediction
+const cutOff = (sc) => sc.n_buildings - summary(sc).status_pred.TRUCK;    // houses not reachable by truck on the prediction
 const SORTS = {
   id: (a, b) => +a.id - +b.id,
   cut: (a, b) => cutOff(b) - cutOff(a) || +a.id - +b.id,
-  dis: (a, b) => b.n_disagree - a.n_disagree || +a.id - +b.id,
-  iou: (a, b) => (a.miou ?? 2) - (b.miou ?? 2) || +a.id - +b.id,
+  dis: (a, b) => summary(b).n_disagree - summary(a).n_disagree || +a.id - +b.id,
+  iou: (a, b) => (summary(a).miou ?? 2) - (summary(b).miou ?? 2) || +a.id - +b.id,
 };
 const browseList = () => state.index.scenes.filter(s => s.dataset === state.ds).sort(SORTS[state.sort]);
 
@@ -103,9 +116,10 @@ function drawBrowse() {
   const box = $('allScenes');
   box.innerHTML = '';
   document.querySelectorAll('.seg.ds button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.ds === state.ds)));
-  for (const sc of browseList()) {
+  state.browseModel = state.model;
+  for (const s0 of browseList()) {
     const b = document.createElement('button');
-    const cut = cutOff(sc);
+    const sc = summary(s0), cut = cutOff(s0);
     b.dataset.key = sc.key;
     b.setAttribute('role', 'listitem');
     b.setAttribute('aria-pressed', String(sc.key === state.key));
@@ -153,12 +167,12 @@ function setNoLabels(on) {                                         // hide every
   if (on && state.src !== 'pred') setSource('pred');
 }
 
-async function loadScene(key) {
+async function loadScene(key, keepView = false) {             // keepView: the same photo on the other model
   const sc = state.index.scenes.find(s => s.key === key) || uploadEntry(key) || state.index.scenes[0];
-  const dir = `scenes/${sc.key}/`;
+  const model = modelOf(sc), dir = `scenes/${sc.key}/`, mdir = model === 'b' ? `${dir}b/` : dir;   // photo and labels: dir
   const [meta, { grid, buildings: blds }] = await Promise.all([
-    fetch(dir + 'meta.json').then(r => r.json()),
-    fetch(dir + 'scene.rrb').then(r => r.arrayBuffer()).then(parseScene)]);
+    fetch(mdir + 'meta.json').then(r => r.json()),
+    fetch(mdir + 'scene.rrb').then(r => r.arrayBuffer()).then(parseScene)]);
   stopAnim();
   state.key = sc.key;
   state.sel = null;
@@ -167,15 +181,16 @@ async function loadScene(key) {
   const [W, H] = meta.size;
   if (meta.upload) sc.caption = meta.caption;
   setNoLabels(Boolean(meta.upload));                               // before state.s: setSource redraws the old scene
-  state.s = { sc, dir, meta, grid, blds, W, H, ds: meta.dataset };
-  if (sc.dataset !== state.ds) { state.ds = sc.dataset; drawBrowse(); }
+  state.s = { sc, dir, mdir, model, meta, grid, blds, W, H, ds: meta.dataset };
+  if (sc.dataset !== state.ds || state.model !== state.browseModel) { state.ds = sc.dataset; drawBrowse(); }
   markPressed();
+  drawModelSeg();
   drawCaption();
   for (const k of Object.keys(groups)) groups[k].clearLayers();
   const bounds = [[0, 0], [H, W]];
   L.imageOverlay(dir + 'photo.jpg', bounds).addTo(groups.photo);
   state.overlays = {
-    pred: L.imageOverlay(dir + 'pred.png', bounds, { pane: 'pred', opacity: opacity() }).addTo(groups.pred),
+    pred: L.imageOverlay(mdir + 'pred.png', bounds, { pane: 'pred', opacity: opacity() }).addTo(groups.pred),
     gt: L.imageOverlay(dir + 'gt.png', bounds, { pane: 'gt', opacity: opacity() }).addTo(groups.gt),
     pwet: L.imageOverlay(pwetImage(grid), bounds, { pane: 'pred', opacity: 0, className: 'pwet' }).addTo(groups.pred),
   };
@@ -183,17 +198,18 @@ async function loadScene(key) {
   drawPwetLegend();
   if (state.cb) applyPalette();
   map.attributionControl._attributions = {};
-  map.attributionControl.addAttribution(`${DATASET[meta.dataset].attrib} · ${MODEL_ATTRIB}`);
+  map.attributionControl.addAttribution(`${DATASET[meta.dataset].attrib} · ${MODEL[model].attrib}`);
   drawLegend();
   $('routeCard').hidden = true;
   solve();
-  fit();
+  if (!keepView) fit();
 }
 
 function drawCaption() {
-  const { sc, meta } = state.s;
+  const { meta, model } = state.s, sc = summary(state.s.sc);
   const ko = LANG === 'ko';
-  $('caption').textContent = `${t(DATASET[meta.dataset].event)} · ${(ko && !meta.upload ? '' : sc.caption) || (ko ? `테스트 사진 ${sc.id}: ` +
+  // the showcase captions describe Chameleon's map: the baseline gets the generic one
+  $('caption').textContent = `${t(DATASET[meta.dataset].event)} · ${((ko && !meta.upload) || model === 'b' ? '' : sc.caption) || (ko ? `테스트 사진 ${sc.id}: ` +
     (!sc.n_buildings ? '라벨 지도에 가구 없음' : sc.n_disagree ? `가구 ${sc.n_buildings}곳 중 ${sc.n_disagree}곳이 라벨 지도와 다름`
       : `가구 ${sc.n_buildings}곳 모두 라벨 지도와 일치`) : `Test photo ${sc.id}: ` +
     (!sc.n_buildings ? 'no houses in the labelled map' : sc.n_disagree
@@ -201,11 +217,32 @@ function drawCaption() {
   const shots = meta.run.match(/_(\d+)shot/)[1];
   const ious = Object.values(meta.iou).filter(v => v != null);
   const miouTxt = ious.length ? fmt(ious.reduce((a, b) => a + b, 0) / ious.length) : null;
-  $('model').innerHTML = LANG === 'ko'
-    ? `${DATASET[meta.dataset].name} · 라벨 사진 <b>${shots}</b>장(+조정용 30장)으로 적응한 Chameleon · ` +
-      (miouTxt ? `이 사진: 평균 IoU ${miouTxt}` : '업로드 사진: 채점할 라벨 없음')
-    : `${DATASET[meta.dataset].name} · Chameleon adapted from <b>${shots}</b> labelled photos (+30 for tuning) · ` +
-      (miouTxt ? `this photo: mean IoU ${miouTxt}` : 'uploaded photo: no labels to score it');
+  const what = model === 'b'
+    ? (LANG === 'ko' ? `같은 라벨 사진 <b>${shots}</b>장으로 미세 조정한 DeepLabV3-ResNet50 (조정용 사진 없음)`
+      : `DeepLabV3-ResNet50 fine-tuned on the same <b>${shots}</b> labelled photos (no tuning photos)`)
+    : LANG === 'ko' ? `라벨 사진 <b>${shots}</b>장(+조정용 30장)으로 적응한 Chameleon` : `Chameleon adapted from <b>${shots}</b> labelled photos (+30 for tuning)`;
+  $('model').innerHTML = `${DATASET[meta.dataset].name} · ${what} · ` + (LANG === 'ko'
+    ? (miouTxt ? `이 사진: 평균 IoU ${miouTxt}` : '업로드 사진: 채점할 라벨 없음')
+    : (miouTxt ? `this photo: mean IoU ${miouTxt}` : 'uploaded photo: no labels to score it'));
+  $('modelNote').textContent = meta.upload ? '' : LANG === 'ko' ? `둘 다 같은 라벨 사진 ${shots}장` : `both from the same ${shots} labelled photos`;
+}
+
+function drawModelSeg() {                                          // the switch shows the model on screen
+  const has = Boolean(state.s.sc.b);
+  document.querySelectorAll('.seg.models button').forEach(b => {
+    b.setAttribute('aria-checked', String(b.dataset.model === state.s.model));
+    if (b.dataset.model === 'b') {
+      b.disabled = !has;
+      b.title = has ? t('DeepLabV3-ResNet50 fine-tuned on the same labelled photos (same-budget baseline)') : t('Not available for this photo');
+    }
+  });
+}
+
+function setModel(m) {                                             // the same view (house, entry, map) on the other model
+  if (m === state.model && m === state.s.model) return;
+  state.model = m;
+  writeHash();
+  applyHash();
 }
 
 function fit() {
@@ -633,17 +670,18 @@ async function applyPalette() {
   const s = state.s;
   if (!s) return;
   if (state.cb && !s.cbUrls) {
-    const [p, g] = await Promise.all(['pred', 'gt'].map(k => recolored(s.dir + k + '.png', s.meta.class_colors, CB_CLASS[s.ds])));
+    const [p, g] = await Promise.all(['pred', 'gt'].map(k => recolored(layerUrl(s, k), s.meta.class_colors, CB_CLASS[s.ds])));
     if (state.s !== s) return;                                     // the scene changed meanwhile
     s.cbUrls = { pred: p, gt: g };
   }
-  for (const k of ['pred', 'gt']) state.overlays[k].setUrl(state.cb ? s.cbUrls[k] : s.dir + k + '.png');
+  for (const k of ['pred', 'gt']) state.overlays[k].setUrl(state.cb ? s.cbUrls[k] : layerUrl(s, k));
   drawLegend();
   drawHouses();
   drawHouseList();
   if (state.sel) select(state.sel.i, state.sel.side, false);
 }
 
+function layerUrl(s, k) { return (k === 'pred' ? s.mdir : s.dir) + k + '.png'; }   // the prediction is the model's
 function getVar(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 function opacity() { return $('tClasses').checked ? $('opacity').value / 100 : 0; }
 function setOpacities() {
@@ -709,6 +747,7 @@ function setLayer(layer) {
 document.querySelectorAll('.seg button[data-src]').forEach(b => b.addEventListener('click', () => { setSource(b.dataset.src); writeHash(); }));
 document.querySelectorAll('.seg button[data-layer]').forEach(b => b.addEventListener('click', () => { setLayer(b.dataset.layer); writeHash(); }));
 document.querySelectorAll('.seg.ds button').forEach(b => b.addEventListener('click', () => { state.ds = b.dataset.ds; drawBrowse(); markPressed(); }));
+document.querySelectorAll('.seg.models button').forEach(b => b.addEventListener('click', () => setModel(b.dataset.model)));
 $('sortScenes').addEventListener('change', (e) => { state.sort = e.target.value; drawBrowse(); markPressed(); });
 $('prevScene').addEventListener('click', () => step(-1));
 $('nextScene').addEventListener('click', () => step(1));
@@ -735,10 +774,10 @@ function houseRows() {                                           // prediction: 
 
 function houseCsv() {
   const s = state.s, q = (v) => `"${String(v).replace(/"/g, '""')}"`;
-  const rows = [['photo', 'house', 'class', 'status', 'tier', 'minutes', 'truck_m', 'boat_m', 'foot_m', 'x_px', 'y_px',
+  const rows = [['photo', 'model', 'house', 'class', 'status', 'tier', 'minutes', 'truck_m', 'boat_m', 'foot_m', 'x_px', 'y_px',
     'truck_stop', ...(state.nolabels ? [] : ['labelled_map_status'])]];
   for (const h of houseRows()) {
-    rows.push([`${DATASET[s.ds].name} ${s.sc.id}`, h.id, h.cls, WORD[h.st], h.tier, h.minutes, ...h.metres, h.x, h.y, h.stop,
+    rows.push([`${DATASET[s.ds].name} ${s.sc.id}`, MODEL[s.model].name, h.id, h.cls, WORD[h.st], h.tier, h.minutes, ...h.metres, h.x, h.y, h.stop,
       ...(state.nolabels ? [] : [WORD[h.gt]])]);
   }
   return rows.map(r => r.map(q).join(',')).join('\r\n') + '\r\n';
@@ -750,24 +789,29 @@ function buildBriefing() {
   const rows = houseRows(), n = (k) => s.status.pred.filter(v => v === k).length;
   const conf = s.tier.filter(x => x === 'CONFIDENT_TRUCK').length, check = s.tier.filter(x => x === 'PROBABLE_TRUCK').length;
   const word = (h) => t(h.tier === 'confident' ? 'truck (confident)' : h.tier === 'check first' ? 'truck, check first' : WORD[h.st]);
-  const shots = s.meta.run.match(/_(\d+)shot/)[1];
+  const shots = s.meta.run.match(/_(\d+)shot/)[1], mo = MODEL[s.model];
+  // the measured false-safe rate of this model on this dataset's test photos (none for uploads: no labels, other place)
+  const fs = !s.meta.upload && state.index.models ? ((state.index.models[s.model] || {}).false_safe || {})[s.ds] : null;
+  const pct = fs ? Math.round(fs.rate * 100) : null, nPh = fs ? fs.n_photos : 0;
+  const fsTxt = !fs ? '' : ko ? `${DATASET[s.ds].name} 테스트 사진 ${nPh}장에서 이 모델이 트럭 도달 가능으로 표시한 가구의 약 ${pct} %는 실제로 그렇지 않았습니다. `
+    : `on ${nPh} ${DATASET[s.ds].name} test photos about ${pct} % of the houses this model showed as truck-reachable were not. `;
   const view = t(state.src === 'gt' ? 'Labelled map' : state.src === 'swipe' ? 'Swipe' : 'Prediction');
   const head = ko ? ['가구', '건물', '상태', '분', '트럭 m', '보트 m', '도보 m', '트럭 정차']
     : ['House', 'Building', 'Status', 'Min', 'Truck m', 'Boat m', 'Foot m', 'Truck stop'];
   const stops = (s.stops ? s.stops.pred : []).map((g, k) => `${String.fromCharCode(65 + k)}: ${t(g.boat ? 'boat launch' : 'walk-on point')}, ${g.houses.length}`).join(' · ');
   $('briefing').innerHTML = (ko
-    ? `<h2>가구 목록: ${esc(DATASET[s.ds].name)} ${esc(s.sc.id)} (예측)</h2><p>가구 ${s.blds.length}곳: 트럭 ${n(TRUCK)}곳 (확실 ${conf}, 먼저 확인 ${check}), 보트 ${n(BOAT)}, 도보 ${n(FOOT)}, 경로 없음 ${n(ISOLATED)}. 지도: ${esc(view)}. ` +
-      `진입: ${esc($('entryMode').textContent)}. 모델: Chameleon, 라벨 사진 ${shots}장(+조정용 30장).</p>`
-    : `<h2>Houses: ${esc(DATASET[s.ds].name)} ${esc(s.sc.id)} (prediction)</h2><p>${s.blds.length} houses: ${n(TRUCK)} by truck (${conf} confident, ${check} check first), ` +
+    ? `<h2>가구 목록: ${esc(DATASET[s.ds].name)} ${esc(s.sc.id)} (${mo.name} 예측)</h2><p>가구 ${s.blds.length}곳: 트럭 ${n(TRUCK)}곳 (확실 ${conf}, 먼저 확인 ${check}), 보트 ${n(BOAT)}, 도보 ${n(FOOT)}, 경로 없음 ${n(ISOLATED)}. 지도: ${esc(view)}. ` +
+      `진입: ${esc($('entryMode').textContent)}. 모델: ${s.model === 'b' ? `DeepLabV3-ResNet50, 라벨 사진 ${shots}장(조정용 없음)` : `Chameleon, 라벨 사진 ${shots}장(+조정용 30장)`}.</p>`
+    : `<h2>Houses: ${esc(DATASET[s.ds].name)} ${esc(s.sc.id)} (${mo.name} prediction)</h2><p>${s.blds.length} houses: ${n(TRUCK)} by truck (${conf} confident, ${check} check first), ` +
       `${n(BOAT)} boat, ${n(FOOT)} on foot, ${n(ISOLATED)} no route. Map shown: ${esc(view)}. Entry: ${esc($('entryMode').textContent)}. ` +
-      `Model: Chameleon adapted from ${shots} labelled photos (+30 for tuning).</p>`) +
+      `Model: ${s.model === 'b' ? `DeepLabV3-ResNet50 fine-tuned on ${shots} labelled photos (no tuning photos)` : `Chameleon adapted from ${shots} labelled photos (+30 for tuning)`}.</p>`) +
     (stops ? `<p>${t('Truck stops')}: ${esc(stops)} ${t('houses')}</p>` : '') +
     `<table><thead><tr>${head.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>` +
     rows.map(h => `<tr${h.tier === 'check first' ? ' class="warn"' : ''}><td>${h.id}</td><td>${esc(t(h.cls))}</td><td>${esc(word(h))}</td>` +
       `<td class="n">${h.minutes}</td>${h.metres.map(v => `<td class="n">${v}</td>`).join('')}<td>${h.stop}</td></tr>`).join('') +
     '</tbody></table>' +
-    `<p class="fine">${ko ? '운영용이 아닙니다: 테스트 사진에서 트럭 도달 가능으로 표시된 가구의 약 11 %는 실제로 그렇지 않았습니다. "먼저 확인" 가구는 트럭을 보내기 전에 드론이나 무전으로 확인하세요. 시간과 거리는 대략적인 추정입니다.'
-      : 'Not for operational use: on test photos about 11 % of the houses shown as truck-reachable were not. Confirm "check first" houses by drone or radio before sending a truck. Minutes and metres are rough estimates.'} ` +
+    `<p class="fine">${ko ? `운영용이 아닙니다: ${fsTxt}"먼저 확인" 가구는 트럭을 보내기 전에 드론이나 무전으로 확인하세요. 시간과 거리는 대략적인 추정입니다.`
+      : `Not for operational use: ${fsTxt}Confirm "check first" houses by drone or radio before sending a truck. Minutes and metres are rough estimates.`} ` +
     `${esc(new Date().toLocaleString(ko ? 'ko-KR' : 'en-GB'))} · ${esc(location.href)}</p>`;
 }
 
@@ -785,7 +829,8 @@ $('printBrief').addEventListener('click', () => { if (state.s) window.print(); }
 $('csvHouses').addEventListener('click', () => {
   if (!state.s || !state.s.blds.length) return;
   const url = URL.createObjectURL(new Blob([houseCsv()], { type: 'text/csv' }));
-  const a = Object.assign(document.createElement('a'), { href: url, download: `rescue_router_${state.s.sc.key}_houses.csv` });
+  const a = Object.assign(document.createElement('a'), { href: url,
+    download: `rescue_router_${state.s.sc.key}_${state.s.model === 'b' ? 'deeplabv3' : 'chameleon'}_houses.csv` });
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
@@ -815,16 +860,17 @@ $('sheetToggle').addEventListener('click', () => {
 addEventListener('resize', () => { clearTimeout(state.rt); state.rt = setTimeout(fit, 150); });
 addEventListener('hashchange', applyHash);                          // back/forward, or a pasted link
 
-// ---------- the view in the URL: #s=<scene>&h=<house id>[gt]&e=<x>,<y>&m=gt|swipe&l=pwet&r=0&cb=1 ----------
+// ---------- the view in the URL: #s=<scene>&mo=b&h=<house id>[gt]&e=<x>,<y>&m=gt|swipe&l=pwet&r=0&cb=1 ----------
 function readHash() {
   const h = decodeURIComponent(location.hash.slice(1));
   const q = new URLSearchParams(h.includes('=') ? h : `s=${h}`);   // old links: #floodnet_7241
-  return Object.fromEntries(['s', 'h', 'e', 'm', 'l', 'r', 'cb', 'lang'].map(k => [k, q.get(k)]));
+  return Object.fromEntries(['s', 'mo', 'h', 'e', 'm', 'l', 'r', 'cb', 'lang'].map(k => [k, q.get(k)]));
 }
 
 function writeHash(push = false) {
   if (!state.s) return;
   const q = [`s=${state.key}`];
+  if (state.model === 'b') q.push('mo=b');
   if (state.sel) q.push(`h=${state.s.blds[state.sel.i].id}${state.src === 'swipe' && state.sel.side === 'gt' ? 'gt' : ''}`);
   if (state.entry) q.push(`e=${state.entry.at.map(Math.round).join(',')}`);
   if (state.src !== 'pred') q.push(`m=${state.src}`);
@@ -836,12 +882,15 @@ function writeHash(push = false) {
   if (url !== location.hash) history[push ? 'pushState' : 'replaceState'](null, '', url);
 }
 
-// A link names the whole view: a key it leaves out means that key's default (map 'pred', layer 'classes', risk-aware
-// truck, auto entry, no house), also when it is pasted into an open viewer. Colour palette and language are the
-// reader's preferences and change only when the link names them.
+// A link names the whole view: a key it leaves out means that key's default (model Chameleon, map 'pred', layer
+// 'classes', risk-aware truck, auto entry, no house), also when it is pasted into an open viewer. Colour palette and
+// language are the reader's preferences and change only when the link names them.
 async function applyHash() {
   const p = readHash();
+  state.model = p.mo === 'b' ? 'b' : 'a';
   if (!state.s || (p.s && p.s !== state.key)) await loadScene(p.s);
+  else if (modelOf(state.s.sc) !== state.s.model) await loadScene(state.key, true);
+  else if (state.model !== state.browseModel) { drawBrowse(); markPressed(); }
   const lam = p.r === '0' ? 0 : 5;
   if (lam !== state.lam) { $('tRisk').checked = Boolean(lam); state.lam = lam; solve(); }
   setLayer(p.l || 'classes');
@@ -873,7 +922,7 @@ function relabel(lang) {
   setLang(lang);
   $('langBtn').textContent = LANG === 'ko' ? 'English' : '한국어';
   if (!state.s) return;
-  drawCaption(); drawLegend(); drawPwetLegend(); drawBase(); drawCounter(); drawHouseList();
+  drawCaption(); drawModelSeg(); drawLegend(); drawPwetLegend(); drawBase(); drawCounter(); drawHouseList();
   if (state.sel) select(state.sel.i, state.sel.side, false);
 }
 $('langBtn').addEventListener('click', () => { relabel(LANG === 'ko' ? 'en' : 'ko'); writeHash(); });
