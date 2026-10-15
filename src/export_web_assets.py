@@ -433,7 +433,7 @@ def main():
                    offroad_maxwet_cautious=PRED_CAUTIOUS_MAXWET,
                    models=dict(a=dict(name='Chameleon', runs=RUNS, false_safe={d: false_safe('a', d) for d in RUNS}),
                                b=dict(name=MODEL_B['name'], runs={d: r for d, r in MODEL_B['runs'].items() if d in have_b},
-                                      false_safe={d: false_safe('b', d) for d in have_b}))),
+                                      false_safe={d: false_safe('b', d) for d in MODEL_B['runs'] if d in have_b}))),
               open(os.path.join(a.out, 'scenes.json'), 'w'), separators=(',', ':'))
     print(f"{len(index)} scenes -> {a.out} ({sum('b' in e for e in index)} with model b)")
 
