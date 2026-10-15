@@ -8,6 +8,7 @@ holds: "Router parameters" and "Model choice" (14 Oct) and **Amendment 1** (14 O
 RescueNet 5/10, lean variance design, baseline candidates, decode floor, label errors). Superseded sentences are
 marked "→ amendment 1". **Amendment 2** (15 Oct) is procedural: pinned image, environment check, baseline draw seeds.
 **Amendment 3** (15 Oct) adds two product-model candidates: the baselines' seed ensemble, without and with flips.
+**Amendment 4** (16 Oct) moves RescueNet 5-20 shots to its full test set (+41 min of quota; Marlen keeps or drops it).
 
 ## Questions
 
@@ -174,6 +175,21 @@ ensemble counts as more complex than any single model; the full order (`kaggle/p
 now alphabetical) is: the plain ResNet-50 baseline, its flips, self-trained, self-trained + flips, the small models,
 then the seed ensembles (ties at 6 decimals are unlikely; the order only decides those). The Mac jobs are in `experiments/phase2/mac_queue.txt`
 (`seed1tta`, `seed2tta`, `ens3`, `ens3tta`); `kaggle/phase2/post.py` passes them to `src/ensemble.py`.
+
+## Amendment 4 (16 Oct 2026, ~00:30 KST; before any Phase 2 GPU run; for Marlen to keep or drop at the launch)
+
+**RescueNet 5, 10 and 20 shots (`curve`) predict RescueNet's whole test set (450 photos) instead of eval100**, as
+amendment 1 did for FloodNet 1-20 shots: eval100 is cut from it on the CPU (`kaggle/phase2/post.py` step 1,
+`src/subset_cache.py --dataset rescuenet`), and each point is paired photo by photo with the baseline on the full
+RescueNet test (the Mac predicts it for every RescueNet baseline: `experiments/phase2/mac_queue.txt`). Reason: the
+second disaster at few labels is where Chameleon may still win, and 100 photos cannot resolve differences of a few
+points (FloodNet eval100 paired intervals are ±.04-.05 wide). RescueNet 50 shots stays on eval100 (17 s per photo).
+Cost: +80 T4 minutes, +41 min of quota (`curve` 385 min instead of 344; curve + var 9.4 h). If dropped: in
+`kaggle/phase2/make_plan.py` give the three runs their default splits again (one line), and nothing else changes.
+The comparison is reported on the full RescueNet test where both have it (`baseline_report.py` pairs on the largest
+common photo set), on eval100 otherwise; both models' label-free (k labels) decodes are reported next to the tuned
+ones for RescueNet too (16 Oct: the RescueNet chain has no guided filter, so its thresholds are matched on the raw
+probabilities, `baseline_report.label_free_tau`).
 
 ## Deviation log
 

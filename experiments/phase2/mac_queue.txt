@@ -6,9 +6,12 @@
 fn1       src/baseline_seg.py --shot 1 --splits floodnet_val_tune30,floodnet_test_eval100,floodnet_test_full
 rn5       src/baseline_seg.py --dataset rescuenet --shot 5
 rn10      src/baseline_seg.py --dataset rescuenet --shot 10
-rn20      src/baseline_seg.py --dataset rescuenet --shot 20
+rn20      src/baseline_seg.py --dataset rescuenet --shot 20 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
 tiers_rn20  ~/.venvs/rr/bin/python src/tiers.py --results results/baselines --run baseline_deeplabv3_r50_rescuenet_20shot_s0 --dataset rescuenet --argmax --fixed_gate --out results/baselines/report/tiers_rescuenet --fig none   # the viewer's RescueNet baseline tiers (15 Oct)
-rn50      src/baseline_seg.py --dataset rescuenet --shot 50
+rn50      src/baseline_seg.py --dataset rescuenet --shot 50 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
+# RescueNet full test (450 photos) for the already finished runs (16 Oct; PROTOCOL amendment 4), prediction only
+rn5full   src/baseline_seg.py --dataset rescuenet --shot 5 --splits rescuenet_test_full
+rn10full  src/baseline_seg.py --dataset rescuenet --shot 10 --splits rescuenet_test_full
 draw1     src/baseline_seg.py --shot 50 --seed 0 --support_seed 1 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
 draw2     src/baseline_seg.py --shot 50 --seed 0 --support_seed 2 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
 st50      src/baseline_seg.py --shot 50 --pseudo results/baselines/pseudo/baseline_deeplabv3_r50_50shot_s0_c90 --pseudo_frac 0.5 --bs 8 --accum 2 --iters 3000 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
@@ -21,7 +24,7 @@ seed2tta  src/baseline_seg.py --shot 50 --seed 2 --support_seed 0 --tta --splits
 ens3      src/baseline_avg.py --runs baseline_deeplabv3_r50_50shot_s0,baseline_deeplabv3_r50_50shot_s1_sup0,baseline_deeplabv3_r50_50shot_s2_sup0 --out_run baseline_deeplabv3_r50_50shot_s0_ens3
 ens3tta   src/baseline_avg.py --runs baseline_deeplabv3_r50_50shot_s0,baseline_deeplabv3_r50_50shot_s1_sup0,baseline_deeplabv3_r50_50shot_s2_sup0 --out_run baseline_deeplabv3_r50_50shot_s0_ens3 --suffix _tta
 all_conf  src/baseline_seg.py --shot 0 --splits floodnet_val_confirm100
-rn20ft    src/baseline_seg.py --dataset rescuenet --shot 20 --init results/baselines/ckpt/baseline_deeplabv3_r50_50shot_s0.pt --tag ft50
+rn20ft    src/baseline_seg.py --dataset rescuenet --shot 20 --init results/baselines/ckpt/baseline_deeplabv3_r50_50shot_s0.pt --tag ft50 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
 mbv3st    src/baseline_seg.py --arch deeplabv3_mbv3 --shot 50 --pseudo results/baselines/pseudo/baseline_deeplabv3_r50_50shot_s0_c90 --pseudo_frac 0.5 --bs 8 --accum 2 --iters 3000 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
 lrasppst  src/baseline_seg.py --arch lraspp_mbv3 --shot 50 --pseudo results/baselines/pseudo/baseline_deeplabv3_r50_50shot_s0_c90 --pseudo_frac 0.5 --bs 8 --accum 2 --iters 3000 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
 # last: the CPU reports on everything above (baseline_report incl. the label-fair table, ensemble, curve figure, transfer)

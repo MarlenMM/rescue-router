@@ -131,6 +131,10 @@ def test_lean_variance_plan_and_full_test_curve():
         splits = [j[1][j[1].index('--split_file') + 1] for j in curve[f'floodnet_{k}shot_s0_stratified_p2'] if j[0] == 'predict']
         assert splits == ['floodnet_val_tune30', 'floodnet_test_full']
     assert {f'rescuenet_{k}shot_s0_stratified_p2' for k in (5, 10, 20, 50)} <= set(curve)
+    for k, want in ((5, 'rescuenet_test_full'), (10, 'rescuenet_test_full'), (20, 'rescuenet_test_full'),
+                    (50, 'rescuenet_test_eval100')):                  # amendment 4: RescueNet 5-20 on its full test
+        splits = [j[1][j[1].index('--split_file') + 1] for j in curve[f'rescuenet_{k}shot_s0_stratified_p2'] if j[0] == 'predict']
+        assert splits == ['rescuenet_val_tune30', want]
 
 
 def test_self_training_batches_mix_labelled_and_pseudo():
