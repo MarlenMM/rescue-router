@@ -1,0 +1,57 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below, and cite the models and datasets it builds on (references)."
+title: "Rescue Router: few-shot flood mapping from drone photos and rescue routes on the predicted map"
+type: software
+authors:
+  - family-names: Melis
+    given-names: Marlen
+license: MIT
+repository-code: "https://github.com/MarlenMM/rescue-router"
+keywords:
+  - flood mapping
+  - few-shot segmentation
+  - disaster response
+  - routing
+  - drone imagery
+abstract: >-
+  Chameleon (a few-shot dense-prediction generalist) adapted with 50 labelled FloodNet drone photos to clear road,
+  flooded road, flooded and dry building and water, a truck / boat / on-foot router on 4x4-pixel cells with vehicle
+  widths and confidence tiers, a web viewer and a same-label-budget comparison with a standard fine-tuned segmenter
+  (DeepLabV3-ResNet50). Research and teaching code; not for operational rescue decisions (MODEL_CARD.md).
+references:
+  - type: conference-paper
+    title: "Chameleon: A Data-Efficient Generalist for Dense Visual Prediction in the Wild"
+    authors:
+      - family-names: Kim
+        given-names: Donggyun
+      - name: "et al."
+    collection-title: "European Conference on Computer Vision (ECCV)"
+    year: 2024
+    url: "https://github.com/GitGyun/chameleon"
+  - type: article
+    title: "FloodNet: A High Resolution Aerial Imagery Dataset for Post Flood Scene Understanding"
+    authors:
+      - family-names: Rahnemoonfar
+        given-names: Maryam
+      - name: "et al."
+    journal: "IEEE Access"
+    year: 2021
+    url: "https://github.com/BinaLab/FloodNet-Supervised_v1.0"
+  - type: article
+    title: "RescueNet: A High Resolution UAV Semantic Segmentation Dataset for Natural Disaster Damage Assessment"
+    authors:
+      - family-names: Rahnemoonfar
+        given-names: Maryam
+      - name: "et al."
+    journal: "Scientific Data"
+    year: 2023
+    url: "https://springernature.figshare.com/collections/RescueNet_A_High_Resolution_UAV_Semantic_Segmentation_Benchmark_Dataset_for_Natural_Disaster_Damage_Assessment/6647354/1"
+  - type: conference-paper
+    title: "Segment Anything"
+    authors:
+      - family-names: Kirillov
+        given-names: Alexander
+      - name: "et al."
+    collection-title: "IEEE/CVF International Conference on Computer Vision (ICCV)"
+    year: 2023
+    url: "https://github.com/facebookresearch/segment-anything"
