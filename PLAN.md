@@ -1010,7 +1010,9 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
   full RescueNet test .479). With 20 photos Chameleon (+30 tuning) leads (−.061 [−.098, −.027]): the crossover on the
   second disaster lies between 20 and 50 labels, which the Phase 2 RescueNet points (5-50, one recipe), the
   equal-total-label partners (35/40/80) and amendment 5's draws will place. Baseline RescueNet 5 / 10 photos on the
-  full test: .189 / .291. FloodNet support draw 1 (seed 0): full test .593 (draw 0 .581; mean .587 ± .008).
+  full test: .189 / .291. FloodNet support draw 1 (seed 0): full test .593 (draw 0 .581; mean .587 ± .008). Note:
+  Chameleon's published RescueNet 50-shot run (.402, first recipe) is below its 20-shot run (.421); the one-recipe
+  `rescuenet_50shot_s0_stratified_p2` in `curve` re-measures exactly that point.
 - Data and model cards, README status brought up to date. CI green on every push.
 - **Cycle 10 (re-audit):**
   1. `rebuild_all.py --only baseline_tiers,export,viewer,tests`: headline all as published, but `scenes.json` differed
