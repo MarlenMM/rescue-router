@@ -1006,6 +1006,20 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
 - Viewer: sort by "models disagree most" (`scenes.json` `n_models`: 44 of 200 scenes have houses the two models route
   differently; FloodNet 7300 the most, 15 houses; the live count matches).
 - Data and model cards, README status brought up to date. CI green on every push.
+- **Cycle 10 (re-audit):**
+  1. `rebuild_all.py --only baseline_tiers,export,viewer,tests`: headline all as published, but `scenes.json` differed
+     in key order (the baseline's false-safe entries iterated a Python set) → byte-identical now (two runs, same hash).
+  2. **Phase 2 model choice could run on a subset:** `post.py` passed `ensemble.py` whichever baseline candidates had
+     confirm100 caches; a `curve` session finishing before the Mac queue (~10 more hours of candidates) would have
+     applied the registered rule to part of the registered set. It now holds the choice, naming the missing runs, until
+     all eight exist (`REGISTERED`, test: same list and order as the queue's `choice_bl`).
+  3. Pre-flights started together both failed: they share `~/rr_local/chameleon`, whose `data_paths.yaml` every
+     Chameleon job rewrites. `make_plan preflight` takes a lock now (Kaggle lanes have their own starter copies).
+     **And the 15 Oct "PREFLIGHT OK" did not train:** toy snapshots left by the 14 Oct pre-flights made `finetune.py`
+     skip training in 9 of curve's and 4 of var's groups ("training done already"), so the training code of 15 Oct
+     was never run by them. The pre-flight now empties its toy folders first and fails if a training step skips.
+  4. The RescueNet mix is reproducible from the repo: `experiments/rescuenet_mix.py` (same numbers;
+     `results/baselines/report/rescuenet_mix.json`). Viewer About (EN/KO) explains the "differs" marks.
 
 ## 15. Status / handoff (updated Wed 7 Oct, 18:15 KST)
 
