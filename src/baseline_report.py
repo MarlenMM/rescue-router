@@ -37,6 +37,7 @@ from router import false_safe_from  # noqa: E402
 from rr.final_decode import decode_photo, load_chosen, photo  # noqa: E402
 from rr.metrics import WET, confusion, decode, gt_classes, summarize  # noqa: E402
 from rr.paths import RR_DATA  # noqa: E402
+from run_decode import GF  # noqa: E402
 
 REPO = os.path.dirname(HERE)
 NAMES = {'floodnet': PS.NAMES['floodnet'], 'rescuenet': PS.NAMES['rescuenet']}
@@ -99,6 +100,41 @@ def cham_cms(folder, run, ds, sf, gts):
     return out
 
 
+def label_free_decodes(results, out, shots=(1, 5, 10, 20, 50)):
+    """run_decode.py (no SAM) on the published FloodNet runs into <out>/decode/, for their label-free thresholds"""
+    os.makedirs(os.path.join(out, 'preds'), exist_ok=True)
+    for k in shots:
+        run = f'floodnet_{k}shot_s0_stratified'
+        if os.path.exists(os.path.join(out, 'decode', f'{run}.json')):
+            continue
+        for sf in ('floodnet_val_tune30', 'floodnet_test_eval100'):
+            src = cache(results, run, sf)
+            dst = os.path.join(out, 'preds', os.path.basename(src))
+            if not os.path.lexists(dst):
+                os.symlink(os.path.abspath(src), dst)
+        subprocess.run([sys.executable, os.path.join(HERE, 'run_decode.py'), '--results', out, '--run', run], check=True,
+                       stdout=subprocess.DEVNULL)
+
+
+def label_free_tau(folder, run, lf_dir):
+    """Chameleon's thresholds from its k training labels only (run_decode.py 'prior_tau': guided filter -> class shares
+    of the supports matched on the photos); the run's own decode first (Phase 2), else the published runs' (lf_dir)"""
+    for f in (os.path.join(folder, 'decode', f'{run}.json'), os.path.join(lf_dir, 'decode', f'{run}.json')):
+        if os.path.exists(f):
+            d = json.load(open(f))
+            if 'prior_tau' in d:
+                return d['prior_tau']
+    return None
+
+
+def cham_label_free_cms(folder, run, ds, sf, gts, tau):
+    """per-photo confusions of a FloodNet Chameleon run decoded with its label-free thresholds (no SAM)"""
+    P = probs(cache(folder, run, sf))
+    split = 'val' if '_val_' in sf else 'test'
+    return {i: confusion(decode(PS.guided_filter(photo(RR_DATA, ds, split, i)().mean(2).astype(np.float32) / 255, P[i], *GF),
+                                tau=tau), g) for i, g in gts.items()}
+
+
 def cham_for(b, a):
     """(folder, run, label) of the Chameleon run trained on the same photos, Phase 2 first; None if there is none"""
     ds, k, draw = b['dataset'], b['k'], b['draw']
@@ -154,8 +190,11 @@ def main():
     ap.add_argument('--phase2', default=None, help='Phase 2 results folder (p2 curve, 50-shot draws and seeds)')
     ap.add_argument('--out', default='results/baselines/report')
     ap.add_argument('--B', type=int, default=2000)
+    ap.add_argument('--label_free', default='results/kaggle_v2/report/label_free',
+                    help='run_decode.py outputs (decode/<run>.json with prior_tau) for the published 1-50-shot runs')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
+    label_free_decodes(a.results, a.label_free)
     a.results = os.path.abspath(a.results)
     a.phase2 = os.path.abspath(a.phase2) if a.phase2 and os.path.isdir(a.phase2) else None
     gts = Labels()
@@ -197,6 +236,11 @@ def main():
             r = dict(per_class={n: summarize(tot, NAMES[ds], WET[ds])[f'iou_{n}'] for n in NAMES[ds]})
             if cmp:
                 r.update(paired(cms, cc, ids, fn, a.B))
+                tau = label_free_tau(cmp[0], cmp[1], a.label_free) if name == 'argmax' and ds == 'floodnet' else None
+                if tau:                                # label-fair: both models see only the k training labels
+                    if key + ('lf',) not in cham_cache:
+                        cham_cache[key + ('lf',)] = cham_label_free_cms(cmp[0], cmp[1], ds, sf, g, tau)
+                    r['label_free'] = paired(cms, cham_cache[key + ('lf',)], ids, fn, a.B)
                 if name == 'argmax' and ds == 'floodnet' and b['draw'] == 0 and sf == 'floodnet_test_full':
                     keep = [i for i in ids if i not in dupes]
                     r['without_overlap'] = paired(cms, cc, keep, fn, a.B)['diff']
@@ -263,6 +307,18 @@ def report(rows):
     if over:
         md += ['', 'Without the 14 full-test photos that overlap a draw-0 support photo: ' + '; '.join(
             f"{r['k']}-shot {label(r)} {fd(r['argmax']['without_overlap'])}" for r in over) + '.']
+    lf = [r for r in rows if 'label_free' in r['argmax']]
+    if lf:
+        md += ['', '## Same labels for both: k training labels each, no tuning labels', '',
+               "Chameleon decoded with its label-free thresholds (`run_decode.py` prior_tau: guided filter, then thresholds "
+               "that give the 30 validation photos, without their labels, the class shares of the k support labels; no "
+               "SAM) vs the baseline's argmax. The table above gives Chameleon its 30 tuning labels as well.", '',
+               '| dataset | k | variant | photos | baseline | Chameleon label-free | baseline − Chameleon |',
+               '|---|---|---|---|---|---|---|']
+        for r in sorted(lf, key=key):
+            x = r['argmax']['label_free']
+            md.append(f"| {r['dataset']} | {r['k'] or 'all'} | {label(r)} | {r['split'].split('_', 1)[1]} ({r['n']}) | "
+                      f"{f3(x['baseline'])} | {f3(x['chameleon'])} | **{fd(x['diff'])}** |")
     md += ['', '## Per class (full test or eval100, baseline argmax)', '',
            '| run | photos | ' + ' | '.join(NAMES['floodnet']) + ' |', '|---|---|' + '---|' * 5]
     for r in sorted(rows, key=key):

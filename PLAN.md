@@ -899,6 +899,46 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
   without a network in the field. The grid/building/entry construction (`export_web_assets.py`) needs a JS port
   with a parity test like the router's.
 
+### 16.6 Pre-Phase-2 review #3 (15 Oct evening; Marlen: "every part, ML and UI, improve and fix in cycles until perfect, before Phase 2")
+- **Environment (15 Oct):** the project is back in `~/Documents/KAIST/.../AIC200-Project-StructuredPrediction-main` (a
+  plain local folder; memory copied to the new path's key). **The Mac rebooted at ~03:00** and killed the baseline
+  queues: draw 1 stopped at step 800 of 3,000, queue 3 had run only the flips of the 50-shot model, `reports.sh` never
+  ran. Nothing of the killed runs was evaluated.
+- **Cycle 6 (audit, all parts), fixed:**
+  1. **Mac jobs survive reboots:** `baseline_seg.py --save_every 500` keeps weights, optimizer, schedule and every RNG
+     in `<ckpt>.part` (atomic writes) and a rerun continues bit-exactly (`test_baseline.py`: stop + resume = straight
+     run; fails if the RNG restore is removed). `src/job_queue.py` runs `experiments/phase2/mac_queue.txt` (re-read after
+     each job; state in `~/rr_local/queue/mac_queue/`; `--status`). Relaunched 21:07 under `caffeinate`: 1 shot,
+     RescueNet 5/10/20/50, 50-shot draws 1-2 (now seed 0, as Chameleon's L design), self-training (+ flips), seeds 1-2,
+     all-photos confirm100, RescueNet from the FloodNet model, the two small models (~16 h).
+  2. **Phase 2 environment** (PROTOCOL amendment 2, procedural): every 5-8 Oct Kaggle run used one image
+     (`kernels pull -m`: `gcr.io/kaggle-private-byod/python@sha256:2757e0c7…`); both kernels now pin it, mount
+     `rr-final-ckpt` and, before the lanes, predict 3 test photos with the submitted model; `src/env_check.py` compares
+     4×4 block means with the published T4 cache and stops the session at > 8/255 max or > 1/255 mean (published cache
+     vs itself: 0.5/255, the rounding). Tested end to end with a stand-in `sh` (pass and stop). `launch_check.py`
+     checks pin + reference; `post.py` prints the check; cost +3 min per session (curve 5.7 h, var 3.0 h of quota).
+  3. **Viewer** (local `docs/` only): a link names the whole view (missing keys = defaults: a pasted link no longer
+     keeps the previous map mode / house / entry); Esc; phone layout (photo under the title, two-line caption);
+     Korean gaps (Houses heading, screen-reader labels of houses and photos, the empty list); English About now states
+     the false-safe rate like the Korean one, and both state the baseline result; **printable briefing** (A4: title,
+     the map as shown with the route, counts, truck stops, every house with status, tier, minutes, metres and stop,
+     the not-for-operations note; Chrome prints Leaflet's transparent canvas opaque, so the entry-cell canvas is
+     hidden in print). `app/test/i18n.test.mjs`: every translatable string has a Korean entry (CI, rebuild).
+  4. Gradio names the CPU baseline when `--live_baseline` serves uploads. `rebuild_all.py` skips the three baseline
+     steps without `results/baselines/` (a fresh machine with the data zip). CI lints `kaggle/phase2`.
+  5. **Reports refreshed** (the queue's `reports.sh` never ran): `results/baselines/report/baselines.md`, `curve/`.
+- **Learning curve** (eval100, baseline argmax with k labels vs Chameleon published runs with k + 30 labels;
+  paired): 5 −.013 [−.053, +.025], 10 −.014 [−.061, +.032], 20 +.047 [+.004, +.090], 50 +.074 [+.045, +.107] (full
+  test); baseline 100: .609, all 1,445: .728 (full test). **Label-fair** (Chameleon decoded with thresholds from its k
+  labels only, `baseline_report.py` new table): 5 +.021 [−.012, +.053], 10 +.035
+  [+.004, +.066], 20 +.096 [+.054, +.138], 50 +.114 [+.083, +.148] (full test; Chameleon label-free .468 = the published
+  value): with equal labels the baseline is ahead at every measured point, significantly from 10 labels. Chameleon
+  draws level only at 5-10 labels and only with the 30 tuning labels.
+- **Proposed, needs Marlen:** (a) a model switch in the viewer (Chameleon / same-budget baseline on all 200 scenes:
+  +~26 MB per copy in `app/` and `docs/`, so +~52 MB of git history; RescueNet needs the queue's 20-shot run); (b)
+  whether `var` (3.0 h) still runs: it is the only measure of Chameleon's training variance (A3) and pairs with the
+  baseline's draws; recommended, after `curve`.
+
 ## 15. Status / handoff (updated Wed 7 Oct, 18:15 KST)
 
 ### Quick summary (read this first; details below)
