@@ -138,7 +138,9 @@ then open <http://localhost:8766/#s=rescuenet_12195&h=8&m=gt> (canal row: truck,
 
 serves the Gradio app from the caches on <http://127.0.0.1:7860>; `src/gradio_viewer.py` (same arguments) puts the web
 viewer inside Gradio, so an uploaded photo gets every viewer visual (animated route, swipe, layers), and keeps the
-classic view as a second tab. Live inference on uploads needs a GPU:
+classic view as a second tab. On a plain CPU, `--live_baseline results/baselines/ckpt/<run>.pt` serves uploads with
+the same-budget baseline (~0.5 s per photo; a comma list of checkpoints = their mean, `--live_tta` adds flips).
+Live inference with Chameleon needs a GPU:
 `kaggle/gradio_live/colab_gradio_live.py` (one Colab cell, T4) or `kaggle/gradio_live/run_gradio_live.py` (Kaggle T4)
 starts it with a public share link.
 

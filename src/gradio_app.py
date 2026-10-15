@@ -261,28 +261,36 @@ class BaselineLive:
     """CPU live inference with a same-budget baseline checkpoint (src/baseline_seg.py, PLAN §16.5): ~0.5 s per photo
     on a laptop CPU, no GPU and no Chameleon files. Its own decode (argmax over the 5 classes + other) replaces the
     Chameleon decode; the router, tiers and viewer are unchanged (the cautious tier gate was chosen for Chameleon's
-    probabilities, so read the tiers with care)."""
+    probabilities, so read the tiers with care). Several checkpoints (comma list) = their mean softmax, as the seed
+    ensemble of PROTOCOL amendment 3 (src/baseline_avg.py); tta=True averages the four flips of each, as --tta."""
     decode = {'argmax': True}
 
-    def __init__(self, ckpt, device='cpu'):
+    def __init__(self, ckpt, device='cpu', tta=False):
         import torch
         from baseline_seg import build
-        arch = next(x for x in ('deeplabv3_r50', 'deeplabv3_mbv3', 'lraspp_mbv3') if x in os.path.basename(ckpt))
-        self.torch, self.device, self.name = torch, device, os.path.basename(ckpt)[:-3]
-        self.model = build(arch, device, pretrained=False)
-        self.model.load_state_dict(torch.load(ckpt, map_location=device))
-        self.model.eval()
+        self.torch, self.device, self.tta, self.models = torch, device, tta, []
+        paths = [c for c in ckpt.split(',') if c]
+        for c in paths:
+            arch = next(x for x in ('deeplabv3_r50', 'deeplabv3_mbv3', 'lraspp_mbv3') if x in os.path.basename(c))
+            m = build(arch, device, pretrained=False)
+            m.load_state_dict(torch.load(c, map_location=device))
+            m.eval()
+            self.models.append(m)
+        self.model = self.models[0]
+        self.name = os.path.basename(paths[0])[:-3] + (f' + {len(paths) - 1} more (mean)' if len(paths) > 1 else '') \
+            + (', flips' if tta else '')
 
     def __call__(self, photo):
         from baseline_seg import predict
-        P = predict(self.model, self.torch.from_numpy(np.ascontiguousarray(photo)).permute(2, 0, 1), self.device)
+        x = self.torch.from_numpy(np.ascontiguousarray(photo)).permute(2, 0, 1)
+        P = np.mean([predict(m, x, self.device, self.tta) for m in self.models], axis=0)
         return np.round(P * 255).astype(np.uint8)
 
 
 def live_model(a):
     """the upload model chosen on the command line: --live (Chameleon, GPU), --live_baseline (CPU), --fake_live"""
     if getattr(a, 'live_baseline', None):
-        return BaselineLive(a.live_baseline)
+        return BaselineLive(a.live_baseline, tta=getattr(a, 'live_tta', False))
     return LiveModel(a) if a.live else FakeLive(a) if a.fake_live else None
 
 
@@ -484,7 +492,9 @@ def main():
     ap.add_argument('--chunk', type=int, default=1)
     ap.add_argument('--channel_chunk', type=int, default=1)
     ap.add_argument('--live_baseline', default=None,
-                    help='CPU live inference with this baseline checkpoint (results/baselines/ckpt/<run>.pt)')
+                    help='CPU live inference with this baseline checkpoint (results/baselines/ckpt/<run>.pt); a comma list '
+                         'of checkpoints = their mean (the seed ensemble)')
+    ap.add_argument('--live_tta', action='store_true', help='with --live_baseline: average the four flips (as --tta)')
     a = ap.parse_args()
     a.results, a.data = os.path.abspath(a.results), os.path.abspath(a.data)
     live = live_model(a)

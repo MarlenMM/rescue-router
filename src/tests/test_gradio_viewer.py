@@ -70,3 +70,16 @@ def test_cpu_live_baseline_upload(tmp_path):
         out = subprocess.run(['node', str(js), str(tmp_path / 'up' / 'cpu' / 'scene.rrb')], capture_output=True, text=True,
                              check=True).stdout
         assert json.loads(out) == status
+
+
+@pytest.mark.skipif(not os.path.exists(CKPT), reason='needs the baseline checkpoint')
+def test_cpu_live_baseline_ensemble_is_the_mean():
+    """--live_baseline a,b (the seed ensemble of amendment 3): the mean of the members' softmax, as baseline_avg.py"""
+    import gradio_app as G
+    rng = np.random.default_rng(0)
+    photo = rng.integers(0, 256, (96, 128, 3), dtype=np.uint8)
+    one, two = G.BaselineLive(CKPT), G.BaselineLive(f'{CKPT},{CKPT}')
+    assert len(two.models) == 2 and 'mean' in two.name
+    assert np.array_equal(one(photo), two(photo))                    # the mean of a model with itself is the model
+    flips = G.BaselineLive(CKPT, tta=True)
+    assert flips(photo).shape == (5, 96, 128) and 'flips' in flips.name
