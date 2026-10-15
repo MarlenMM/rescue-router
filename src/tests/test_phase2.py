@@ -220,3 +220,8 @@ def test_env_check_passes_the_same_predictions_and_stops_on_drift(tmp_path):
             with pytest.raises(SystemExit):
                 exec(block, g)
             assert 'FAIL' in (out / 'logs' / 'envcheck.txt').read_text()
+    (out / 'ckpt' / 'floodnet_50shot_s0_stratified.ckpt').unlink()     # the dataset did not mount: a clear stop
+    shutil.rmtree(E_dir)
+    with pytest.raises(SystemExit):
+        exec(block, g)
+    assert 'not mounted' in (out / 'logs' / 'envcheck.txt').read_text()

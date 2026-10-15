@@ -92,7 +92,7 @@ STEPS = {
     'b13': ([py('b13_report.py')], ['decode'], 'report/b13/: Batch 13 headline switch recomputed (val30 chain, paired test)'),
     'export': ([py('export_web_assets.py', '--out', 'app/scenes')], ['tiers'], 'app/scenes/: 200 viewer scenes'),
     'viewer': ([py('build_viewer.py')], ['export'], 'docs/: the built web viewer'),
-    'tests': ([[PY, '-m', 'pytest', 'src/tests', '-q'], ['node', '--test', 'app/test/router.test.mjs']], ['export'],
+    'tests': ([[PY, '-m', 'pytest', 'src/tests', '-q'], ['node', '--test', 'app/test/router.test.mjs', 'app/test/i18n.test.mjs']], ['export'],
               'Python tests + JS router parity (bit-exact on all scenes)'),
 }
 

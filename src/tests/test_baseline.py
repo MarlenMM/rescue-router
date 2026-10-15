@@ -44,3 +44,17 @@ def test_resume_after_a_stop_gives_the_same_weights(tmp_path):
     a = torch.load(tmp_path / 'straight' / 'ckpt' / f.name)
     b = torch.load(f)
     assert a.keys() == b.keys() and all(torch.equal(a[k], b[k]) for k in a)
+
+
+def test_job_queue_runs_pending_jobs_once_and_records_failures(tmp_path):
+    """src/job_queue.py: done jobs are skipped on a restart, a failed one is not retried, appended jobs are picked up"""
+    q, state = tmp_path / 'q.txt', tmp_path / 'state'
+    q.write_text('# comment\na  true\nb  false\n\nc  true   # trailing comment\n')
+    cmd = [sys.executable, os.path.join(SRC, 'job_queue.py'), str(q), '--state', str(state)]
+    assert subprocess.run(cmd, capture_output=True).returncode == 0
+    assert (state / 'done').read_text().split() == ['a', 'c'] and (state / 'failed').read_text().split() == ['b']
+    q.write_text(q.read_text() + 'd  true\n')
+    subprocess.run(cmd, capture_output=True)
+    assert (state / 'done').read_text().split() == ['a', 'c', 'd']   # a, c not run again; b not retried
+    out = subprocess.run(cmd + ['--status'], capture_output=True, text=True).stdout
+    assert 'FAILED   b' in out and not (state / 'lock').exists()
