@@ -105,7 +105,13 @@ Work since then (PLAN §16; §16.5 for the latest review):
   measured false-safe rate in the printed briefing; link key `mo=b`); `src/export_web_assets.py` writes the second
   model's layers to `scenes/<key>/b/`, and the JS router parity test covers both models (400 scenes). Where the
   other model routes a house differently (from the same entry point), the house list, the counter, the CSV and the
-  briefing say so: a disagreement between two independent models is a natural "check first" signal.
+  briefing say so: a disagreement between two independent models is a natural "check first" signal. The printed
+  briefing opens with a dispatch plan (houses a truck reaches at the door, per truck stop the houses reached by boat
+  or on foot from it with the longest trip, houses with no route). The built viewer loads its scripts with a
+  content-hash version, so a browser never mixes files of two builds.
+- Learning curves: `results/baselines/report/curve/` (`curve.png` mIoU by number of labels, `curve_total.png` with
+  Chameleon at k + 30, `curve_routing.png` stranded-house F1 and false-safe rate by k); with Phase 2 the routing is
+  also paired on the full test sets where both models predicted them.
   Model and data: `MODEL_CARD.md`, `DATA.md`.
 
 ## Setup (CPU)

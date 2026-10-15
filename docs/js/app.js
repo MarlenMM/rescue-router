@@ -1,8 +1,8 @@
 // Rescue Router web viewer (PLAN §6.4). Plain ES module + Leaflet 1.9 (global L), no build step.
 // Scenes come from src/export_web_assets.py; routing runs in the browser with js/router.js.
 
-import { sceneGrids, parseScene, eta, tier, TRUCK, BOAT, FOOT, ISOLATED } from './router.js';
-import { t, LANG, DEFAULT_LANG, setLang } from './i18n.js';
+import { sceneGrids, parseScene, eta, tier, TRUCK, BOAT, FOOT, ISOLATED } from './router.js?v=7efa7fafdb';
+import { t, LANG, DEFAULT_LANG, setLang } from './i18n.js?v=7efa7fafdb';
 
 const CELL = 4;
 const KIND = ['truck', 'boat', 'foot', 'isolated'];
@@ -860,14 +860,27 @@ function buildBriefing() {
   const diff = rows.filter(h => h.other != null && h.other !== h.st);       // the other model's word on these houses
   const head = ko ? ['가구', '건물', '상태', '분', '트럭 m', '보트 m', '도보 m', '트럭 정차']
     : ['House', 'Building', 'Status', 'Min', 'Truck m', 'Boat m', 'Foot m', 'Truck stop'];
-  const stops = (s.stops ? s.stops.pred : []).map((g, k) => `${String.fromCharCode(65 + k)}: ${t(g.boat ? 'boat launch' : 'walk-on point')}, ${g.houses.length}`).join(' · ');
+  // the dispatch plan: houses a truck reaches at the door, then per truck stop (boat launch or walk-on point) the houses
+  // reached from it with the longest trip, then the houses with no route; "check first" truck houses marked *
+  const ids = (hs) => hs.map(h => `${h.id}${h.tier === 'check first' ? '*' : ''}`).join(', ');
+  const door = rows.filter(h => h.st === TRUCK), none = rows.filter(h => h.st === ISOLATED);
+  const plan = [
+    door.length ? `${t('Truck to the door')}: ${ids(door)}` : null,
+    ...(s.stops ? s.stops.pred : []).map((g, k) => {
+      const hs = g.houses.map(i => rows[i]), far = Math.max(0, ...hs.map(h => +h.minutes || 0));
+      return `${t('Truck stop')} ${String.fromCharCode(65 + k)} (${t(g.boat ? 'boat launch' : 'walk-on point')}): ${ids(hs)}`
+        + (far ? ` · ≤ ${far} ${ko ? '분' : 'min'}` : '');
+    }),
+    none.length ? `${t('No route from the entry point')}: ${ids(none)}` : null,
+  ].filter(Boolean);
   $('briefing').innerHTML = (ko
     ? `<h2>가구 목록: ${esc(DATASET[s.ds].name)} ${esc(s.sc.id)} (${mo.name} 예측)</h2><p>가구 ${s.blds.length}곳: 트럭 ${n(TRUCK)}곳 (확실 ${conf}, 먼저 확인 ${check}), 보트 ${n(BOAT)}, 도보 ${n(FOOT)}, 경로 없음 ${n(ISOLATED)}. 지도: ${esc(view)}. ` +
       `진입: ${esc($('entryMode').textContent)}. 모델: ${s.model === 'b' ? `DeepLabV3-ResNet50, 라벨 사진 ${shots}장(조정용 없음)` : `Chameleon, 라벨 사진 ${shots}장(+조정용 30장)`}.</p>`
     : `<h2>Houses: ${esc(DATASET[s.ds].name)} ${esc(s.sc.id)} (${mo.name} prediction)</h2><p>${s.blds.length} houses: ${n(TRUCK)} by truck (${conf} confident, ${check} check first), ` +
       `${n(BOAT)} boat, ${n(FOOT)} on foot, ${n(ISOLATED)} no route. Map shown: ${esc(view)}. Entry: ${esc($('entryMode').textContent)}. ` +
       `Model: ${s.model === 'b' ? `DeepLabV3-ResNet50 fine-tuned on ${shots} labelled photos (no tuning photos)` : `Chameleon adapted from ${shots} labelled photos (+30 for tuning)`}.</p>`) +
-    (stops ? `<p>${t('Truck stops')}: ${esc(stops)} ${t('houses')}</p>` : '') +
+    (plan.length ? `<h3>${t('Dispatch plan')}</h3><ul class="plan">${plan.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` +
+      (check ? `<p class="fine">* ${t('truck, check first')}</p>` : '') : '') +
     (diff.length ? `<p>${ko ? `${s.other ? MODEL[s.other.model].name : ''}의 판단이 다른 가구 ${diff.length}곳 (먼저 확인): `
       : `${s.other ? MODEL[s.other.model].name : ''} differs on ${diff.length} house${diff.length > 1 ? 's' : ''} (check first): `}` +
       `${esc(diff.map(h => `${h.id} ${t(WORD[h.other])}`).join(', '))}</p>` : '') +

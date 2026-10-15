@@ -110,6 +110,9 @@ const KO = {
   'DeepLabV3-ResNet50 fine-tuned on the same labelled photos (same-budget baseline)': '같은 라벨 사진으로 미세 조정한 DeepLabV3-ResNet50 (같은 예산 기준 모델)',
   'Not available for this photo': '이 사진에는 아직 없음',
   'models disagree most': '두 모델이 가장 다른 순',
+  // printed dispatch plan
+  'Dispatch plan': '출동 계획', 'Truck to the door': '트럭으로 집 앞까지', 'Truck stop': '트럭 정차',
+  'No route from the entry point': '진입 지점에서 경로 없음',
 };
 
 const params = () => new URLSearchParams(location.hash.slice(1));

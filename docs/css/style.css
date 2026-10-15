@@ -214,6 +214,8 @@ h2.sub { margin-top: 12px; }
   .title { order: 0; position: static; max-width: none; margin: 0 0 6px; padding: 6px 10px; }
   .title p, .counter .lbl, .counter .side, .counter .split, .route-card .gtline, .route-card p { color: #333; }
   .counter .split b, .counter .big small { color: #111; }
+  .counter .split.check, .counter .split.check b, .route-card .mismatch { color: #8a6d00; }   /* yellow is unreadable on paper */
+  .leaflet-control-attribution a { color: #444; }
   #map { order: 1; position: relative; inset: auto; background: #fff; margin: 0 0 6px; break-inside: avoid; }
   .leaflet-control-attribution { background: #fff !important; color: #444; }
   .dock { order: 2; position: static; width: auto; flex-direction: row; align-items: stretch; margin: 0 0 6px; }
@@ -223,6 +225,9 @@ h2.sub { margin-top: 12px; }
   .briefing { order: 3; display: block; font-size: 10.5px; color: #111; }
   .briefing h2 { color: #111; font-size: 12px; margin: 4px 0; }
   .briefing p { margin: 2px 0 4px; }
+  .briefing h3 { color: #111; font-size: 11px; margin: 6px 0 2px; }
+  .briefing ul.plan { margin: 0 0 6px; padding-left: 16px; }
+  .briefing ul.plan li { margin: 1px 0; break-inside: avoid; }
   .briefing table { width: 100%; border-collapse: collapse; }
   .briefing th, .briefing td { border-bottom: 1px solid #ccc; padding: 2px 4px; text-align: left; }
   .briefing th { border-bottom: 1px solid #555; }
