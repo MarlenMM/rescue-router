@@ -306,9 +306,9 @@ def prep_upload(img, notes=None):
 
 
 UPLOAD_NOTE = ('**Uploaded photos have no labels.** The houses and the entry point come from the model\'s own map: '
-               'houses it misses get no route, and there is no labelled map to compare with. The model is FloodNet '
-               '50-shot (Hurricane Harvey suburbs): use a drone photo taken straight down from a similar height; '
-               'minutes and metres assume FloodNet\'s scale.')
+               'houses it misses get no route, and there is no labelled map to compare with. The model is adapted from '
+               '50 FloodNet photos (Hurricane Harvey suburbs): use a drone photo taken straight down from a similar '
+               'height; minutes and metres assume FloodNet\'s scale.')
 
 
 class FakeLive:
@@ -425,10 +425,14 @@ def build_ui(args, live=None):
                   + (f'  \nPhoto: {"; ".join(notes)}.' if notes else ''))
         return out
 
+    base_live = isinstance(live, BaselineLive)
+    up_label = ('…or upload a drone photo (live inference on this CPU: same-budget DeepLabV3 baseline)' if base_live
+                else '…or upload a drone photo (live inference, GPU)')
     with gr.Blocks(title='Rescue Router') as demo:
         gr.Markdown('# Rescue Router\nFlood map of a drone photo by **Chameleon** adapted from **50 labelled photos** '
                     '(FloodNet; RescueNet from 20; plus 30 labelled validation photos for tuning), then truck/boat rescue routes '
-                    'on the predicted map.')
+                    'on the predicted map.' + (f' Uploads use the CPU baseline **{live.name}** (DeepLabV3 fine-tuned on the '
+                                               'same 50 photos, no tuning labels).' if base_live else ''))
         st = gr.State()
         with gr.Row():
             with gr.Column(scale=1, min_width=300):
@@ -436,7 +440,7 @@ def build_ui(args, live=None):
                                     label='Scene (8 showcase scenes first, then all 200 test photos of eval100)')
                 jump = gr.Textbox(label='…or type a photo id, then Enter', placeholder='e.g. 7241 or 12195', max_lines=1)
                 jump_msg = gr.Markdown()
-                upload = gr.Image(type='numpy', sources=['upload'], label='…or upload a drone photo (live inference, GPU)')
+                upload = gr.Image(type='numpy', sources=['upload'], label=up_label)
                 gr.Markdown(f'<small>{UPLOAD_NOTE}</small>')
                 src = gr.Radio(['Prediction', 'Labelled map'], value='Prediction',
                                label='Map (labelled map = the same router on the human labels)')

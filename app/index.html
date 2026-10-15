@@ -82,9 +82,10 @@
     </section>
 
     <section>
-      <h2>Houses <span class="h2-note" id="housesNote"></span></h2>
+      <h2><span data-i18n>Houses</span> <span class="h2-note" id="housesNote"></span></h2>
       <div class="houses" id="houses" data-i18n-attr="aria-label:" role="listbox" aria-label="Houses in this photo: arrow keys to move, Enter to send a team"></div>
       <button id="csvHouses" data-i18n-attr="title:" class="link-btn" title="Every house of this photo with its status, tier, minutes and metres per mode (prediction; labelled map alongside)" data-i18n>Download house list (CSV)</button>
+      <button id="printBrief" data-i18n-attr="title:" class="link-btn" title="One page for a field team: the map as shown, with the route, and every house with its status, minutes and truck stop (prediction)" data-i18n>Print briefing (map + house list)</button>
     </section>
 
     <section>
@@ -122,10 +123,13 @@
       <p data-i18n-html="About confidence">Confidence: the prediction is routed twice, with the normal off-road rule (land where p_wet &lt; 0.3 for
         FloodNet, 0.2 for RescueNet, each tuned on the dataset's validation photos) and a cautious one (p_wet &lt; 0.05 /
         0.15). Houses a truck reaches even on the cautious map are confident (100 % truly truck-reachable on FloodNet test
-        photos); the others are marked "check first" (79 %). Minutes and metres are
+        photos); the others are marked "check first" (79 %). Overall about one in nine houses shown as truck-reachable
+        was not (11 % on the full FloodNet test), mostly where the route crosses water the model missed. Minutes and metres are
         rough estimates (truck 20 km/h on roads, 5 off-road, boat 6, on foot 3; scale from the cars in the photo).</p>
       <p data-i18n-html="About numbers">FloodNet 50-shot: mIoU .51 on the full 448-image test (PSPNet with 1,445 labels: .85 on these classes).
-        One showcase scene is an honest failure: shallow water read as dry land.</p>
+        One showcase scene is an honest failure: shallow water read as dry land. A standard segmenter (DeepLabV3-ResNet50)
+        fine-tuned on the same 50 photos, without the 30 tuning photos, does better: mIoU .58, and 8 % instead of 11 % of its
+        truck-reachable houses are not; this viewer shows the Chameleon model as submitted.</p>
       <p data-i18n-html="About browse">Besides the 8 showcase scenes you can browse all 200 test photos of the evaluation split (100 FloodNet,
         100 RescueNet), not picked by us: an orange count is the houses a truck cannot reach on the prediction, a pink dot
         marks a photo where prediction and labelled map disagree. "Water probability" shows what the model believes
@@ -133,6 +137,8 @@
     </section>
   </div>
 </aside>
+
+<div id="briefing" class="briefing" aria-hidden="true"></div>
 
 <script src="vendor/leaflet/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="></script>
 <script type="module" src="js/app.js"></script>

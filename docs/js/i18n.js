@@ -63,7 +63,9 @@ const KO = {
     도달 가능하다고 표시된 가구의 약 11 %는 실제로는 그렇지 않았습니다(대부분 모델이 놓친 물을 지나는 경로). 소요 시간과
     거리는 대략적인 추정입니다(도로 트럭 20 km/h, 도로 밖 5, 보트 6, 도보 3; 축척은 사진 속 자동차 기준).`,
   'About numbers': `FloodNet 50-shot: 전체 448장 테스트에서 mIoU .51 (라벨 1,445장으로 학습한 PSPNet: 같은 클래스에서 .85).
-    대표 장면 하나는 정직한 실패 사례입니다: 얕은 물을 마른 땅으로 읽었습니다.`,
+    대표 장면 하나는 정직한 실패 사례입니다: 얕은 물을 마른 땅으로 읽었습니다. 같은 사진 50장으로 미세 조정한 일반적인 분할
+    모델(DeepLabV3-ResNet50)은 조정용 사진 30장 없이도 더 낫습니다: mIoU .58, 트럭 도달 가능으로 표시한 가구 중 실제로는
+    아닌 비율 8 %(Chameleon 11 %). 이 뷰어는 제출한 Chameleon 모델을 그대로 보여 줍니다.`,
   'About browse': `8개 대표 장면 외에 평가 세트의 테스트 사진 200장(FloodNet 100, RescueNet 100) 전체를 볼 수 있으며,
     우리가 고른 것이 아닙니다. 주황색 숫자는 예측 지도에서 트럭이 닿지 못하는 가구 수, 분홍색 점은 예측과 라벨 지도가 다른
     사진입니다. '물 확률'은 모델이 셀마다 믿는 값을 보여 줍니다. 주소창에 장면, 가구, 진입 지점, 보기가 저장되므로 링크를
@@ -93,6 +95,12 @@ const KO = {
   'Hurricane Harvey, Texas 2017': '허리케인 하비, 텍사스 2017', 'Hurricane Michael, Florida 2018': '허리케인 마이클, 플로리다 2018',
   'Route cost': '경로 비용', 'cells': '셀', 'no steps': '이동 없음',
   'Previous photo (P)': '이전 사진 (P)', 'Next photo (N)': '다음 사진 (N)',
+  'Prediction and labelled map disagree': '예측과 라벨 지도가 다름',
+  'Print briefing (map + house list)': '브리핑 인쇄 (지도 + 가구 목록)',
+  'One page for a field team: the map as shown, with the route, and every house with its status, minutes and truck stop (prediction)':
+    '현장 팀용 한 장: 지금 보이는 지도와 경로, 모든 가구의 상태, 소요 시간, 트럭 정차 지점 (예측)',
+  'No houses in this photo.': '이 사진에는 가구가 없습니다.',
+  'Truck stops': '트럭 정차', 'boat launch': '보트 출발', 'walk-on point': '도보 출발',
 };
 
 const params = () => new URLSearchParams(location.hash.slice(1));
