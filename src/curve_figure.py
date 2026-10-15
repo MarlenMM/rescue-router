@@ -17,13 +17,9 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import baseline_report as BR  # noqa: E402
-import postproc_sweep as PS  # noqa: E402
 from bootstrap_ci import boot  # noqa: E402
-from PIL import Image  # noqa: E402
-from run_decode import GF  # noqa: E402
 from rr.final_decode import decode_photo  # noqa: E402
-from rr.metrics import confusion, decode  # noqa: E402
-from rr.paths import RR_DATA  # noqa: E402
+from rr.metrics import confusion  # noqa: E402
 
 ALL = {'floodnet': 1445, 'rescuenet': 419}
 
@@ -64,22 +60,14 @@ def main():
                                        ('chameleon (one recipe, Phase 2)', a.phase2, f'{ds}_{k}shot_s0_stratified_p2')):
                 if folder and os.path.exists(os.path.join(folder, 'decode', f'{run}.json')) and BR.cache(folder, run, sf):
                     series[label][k] = point(BR.cham_cms(os.path.abspath(folder), run, ds, sf, g), fn)
-            # label-fair: Chameleon decoded with thresholds from its k training labels only (run_decode.py 'prior_tau':
-            # guided filter -> class shares of the supports matched on the photos), Phase 2 run first
-            for folder, run in ((a.phase2, f'{ds}_{k}shot_s0_stratified_p2'), (a.label_free, f'{ds}_{k}shot_s0_stratified'),
-                                (a.phase2, f'{ds}_{k}shot_s0_stratified')):
-                f = folder and os.path.join(folder, 'decode', f'{run}.json')
-                src = folder and BR.cache(folder, run, sf) or BR.cache(a.results, run, sf)
-                if ds == 'floodnet' and f and os.path.exists(f) and 'prior_tau' in json.load(open(f)) and src:
-                    tau = json.load(open(f))['prior_tau']
-                    P = BR.probs(src)
-                    cms = {}
-                    for i in g:
-                        img = np.asarray(Image.open(os.path.join(RR_DATA, 'floodnet_r768', 'test', 'images', f'{i}.jpg'))
-                                         .convert('RGB'))
-                        cms[i] = confusion(decode(PS.guided_filter(img.mean(2).astype(np.float32) / 255, P[i], *GF),
-                                                  tau=tau), g[i])
-                    series['chameleon label-free (k labels)'][k] = point(cms, fn)
+            # label-fair: Chameleon decoded with thresholds from its k training labels only (baseline_report.label_free_tau:
+            # FloodNet run_decode.py 'prior_tau' after the guided filter, RescueNet the same matching on the raw
+            # probabilities), Phase 2 run first
+            for folder, run in ((a.phase2, f'{ds}_{k}shot_s0_stratified_p2'), (a.results, f'{ds}_{k}shot_s0_stratified')):
+                src = folder and BR.cache(folder, run, sf)
+                tau = src and BR.label_free_tau(folder, run, a.label_free, ds, k, 0)
+                if tau:
+                    series['chameleon label-free (k labels)'][k] = point(BR.cham_label_free_cms(folder, run, ds, sf, g, tau), fn)
                     break
         if a.phase2 and ds == 'floodnet':                            # the submitted model is the p2 recipe at 50
             series['chameleon (one recipe, Phase 2)'].setdefault(50, series['chameleon (published)'].get(50))

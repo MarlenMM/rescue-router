@@ -30,12 +30,14 @@ DS = 'floodnet'
 REPO = os.path.dirname(HERE)
 
 
-def support_prior(n_shot=50, seed=0):
-    """share of each class (and 'other') among the labelled pixels of the training photos"""
-    ids = open(os.path.join(REPO, 'supports', f'{DS}_stratified_s{seed}.txt')).read().split()[:n_shot]
+def support_prior(n_shot=50, seed=0, ds=DS):
+    """share of each class (and 'other') among the labelled pixels of the training photos (RescueNet: its supports
+    come from its val split)"""
+    ids = open(os.path.join(REPO, 'supports', f'{ds}_stratified_s{seed}.txt')).read().split()[:n_shot]
     cnt = np.zeros(OTHER_IDX + 1)
     for i in ids:
-        g = gt_classes(np.asarray(Image.open(os.path.join(RR_DATA, f'{DS}_r768', 'train', 'labels', f'{i}.png'))))
+        split = 'train' if ds == 'floodnet' else 'val'
+        g = gt_classes(np.asarray(Image.open(os.path.join(RR_DATA, f'{ds}_r768', split, 'labels', f'{i}.png'))))
         cnt += np.bincount(g[g != 255].ravel(), minlength=OTHER_IDX + 1)[:OTHER_IDX + 1]
     return cnt / cnt.sum()
 
