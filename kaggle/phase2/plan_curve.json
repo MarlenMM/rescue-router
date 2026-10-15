@@ -26,7 +26,7 @@
     "finetune",
     [
      "--dataset",
-     "floodnet",
+     "rescuenet",
      "--shot",
      20,
      "--seed",
@@ -56,20 +56,20 @@
     "avg_ckpt",
     [
      "--out",
-     "{OUT}/ckpt/floodnet_20shot_s0_stratified_p2.ckpt",
-     "{OUT}/ckpt/floodnet_20shot_s0_stratified_p2_step750.ckpt",
-     "{OUT}/ckpt/floodnet_20shot_s0_stratified_p2_step1000.ckpt"
+     "{OUT}/ckpt/rescuenet_20shot_s0_stratified_p2.ckpt",
+     "{OUT}/ckpt/rescuenet_20shot_s0_stratified_p2_step750.ckpt",
+     "{OUT}/ckpt/rescuenet_20shot_s0_stratified_p2_step1000.ckpt"
     ]
    ],
    [
     "predict",
     [
      "--ckpt",
-     "{OUT}/ckpt/floodnet_20shot_s0_stratified_p2.ckpt",
+     "{OUT}/ckpt/rescuenet_20shot_s0_stratified_p2.ckpt",
      "--dataset",
-     "floodnet",
+     "rescuenet",
      "--split_file",
-     "floodnet_val_tune30",
+     "rescuenet_val_tune30",
      "--split",
      "val",
      "--amp",
@@ -84,11 +84,11 @@
     "predict",
     [
      "--ckpt",
-     "{OUT}/ckpt/floodnet_20shot_s0_stratified_p2.ckpt",
+     "{OUT}/ckpt/rescuenet_20shot_s0_stratified_p2.ckpt",
      "--dataset",
-     "floodnet",
+     "rescuenet",
      "--split_file",
-     "floodnet_test_full",
+     "rescuenet_test_full",
      "--split",
      "test",
      "--amp",
@@ -184,7 +184,7 @@
     "finetune",
     [
      "--dataset",
-     "floodnet",
+     "rescuenet",
      "--shot",
      10,
      "--seed",
@@ -214,16 +214,95 @@
     "avg_ckpt",
     [
      "--out",
-     "{OUT}/ckpt/floodnet_10shot_s0_stratified_p2.ckpt",
-     "{OUT}/ckpt/floodnet_10shot_s0_stratified_p2_step750.ckpt",
-     "{OUT}/ckpt/floodnet_10shot_s0_stratified_p2_step1000.ckpt"
+     "{OUT}/ckpt/rescuenet_10shot_s0_stratified_p2.ckpt",
+     "{OUT}/ckpt/rescuenet_10shot_s0_stratified_p2_step750.ckpt",
+     "{OUT}/ckpt/rescuenet_10shot_s0_stratified_p2_step1000.ckpt"
     ]
    ],
    [
     "predict",
     [
      "--ckpt",
-     "{OUT}/ckpt/floodnet_10shot_s0_stratified_p2.ckpt",
+     "{OUT}/ckpt/rescuenet_10shot_s0_stratified_p2.ckpt",
+     "--dataset",
+     "rescuenet",
+     "--split_file",
+     "rescuenet_val_tune30",
+     "--split",
+     "val",
+     "--amp",
+     "fp16",
+     "--chunk",
+     1,
+     "--channel_chunk",
+     1
+    ]
+   ],
+   [
+    "predict",
+    [
+     "--ckpt",
+     "{OUT}/ckpt/rescuenet_10shot_s0_stratified_p2.ckpt",
+     "--dataset",
+     "rescuenet",
+     "--split_file",
+     "rescuenet_test_full",
+     "--split",
+     "test",
+     "--amp",
+     "fp16",
+     "--chunk",
+     1,
+     "--channel_chunk",
+     1
+    ]
+   ]
+  ],
+  [
+   [
+    "finetune",
+    [
+     "--dataset",
+     "floodnet",
+     "--shot",
+     20,
+     "--seed",
+     0,
+     "--n_steps",
+     1000,
+     "--amp",
+     "fp16",
+     "--grad_ckpt",
+     "--freeze_rest",
+     "--defer_val",
+     "--val_every",
+     250,
+     "--snap_from",
+     750,
+     "--chunk",
+     1,
+     "--channel_chunk",
+     1,
+     "--gbs",
+     2,
+     "--tag",
+     "p2"
+    ]
+   ],
+   [
+    "avg_ckpt",
+    [
+     "--out",
+     "{OUT}/ckpt/floodnet_20shot_s0_stratified_p2.ckpt",
+     "{OUT}/ckpt/floodnet_20shot_s0_stratified_p2_step750.ckpt",
+     "{OUT}/ckpt/floodnet_20shot_s0_stratified_p2_step1000.ckpt"
+    ]
+   ],
+   [
+    "predict",
+    [
+     "--ckpt",
+     "{OUT}/ckpt/floodnet_20shot_s0_stratified_p2.ckpt",
      "--dataset",
      "floodnet",
      "--split_file",
@@ -242,7 +321,7 @@
     "predict",
     [
      "--ckpt",
-     "{OUT}/ckpt/floodnet_10shot_s0_stratified_p2.ckpt",
+     "{OUT}/ckpt/floodnet_20shot_s0_stratified_p2.ckpt",
      "--dataset",
      "floodnet",
      "--split_file",
@@ -257,7 +336,9 @@
      1
     ]
    ]
-  ],
+  ]
+ ],
+ "1": [
   [
    [
     "finetune",
@@ -325,7 +406,7 @@
      "--dataset",
      "rescuenet",
      "--split_file",
-     "rescuenet_test_eval100",
+     "rescuenet_test_full",
      "--split",
      "test",
      "--amp",
@@ -336,9 +417,7 @@
      1
     ]
    ]
-  ]
- ],
- "1": [
+  ],
   [
    [
     "finetune",
@@ -409,6 +488,85 @@
      "floodnet",
      "--split_file",
      "floodnet_test_eval100",
+     "--split",
+     "test",
+     "--amp",
+     "fp16",
+     "--chunk",
+     1,
+     "--channel_chunk",
+     1
+    ]
+   ]
+  ],
+  [
+   [
+    "finetune",
+    [
+     "--dataset",
+     "floodnet",
+     "--shot",
+     10,
+     "--seed",
+     0,
+     "--n_steps",
+     1000,
+     "--amp",
+     "fp16",
+     "--grad_ckpt",
+     "--freeze_rest",
+     "--defer_val",
+     "--val_every",
+     250,
+     "--snap_from",
+     750,
+     "--chunk",
+     1,
+     "--channel_chunk",
+     1,
+     "--gbs",
+     2,
+     "--tag",
+     "p2"
+    ]
+   ],
+   [
+    "avg_ckpt",
+    [
+     "--out",
+     "{OUT}/ckpt/floodnet_10shot_s0_stratified_p2.ckpt",
+     "{OUT}/ckpt/floodnet_10shot_s0_stratified_p2_step750.ckpt",
+     "{OUT}/ckpt/floodnet_10shot_s0_stratified_p2_step1000.ckpt"
+    ]
+   ],
+   [
+    "predict",
+    [
+     "--ckpt",
+     "{OUT}/ckpt/floodnet_10shot_s0_stratified_p2.ckpt",
+     "--dataset",
+     "floodnet",
+     "--split_file",
+     "floodnet_val_tune30",
+     "--split",
+     "val",
+     "--amp",
+     "fp16",
+     "--chunk",
+     1,
+     "--channel_chunk",
+     1
+    ]
+   ],
+   [
+    "predict",
+    [
+     "--ckpt",
+     "{OUT}/ckpt/floodnet_10shot_s0_stratified_p2.ckpt",
+     "--dataset",
+     "floodnet",
+     "--split_file",
+     "floodnet_test_full",
      "--split",
      "test",
      "--amp",
@@ -567,164 +725,6 @@
      "floodnet",
      "--split_file",
      "floodnet_test_full",
-     "--split",
-     "test",
-     "--amp",
-     "fp16",
-     "--chunk",
-     1,
-     "--channel_chunk",
-     1
-    ]
-   ]
-  ],
-  [
-   [
-    "finetune",
-    [
-     "--dataset",
-     "rescuenet",
-     "--shot",
-     20,
-     "--seed",
-     0,
-     "--n_steps",
-     1000,
-     "--amp",
-     "fp16",
-     "--grad_ckpt",
-     "--freeze_rest",
-     "--defer_val",
-     "--val_every",
-     250,
-     "--snap_from",
-     750,
-     "--chunk",
-     1,
-     "--channel_chunk",
-     1,
-     "--gbs",
-     2,
-     "--tag",
-     "p2"
-    ]
-   ],
-   [
-    "avg_ckpt",
-    [
-     "--out",
-     "{OUT}/ckpt/rescuenet_20shot_s0_stratified_p2.ckpt",
-     "{OUT}/ckpt/rescuenet_20shot_s0_stratified_p2_step750.ckpt",
-     "{OUT}/ckpt/rescuenet_20shot_s0_stratified_p2_step1000.ckpt"
-    ]
-   ],
-   [
-    "predict",
-    [
-     "--ckpt",
-     "{OUT}/ckpt/rescuenet_20shot_s0_stratified_p2.ckpt",
-     "--dataset",
-     "rescuenet",
-     "--split_file",
-     "rescuenet_val_tune30",
-     "--split",
-     "val",
-     "--amp",
-     "fp16",
-     "--chunk",
-     1,
-     "--channel_chunk",
-     1
-    ]
-   ],
-   [
-    "predict",
-    [
-     "--ckpt",
-     "{OUT}/ckpt/rescuenet_20shot_s0_stratified_p2.ckpt",
-     "--dataset",
-     "rescuenet",
-     "--split_file",
-     "rescuenet_test_eval100",
-     "--split",
-     "test",
-     "--amp",
-     "fp16",
-     "--chunk",
-     1,
-     "--channel_chunk",
-     1
-    ]
-   ]
-  ],
-  [
-   [
-    "finetune",
-    [
-     "--dataset",
-     "rescuenet",
-     "--shot",
-     10,
-     "--seed",
-     0,
-     "--n_steps",
-     1000,
-     "--amp",
-     "fp16",
-     "--grad_ckpt",
-     "--freeze_rest",
-     "--defer_val",
-     "--val_every",
-     250,
-     "--snap_from",
-     750,
-     "--chunk",
-     1,
-     "--channel_chunk",
-     1,
-     "--gbs",
-     2,
-     "--tag",
-     "p2"
-    ]
-   ],
-   [
-    "avg_ckpt",
-    [
-     "--out",
-     "{OUT}/ckpt/rescuenet_10shot_s0_stratified_p2.ckpt",
-     "{OUT}/ckpt/rescuenet_10shot_s0_stratified_p2_step750.ckpt",
-     "{OUT}/ckpt/rescuenet_10shot_s0_stratified_p2_step1000.ckpt"
-    ]
-   ],
-   [
-    "predict",
-    [
-     "--ckpt",
-     "{OUT}/ckpt/rescuenet_10shot_s0_stratified_p2.ckpt",
-     "--dataset",
-     "rescuenet",
-     "--split_file",
-     "rescuenet_val_tune30",
-     "--split",
-     "val",
-     "--amp",
-     "fp16",
-     "--chunk",
-     1,
-     "--channel_chunk",
-     1
-    ]
-   ],
-   [
-    "predict",
-    [
-     "--ckpt",
-     "{OUT}/ckpt/rescuenet_10shot_s0_stratified_p2.ckpt",
-     "--dataset",
-     "rescuenet",
-     "--split_file",
-     "rescuenet_test_eval100",
      "--split",
      "test",
      "--amp",
