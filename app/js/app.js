@@ -203,7 +203,32 @@ async function loadScene(key, keepView = false) {             // keepView: the s
   $('routeCard').hidden = true;
   solve();
   if (!keepView) fit();
+  loadOther(state.s);
 }
+
+// ---------- the other model's statuses: where the two models disagree about a house ----------
+// Both models route the same houses (they come from the labelled map) from the same entry point; a house that one
+// model sends a truck to and the other a boat is worth a second look. Loaded after the scene is shown.
+async function loadOther(s) {
+  if (!s.sc.b || s.meta.upload) return;
+  const other = s.model === 'b' ? 'a' : 'b', odir = other === 'b' ? `${s.dir}b/` : s.dir;
+  const { grid, buildings } = await fetch(odir + 'scene.rrb').then(r => r.arrayBuffer()).then(parseScene);
+  if (state.s !== s || buildings.length !== s.blds.length || buildings.some((b, i) => b.id !== s.blds[i].id)) return;
+  s.other = { model: other, grid, blds: buildings };
+  solveOther();
+  drawHouseList();
+  drawCounter();
+}
+
+function solveOther() {                                            // the other model's statuses, this view's entry
+  const s = state.s, o = s.other;
+  if (!o) return;
+  if (o.lam !== state.lam) { o.grids = sceneGrids(o.grid, state.lam); o.lam = state.lam; }
+  const sol = o.grids.pred.solve(state.entry || o.grid.base);
+  s.status.other = sol ? o.blds.map(b => sol.status(b.goals)) : null;
+}
+
+const otherDiffers = (i) => Boolean(state.s.status.other) && state.s.status.other[i] !== state.s.status.pred[i];
 
 function drawCaption() {
   const { meta, model } = state.s, sc = summary(state.s.sc);
@@ -270,6 +295,7 @@ function solve() {
   s.sol = { pred: s.grids.pred.solve(base()), gt: s.grids.gt.solve(base()), cautious: s.grids.pred_cautious.solve(base()) };
   s.status = { pred: s.blds.map(b => s.sol.pred.status(b.goals)), gt: s.blds.map(b => s.sol.gt.status(b.goals)) };
   s.tier = s.blds.map((b, i) => tier(s.status.pred[i], s.sol.cautious.status(b.goals)));
+  solveOther();
   drawHouses();
   drawHouseList();
   s.stops = { pred: stopPoints('pred'), gt: stopPoints('gt') };
@@ -349,13 +375,15 @@ function drawHouseList() {
     const el = document.createElement('button');
     el.setAttribute('role', 'option');
     el.dataset.i = i;
+    const oth = side === 'pred' && otherDiffers(i) ? `${MODEL[s.other.model].name.split('-')[0]}: ${t(WORD[s.status.other[i]])}` : '';
     el.innerHTML = `<span class="st ${kind}" aria-hidden="true">${SVG[kind]}</span><span class="what">${t('House')} ${b.id}: ${word}` +
-      `<br><span class="sub">${t(CLASS_LABEL[s.ds][b.cls])}</span></span>` +
+      `<br><span class="sub">${t(CLASS_LABEL[s.ds][b.cls])}${oth ? ` · <span class="oth">${oth}</span>` : ''}</span></span>` +
       (dis ? `<span class="dis" title="${t('Prediction and labelled map disagree')}">≠ ${t(WORD[s.status[side === 'pred' ? 'gt' : 'pred'][i]])}</span>` : '');
     const otherWord = WORD[s.status[side === 'pred' ? 'gt' : 'pred'][i]];
     el.setAttribute('aria-label', LANG === 'ko'
       ? `${t('House')} ${b.id}: ${word}, ${t(CLASS_LABEL[s.ds][b.cls])}` + (dis ? `; ${t(side === 'pred' ? 'Labelled map' : 'Prediction')}: ${t(otherWord)}` : '')
-      : `House ${b.id}: ${word}, ${CLASS_LABEL[s.ds][b.cls]}` + (dis ? `; the ${side === 'pred' ? 'labelled map' : 'prediction'} says ${otherWord}` : ''));
+      : `House ${b.id}: ${word}, ${CLASS_LABEL[s.ds][b.cls]}` + (dis ? `; the ${side === 'pred' ? 'labelled map' : 'prediction'} says ${otherWord}` : '')
+        + (oth ? `; ${MODEL[s.other.model].name} says ${WORD[s.status.other[i]]}` : ''));
     el.addEventListener('click', () => { if (base()) { select(i, side); writeHash(); } });
     box.appendChild(el);
   });
@@ -439,8 +467,11 @@ function drawCounter() {
       `${none ? `<span><b>${none}</b> ${t('no route')}</span>` : ''}</div>` +
       (check ? `<div class="split check"><span><b>${check}</b> ${t('more look truck-reachable: check first')}</span></div>` : '') +
       (ns ? `<div class="split stops"><span>${LANG === 'ko' ? `트럭 정차 지점 <b>${ns}</b>곳 (${list} 가구)`
-        : `truck stops at <b>${ns}</b> point${ns > 1 ? 's' : ''} (${list} houses)`}</span></div>` : '') + '</div>';
+        : `truck stops at <b>${ns}</b> point${ns > 1 ? 's' : ''} (${list} houses)`}</span></div>` : '') +
+      (side === 'pred' && nOther ? `<div class="split other"><span>${LANG === 'ko' ? `${MODEL[s.other.model].name}의 판단이 다른 가구 <b>${nOther}</b>곳`
+        : `${MODEL[s.other.model].name} differs on <b>${nOther}</b> house${nOther > 1 ? 's' : ''}`}</span></div>` : '') + '</div>';
   };
+  const nOther = s.status.other ? s.blds.filter((_, i) => otherDiffers(i)).length : 0;
   const hint = state.picking ? `<p class="hint pick">${t('Tap where the rescue team enters (road, yard or water).')}</p>`
     : state.entryMsg ? `<p class="hint pick">${t(state.entryMsg)}</p>`
       : state.sel ? '' : `<p class="hint">${t('Tap a house to send a rescue team.')}</p>`;
@@ -768,17 +799,18 @@ function houseRows() {                                           // prediction: 
     const r = solR.route(b.goals), e = r ? eta(r, solR.grid, s.grid.eta, s.meta.m_per_cell) : null;
     return { i, id: b.id, cls: CLASS_LABEL[s.ds][b.cls], st, tier: tr === 'CONFIDENT_TRUCK' ? 'confident' : tr === 'PROBABLE_TRUCK' ? 'check first' : '',
       minutes: e ? Math.max(1, Math.round(e.minutes)) : '', metres: e ? e.metres.map(v => Math.round(v)) : ['', '', ''],
-      x: Math.round(b.centroid[0]), y: Math.round(b.centroid[1]), stop: stopOf(i), gt: s.status.gt[i] };
+      x: Math.round(b.centroid[0]), y: Math.round(b.centroid[1]), stop: stopOf(i), gt: s.status.gt[i],
+      other: s.status.other ? s.status.other[i] : null };
   });
 }
 
 function houseCsv() {
   const s = state.s, q = (v) => `"${String(v).replace(/"/g, '""')}"`;
   const rows = [['photo', 'model', 'house', 'class', 'status', 'tier', 'minutes', 'truck_m', 'boat_m', 'foot_m', 'x_px', 'y_px',
-    'truck_stop', ...(state.nolabels ? [] : ['labelled_map_status'])]];
+    'truck_stop', ...(s.status.other ? [`${MODEL[s.other.model].name}_status`] : []), ...(state.nolabels ? [] : ['labelled_map_status'])]];
   for (const h of houseRows()) {
     rows.push([`${DATASET[s.ds].name} ${s.sc.id}`, MODEL[s.model].name, h.id, h.cls, WORD[h.st], h.tier, h.minutes, ...h.metres, h.x, h.y, h.stop,
-      ...(state.nolabels ? [] : [WORD[h.gt]])]);
+      ...(s.status.other ? [WORD[h.other]] : []), ...(state.nolabels ? [] : [WORD[h.gt]])]);
   }
   return rows.map(r => r.map(q).join(',')).join('\r\n') + '\r\n';
 }
@@ -796,6 +828,7 @@ function buildBriefing() {
   const fsTxt = !fs ? '' : ko ? `${DATASET[s.ds].name} 테스트 사진 ${nPh}장에서 이 모델이 트럭 도달 가능으로 표시한 가구의 약 ${pct} %는 실제로 그렇지 않았습니다. `
     : `on ${nPh} ${DATASET[s.ds].name} test photos about ${pct} % of the houses this model showed as truck-reachable were not. `;
   const view = t(state.src === 'gt' ? 'Labelled map' : state.src === 'swipe' ? 'Swipe' : 'Prediction');
+  const diff = rows.filter(h => h.other != null && h.other !== h.st);       // the other model's word on these houses
   const head = ko ? ['가구', '건물', '상태', '분', '트럭 m', '보트 m', '도보 m', '트럭 정차']
     : ['House', 'Building', 'Status', 'Min', 'Truck m', 'Boat m', 'Foot m', 'Truck stop'];
   const stops = (s.stops ? s.stops.pred : []).map((g, k) => `${String.fromCharCode(65 + k)}: ${t(g.boat ? 'boat launch' : 'walk-on point')}, ${g.houses.length}`).join(' · ');
@@ -806,6 +839,9 @@ function buildBriefing() {
       `${n(BOAT)} boat, ${n(FOOT)} on foot, ${n(ISOLATED)} no route. Map shown: ${esc(view)}. Entry: ${esc($('entryMode').textContent)}. ` +
       `Model: ${s.model === 'b' ? `DeepLabV3-ResNet50 fine-tuned on ${shots} labelled photos (no tuning photos)` : `Chameleon adapted from ${shots} labelled photos (+30 for tuning)`}.</p>`) +
     (stops ? `<p>${t('Truck stops')}: ${esc(stops)} ${t('houses')}</p>` : '') +
+    (diff.length ? `<p>${ko ? `${s.other ? MODEL[s.other.model].name : ''}의 판단이 다른 가구 ${diff.length}곳 (먼저 확인): `
+      : `${s.other ? MODEL[s.other.model].name : ''} differs on ${diff.length} house${diff.length > 1 ? 's' : ''} (check first): `}` +
+      `${esc(diff.map(h => `${h.id} ${t(WORD[h.other])}`).join(', '))}</p>` : '') +
     `<table><thead><tr>${head.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>` +
     rows.map(h => `<tr${h.tier === 'check first' ? ' class="warn"' : ''}><td>${h.id}</td><td>${esc(t(h.cls))}</td><td>${esc(word(h))}</td>` +
       `<td class="n">${h.minutes}</td>${h.metres.map(v => `<td class="n">${v}</td>`).join('')}<td>${h.stop}</td></tr>`).join('') +
