@@ -44,7 +44,7 @@ NAMES = {'floodnet': PS.NAMES['floodnet'], 'rescuenet': PS.NAMES['rescuenet']}
 SUBMITTED = 'floodnet_50shot_s0_stratified'
 RUN_RE = re.compile(r'baseline_(?P<arch>deeplabv3_r50|deeplabv3_mbv3|lraspp_mbv3)(?:_(?P<ds>rescuenet))?_(?P<k>\d+|all)shot'
                     r'_s(?P<seed>\d+)(?:_sup(?P<draw>\d+))?(?:_(?P<tag>(?!tta$)[a-z0-9]+))?(?P<tta>_tta)?$')
-EVAL = {'floodnet': ('floodnet_test_full', 'floodnet_test_eval100'), 'rescuenet': ('rescuenet_test_eval100',)}
+EVAL = {'floodnet': ('floodnet_test_full', 'floodnet_test_eval100'), 'rescuenet': ('rescuenet_test_full', 'rescuenet_test_eval100')}
 
 
 def parse(run):

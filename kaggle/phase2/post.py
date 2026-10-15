@@ -5,7 +5,8 @@
 Before: ~/.venvs/kaggle/bin/python kaggle/fetch_output.py marlenmelis/rr-p2-<session> results/phase2
 (the kernel writes /kaggle/working/rr/..., so the files land in results/phase2/rr/).
 Steps (each skipped when its output exists; --dry prints them); first it prints the kernel's environment check:
-  1. eval100 caches cut from the full-test caches of the FloodNet 1-20-shot runs (src/subset_cache.py)
+  1. eval100 caches cut from the full-test caches of the FloodNet 1-20-shot and RescueNet 5-20-shot runs
+     (src/subset_cache.py; amendments 1 and 4)
   2. the submitted model's own prediction caches (val30, eval100, full test) linked into the Phase 2 folder,
      so it is decoded and reported with the new runs (seed 0, draw 0); its confirm100 cache (curve session) copied to
      the published folder, where router_sweep / tiers / ensemble read it
@@ -67,10 +68,12 @@ def main():
     missing = [r for r in runs if not glob.glob(os.path.join(R, 'preds', f'{r}_*'))]
     if missing:
         print('WARNING no prediction cache for', missing)
-    # 1. eval100 from the full test
-    for f in sorted(glob.glob(os.path.join(R, 'preds', 'floodnet_*_floodnet_test_full*.npz'))):
-        out = f.replace('floodnet_test_full', 'floodnet_test_eval100')
-        run([py, os.path.join(SRC, 'subset_cache.py'), '--src', f, '--split_file', 'floodnet_test_eval100'], out)
+    # 1. eval100 from the full test (FloodNet 1-20 shots, RescueNet 5-20 shots)
+    for ds in ('floodnet', 'rescuenet'):
+        for f in sorted(glob.glob(os.path.join(R, 'preds', f'{ds}_*_{ds}_test_full*.npz'))):
+            out = f.replace(f'{ds}_test_full', f'{ds}_test_eval100')
+            run([py, os.path.join(SRC, 'subset_cache.py'), '--src', f, '--split_file', f'{ds}_test_eval100',
+                 '--dataset', ds], out)
     # 2. the submitted model in both folders
     for sub in ('preds', 'decode', 'classmaps', 'ckpt'):
         os.makedirs(os.path.join(R, sub), exist_ok=True)

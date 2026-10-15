@@ -942,6 +942,12 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
   `tiers_rn20` right after the RescueNet 20-shot run (the viewer switch needs it), `seed1tta`, `seed2tta`, `ens3`,
   `ens3tta`, and `choice_bl` (the registered rule among the baselines alone) after the reports. **1 label** (fn1):
   baseline eval100 .139 vs Chameleon label-free .138 (level) and Chameleon with its 30 tuning labels .264.
+- **Cycle 7, RescueNet:** label-free (k labels) decode for RescueNet too (prior matching on the raw probabilities;
+  published Chameleon RescueNet eval100: 20 shots .342 label-free vs .421 tuned, 50 shots .375 vs .402), in
+  `baseline_report.py` and the curve figure. **PROTOCOL amendment 4 (for Marlen to keep or drop at the launch):**
+  RescueNet 5/10/20-shot `p2` runs predict the whole RescueNet test (450 photos), eval100 cut on the CPU, paired with
+  the baseline on all 450 (+41 min of quota: curve 385 min, curve + var 9.4 h). The Mac queue predicts the full
+  RescueNet test for every RescueNet baseline (rn20/rn50 lines, rn5full, rn10full, rn20ft).
 - **Viewer switch** (session started by Marlen, stopped at its usage limit, uncommitted in this folder; Marlen chose
   to commit the generated `b/` assets, ~12 MB of history): FloodNet done and parity-tested (304 JS tests); left:
   RescueNet (needs `tiers_rn20`), browser check, pytest, docs/, commit. Its notes: the session's hand-over file.

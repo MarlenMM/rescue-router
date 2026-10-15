@@ -26,7 +26,7 @@ from rr.runs import run_name  # noqa: E402
 TRAIN_S_PER_STEP = 2.6
 PRED_S = {1: 2.7, 5: 3.7, 10: 4.1, 20: 5.9, 50: 17.0}
 N_PHOTOS = {'floodnet_val_tune30': 30, 'floodnet_test_eval100': 100, 'floodnet_val_confirm100': 100,
-            'floodnet_test_full': 448, 'rescuenet_val_tune30': 30, 'rescuenet_test_eval100': 100}
+            'floodnet_test_full': 448, 'rescuenet_val_tune30': 30, 'rescuenet_test_eval100': 100, 'rescuenet_test_full': 450}
 
 
 def run_jobs(ds, shot, seed=0, draw=None, eval_shot=0, splits=None, steps=1000, tag=''):
@@ -58,6 +58,8 @@ def predict_only(ckpt_run, ds, splits):
 # eval100 is cut from it on the CPU (src/subset_cache.py, bit-exact: photos are predicted independently), and the
 # curve is then paired photo by photo with the baseline curve on the full test (amendment 1, PROTOCOL.md)
 FULL = ['floodnet_val_tune30', 'floodnet_test_full']
+# amendment 4: the same for RescueNet 5-20 shots (its 450 test photos; 50 shots stay on eval100, prediction is 17 s/photo)
+RN_FULL = ['rescuenet_val_tune30', 'rescuenet_test_full']
 
 
 def session(name):
@@ -72,7 +74,8 @@ def session(name):
         # RescueNet 5 and 10 (amendment 1): the low-label end on the second disaster
         return [run_jobs('floodnet', k, tag='p2', splits=FULL) for k in (1, 5, 10, 20)] + \
                [run_jobs('floodnet', 100, eval_shot=50, tag='p2')] + \
-               [run_jobs('rescuenet', k, tag='p2') for k in (5, 10, 20, 50)] + \
+               [run_jobs('rescuenet', k, tag='p2', splits=RN_FULL) for k in (5, 10, 20)] + \
+               [run_jobs('rescuenet', 50, tag='p2')] + \
                [predict_only('floodnet_50shot_s0_stratified', 'floodnet', ['floodnet_val_confirm100'])]
     raise ValueError(name)
 
