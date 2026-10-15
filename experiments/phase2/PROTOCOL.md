@@ -226,6 +226,15 @@ probabilities, `baseline_report.label_free_tau`).
    runs, then the rest longest first (`make_plan.lanes`). The 2-GPU split and each lane's length are unchanged; if a
    session is cut short, the runs of the open question exist first.
 
+## Launch decisions (Marlen, 16 Oct 2026, ~08:20 KST; before any Phase 2 GPU run)
+
+- **Amendment 4 kept** (RescueNet 5-20 shots on the full RescueNet test, +41 min of quota) and **amendment 5 kept**
+  (RescueNet 20-shot draws 3 and 4 in `var`, +91 min). Sessions as built: `curve` 10 job groups, ~6.4 h of quota;
+  `var` 6 job groups, ~4.5 h; both may run at the same time (the account runs two GPU sessions).
+- The private dataset `marlenmelis/rr-final-ckpt` (the submitted checkpoint, 4,999,531 bytes) was created on 16 Oct and
+  is ready; both sessions mount it. The launch itself (kernel pushes) is done from the launch checklist
+  `PHASE2_HANDOFF.md` (project folder).
+
 ## Deviation log
 
 (none yet)

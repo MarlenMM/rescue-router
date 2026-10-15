@@ -70,8 +70,9 @@ def main():
         if not a.dry:
             subprocess.run([str(c) for c in cmd], check=True, cwd=ROOT)
 
-    env = os.path.join(R, 'logs', 'envcheck.txt')        # the kernel's environment check (PLAN §16.6)
-    lines = open(env).read().splitlines() if os.path.exists(env) else []
+    env = next((f for f in (os.path.join(R, 'logs', a.session, 'envcheck.txt'), os.path.join(R, 'logs', 'envcheck.txt'))
+                if os.path.exists(f)), '')                      # the kernel's environment check (PLAN §16.6; finish.py)
+    lines = open(env).read().splitlines() if env else []
     print(next((x for x in lines if x.startswith('ENVCHECK')), 'WARNING no ENVCHECK line in logs/envcheck.txt: the '
                'session ran without the environment check, or it crashed'))
     missing = [r for r in runs if not glob.glob(os.path.join(R, 'preds', f'{r}_*'))]
