@@ -784,6 +784,22 @@ document.querySelectorAll('.seg.models button').forEach(b => b.addEventListener(
 $('sortScenes').addEventListener('change', (e) => { state.sort = e.target.value; drawBrowse(); markPressed(); });
 $('prevScene').addEventListener('click', () => step(-1));
 $('nextScene').addEventListener('click', () => step(1));
+
+// the segmented controls are ARIA radio groups: one tab stop per group (the checked button), arrow keys move the
+// choice (WAI-ARIA radio group pattern); tabindex follows aria-checked wherever the code sets it
+const radioTab = (r) => { r.tabIndex = r.getAttribute('aria-checked') === 'true' ? 0 : -1; };
+document.querySelectorAll('[role="radio"]').forEach(radioTab);
+new MutationObserver(ms => ms.forEach(m => radioTab(m.target)))
+  .observe(document.body, { subtree: true, attributeFilter: ['aria-checked'] });
+document.querySelectorAll('[role="radiogroup"]').forEach(g => g.addEventListener('keydown', (e) => {
+  const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  const radios = [...g.querySelectorAll('[role="radio"]:not(:disabled)')], k = radios.indexOf(document.activeElement);
+  if (!d || k < 0 || radios.length < 2) return;
+  e.preventDefault();
+  const to = radios[(k + d + radios.length) % radios.length];
+  to.click();
+  to.focus();
+}));
 addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
   if (e.key === 'n' || e.key === 'N') step(1);
