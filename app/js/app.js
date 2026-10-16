@@ -35,18 +35,38 @@ const CB_CLASS = {
   rescuenet: [[86, 180, 233], [0, 158, 115], [240, 228, 66], [213, 94, 0], [0, 31, 120]],
 };
 // the two models of the switch (scenes.json 'models'; model b's layers in scenes/<key>/b/): the submitted Chameleon
-// and the same-budget baseline on the same labelled photos. Their measured false-safe rates per dataset (for the
-// printed briefing) are in scenes.json: models.<a|b>.false_safe.<dataset>
+// and a standard segmenter trained on the same labelled photos, per dataset (models.b.names / .tuned): on FloodNet the
+// seed ensemble of three DeepLabV3-ResNet50 with flips, its thresholds tuned on the same 30 photos as Chameleon's; on
+// RescueNet one DeepLabV3-ResNet50 (no tuning photos). Each dataset opens on its better model (models.default); the
+// measured false-safe rates per dataset (for the printed briefing) are in models.<a|b>.false_safe.<dataset>
+const bInfo = (ds) => {
+  const b = (state.index && state.index.models && state.index.models.b) || {};
+  return { name: (b.names || {})[ds] || 'DeepLabV3-ResNet50', tuned: Boolean((b.tuned || {})[ds]) };
+};
 const MODEL = {
   a: { name: 'Chameleon', attrib: '<a href="https://github.com/GitGyun/chameleon">Chameleon</a> (Kim et al., ECCV 2024)'
     + ' · FloodNet building outlines: <a href="https://github.com/facebookresearch/segment-anything">SAM</a>' },
-  b: { name: 'DeepLabV3-ResNet50', attrib: '<a href="https://pytorch.org/vision/stable/models/deeplabv3.html">DeepLabV3-ResNet50</a>'
+  b: { get name() { return bInfo(state.ds).name; },
+    attrib: '<a href="https://pytorch.org/vision/stable/models/deeplabv3.html">DeepLabV3-ResNet50</a>'
     + ' (Chen et al. 2017; torchvision, COCO-pretrained)' },
 };
+// the model on screen with its label budget (caption, briefing); html: bold counts. An upload names the model that
+// served it (meta.model_name: the Gradio app's CPU baseline, one network or the ensemble)
+function modelWhat(model, ds, shots, html = true, meta = null) {
+  const ko = LANG === 'ko', n = html ? `<b>${shots}</b>` : shots;
+  if (meta && meta.upload && model === 'b') return ko ? `CPU 모델 ${meta.model_name || 'DeepLabV3'} (업로드 사진)` : `CPU model ${meta.model_name || 'DeepLabV3'} (uploaded photo)`;
+  if (model !== 'b') return ko ? `라벨 사진 ${n}장(+조정용 30장)으로 적응한 Chameleon` : `Chameleon adapted from ${n} labelled photos (+30 for tuning)`;
+  if (bInfo(ds).tuned) {
+    return ko ? `같은 라벨 사진 ${n}장(+조정용 30장)으로 미세 조정한 DeepLabV3 앙상블 (ResNet-50 3개, 뒤집은 영상 평균)`
+      : `DeepLabV3 ensemble (three ResNet-50s, flipped views) fine-tuned on the same ${n} labelled photos (+30 for tuning)`;
+  }
+  return ko ? `같은 라벨 사진 ${n}장으로 미세 조정한 DeepLabV3-ResNet50 (조정용 사진 없음)`
+    : `DeepLabV3-ResNet50 fine-tuned on the same ${n} labelled photos (no tuning photos)`;
+}
 
 const $ = (id) => document.getElementById(id);
 const state = { index: null, key: null, s: null, src: 'pred', layer: 'classes', lam: 5, swipe: 0.5, sel: null, anim: null,
-  entry: null, picking: false, ds: 'floodnet', sort: 'id', cb: false, model: 'a' };
+  entry: null, picking: false, ds: 'floodnet', sort: 'id', cb: false, model: null };   // model null: the dataset's default
 
 // ---------- map and panes ----------
 const map = L.map('map', { crs: L.CRS.Simple, zoomSnap: 0.25, zoomDelta: 0.5, minZoom: -4, maxZoom: 4,
@@ -98,8 +118,10 @@ async function loadIndex() {
   }
 }
 
-// ---------- model switch: 'a' Chameleon, 'b' the baseline where its layers exist (scenes.json entry has 'b') ----------
-const modelOf = (sc) => (state.model === 'b' && sc && sc.b ? 'b' : 'a');
+// ---------- model switch: 'a' Chameleon, 'b' the standard segmenter where its layers exist (scene entry has 'b') ----------
+// state.model: the model the reader picked, or null = each dataset's better model (scenes.json models.default)
+const defaultModel = (ds) => (((state.index && state.index.models) || {}).default || {})[ds] || 'a';
+const modelOf = (sc) => ((state.model || defaultModel(sc ? sc.dataset : state.ds)) === 'b' && sc && sc.b ? 'b' : 'a');
 const summary = (sc) => (modelOf(sc) === 'b' ? { ...sc, ...sc.b } : sc);     // the browse badges of the shown model
 
 // ---------- browsing all eval100 photos ----------
@@ -246,14 +268,13 @@ function drawCaption() {
   const shots = meta.run.match(/_(\d+)shot/)[1];
   const ious = Object.values(meta.iou).filter(v => v != null);
   const miouTxt = ious.length ? fmt(ious.reduce((a, b) => a + b, 0) / ious.length) : null;
-  const what = model === 'b'
-    ? (LANG === 'ko' ? `같은 라벨 사진 <b>${shots}</b>장으로 미세 조정한 DeepLabV3-ResNet50 (조정용 사진 없음)`
-      : `DeepLabV3-ResNet50 fine-tuned on the same <b>${shots}</b> labelled photos (no tuning photos)`)
-    : LANG === 'ko' ? `라벨 사진 <b>${shots}</b>장(+조정용 30장)으로 적응한 Chameleon` : `Chameleon adapted from <b>${shots}</b> labelled photos (+30 for tuning)`;
+  const what = modelWhat(model, meta.dataset, shots, true, meta);
   $('model').innerHTML = `${DATASET[meta.dataset].name} · ${what} · ` + (LANG === 'ko'
     ? (miouTxt ? `이 사진: 평균 IoU ${miouTxt}` : '업로드 사진: 채점할 라벨 없음')
     : (miouTxt ? `this photo: mean IoU ${miouTxt}` : 'uploaded photo: no labels to score it'));
-  $('modelNote').textContent = meta.upload ? '' : LANG === 'ko' ? `둘 다 같은 라벨 사진 ${shots}장` : `both from the same ${shots} labelled photos`;
+  const tuned = bInfo(meta.dataset).tuned;                          // both models also tuned on the same 30 photos
+  $('modelNote').textContent = meta.upload ? '' : LANG === 'ko' ? `둘 다 같은 라벨 사진 ${shots}장${tuned ? ' (+조정용 30장)' : ''}`
+    : `both from the same ${shots} labelled photos${tuned ? ' (+30 for tuning)' : ''}`;
 }
 
 function drawModelSeg() {                                          // the switch shows the model on screen
@@ -264,13 +285,14 @@ function drawModelSeg() {                                          // the switch
     if (b.dataset.model === 'a') b.title = `${t('Chameleon as submitted: few-shot, plus 30 labelled photos for tuning')} (M)`;
     if (b.dataset.model === 'b' && !up) {
       b.disabled = !has;
-      b.title = has ? `${t('DeepLabV3-ResNet50 fine-tuned on the same labelled photos (same-budget baseline)')} (M)` : t('Not available for this photo');
+      b.title = has ? `${t(bInfo(state.s.ds).tuned ? 'DeepLabV3 ensemble fine-tuned on the same labelled photos (thresholds tuned on the same 30 photos)'
+        : 'DeepLabV3-ResNet50 fine-tuned on the same labelled photos (same-budget baseline)')} (M)` : t('Not available for this photo');
     }
   });
 }
 
 function setModel(m) {                                             // the same view (house, entry, map) on the other model
-  if (m === state.model && m === state.s.model) return;
+  if (m === state.s.model) return;
   state.model = m;
   writeHash();
   applyHash();
@@ -850,7 +872,8 @@ function buildBriefing() {
   const rows = houseRows(), n = (k) => s.status.pred.filter(v => v === k).length;
   const conf = s.tier.filter(x => x === 'CONFIDENT_TRUCK').length, check = s.tier.filter(x => x === 'PROBABLE_TRUCK').length;
   const word = (h) => t(h.tier === 'confident' ? 'truck (confident)' : h.tier === 'check first' ? 'truck, check first' : WORD[h.st]);
-  const shots = s.meta.run.match(/_(\d+)shot/)[1], mo = MODEL[s.model];
+  const shots = s.meta.run.match(/_(\d+)shot/)[1];
+  const mo = s.meta.upload && s.model === 'b' ? { name: s.meta.model_name || 'DeepLabV3' } : MODEL[s.model];   // uploads: the serving model
   // the measured false-safe rate of this model on this dataset's test photos (none for uploads: no labels, other place)
   const fs = !s.meta.upload && state.index.models ? ((state.index.models[s.model] || {}).false_safe || {})[s.ds] : null;
   const pct = fs ? Math.round(fs.rate * 100) : null, nPh = fs ? fs.n_photos : 0;
@@ -875,10 +898,10 @@ function buildBriefing() {
   ].filter(Boolean);
   $('briefing').innerHTML = (ko
     ? `<h2>가구 목록: ${esc(DATASET[s.ds].name)} ${esc(s.sc.id)} (${mo.name} 예측)</h2><p>가구 ${s.blds.length}곳: 트럭 ${n(TRUCK)}곳 (확실 ${conf}, 먼저 확인 ${check}), 보트 ${n(BOAT)}, 도보 ${n(FOOT)}, 경로 없음 ${n(ISOLATED)}. 지도: ${esc(view)}. ` +
-      `진입: ${esc($('entryMode').textContent)}. 모델: ${s.model === 'b' ? `DeepLabV3-ResNet50, 라벨 사진 ${shots}장(조정용 없음)` : `Chameleon, 라벨 사진 ${shots}장(+조정용 30장)`}.</p>`
+      `진입: ${esc($('entryMode').textContent)}. 모델: ${esc(modelWhat(s.model, s.ds, shots, false, s.meta))}.</p>`
     : `<h2>Houses: ${esc(DATASET[s.ds].name)} ${esc(s.sc.id)} (${mo.name} prediction)</h2><p>${s.blds.length} houses: ${n(TRUCK)} by truck (${conf} confident, ${check} check first), ` +
       `${n(BOAT)} boat, ${n(FOOT)} on foot, ${n(ISOLATED)} no route. Map shown: ${esc(view)}. Entry: ${esc($('entryMode').textContent)}. ` +
-      `Model: ${s.model === 'b' ? `DeepLabV3-ResNet50 fine-tuned on ${shots} labelled photos (no tuning photos)` : `Chameleon adapted from ${shots} labelled photos (+30 for tuning)`}.</p>`) +
+      `Model: ${esc(modelWhat(s.model, s.ds, shots, false, s.meta))}.</p>`) +
     (plan.length ? `<h3>${t('Dispatch plan')}</h3><ul class="plan">${plan.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` +
       (check ? `<p class="fine">* ${t('truck, check first')}</p>` : '') : '') +
     (diff.length ? `<p>${ko ? `${s.other ? MODEL[s.other.model].name : ''}의 판단이 다른 가구 ${diff.length}곳 (먼저 확인): `
@@ -938,7 +961,7 @@ $('sheetToggle').addEventListener('click', () => {
 addEventListener('resize', () => { clearTimeout(state.rt); state.rt = setTimeout(fit, 150); });
 addEventListener('hashchange', applyHash);                          // back/forward, or a pasted link
 
-// ---------- the view in the URL: #s=<scene>&mo=b&h=<house id>[gt]&e=<x>,<y>&m=gt|swipe&l=pwet&r=0&cb=1 ----------
+// ---------- the view in the URL: #s=<scene>&mo=a|b&h=<house id>[gt]&e=<x>,<y>&m=gt|swipe&l=pwet&r=0&cb=1 ----------
 function readHash() {
   const h = decodeURIComponent(location.hash.slice(1));
   const q = new URLSearchParams(h.includes('=') ? h : `s=${h}`);   // old links: #floodnet_7241
@@ -948,7 +971,8 @@ function readHash() {
 function writeHash(push = false) {
   if (!state.s) return;
   const q = [`s=${state.key}`];
-  if (state.model === 'b') q.push('mo=b');
+  const mo = state.s.meta.upload ? null : modelOf(state.s.sc);    // the model asked for (setModel writes before loading it)
+  if (mo && mo !== defaultModel(state.s.sc.dataset)) q.push(`mo=${mo}`);   // only when it is not the dataset's default
   if (state.sel) q.push(`h=${state.s.blds[state.sel.i].id}${state.src === 'swipe' && state.sel.side === 'gt' ? 'gt' : ''}`);
   if (state.entry) q.push(`e=${state.entry.at.map(Math.round).join(',')}`);
   if (state.src !== 'pred') q.push(`m=${state.src}`);
@@ -960,12 +984,12 @@ function writeHash(push = false) {
   if (url !== location.hash) history[push ? 'pushState' : 'replaceState'](null, '', url);
 }
 
-// A link names the whole view: a key it leaves out means that key's default (model Chameleon, map 'pred', layer
+// A link names the whole view: a key it leaves out means that key's default (the dataset's model, map 'pred', layer
 // 'classes', risk-aware truck, auto entry, no house), also when it is pasted into an open viewer. Colour palette and
 // language are the reader's preferences and change only when the link names them.
 async function applyHash() {
   const p = readHash();
-  state.model = p.mo === 'b' ? 'b' : 'a';
+  state.model = ['a', 'b'].includes(p.mo) ? p.mo : null;
   if (!state.s || (p.s && p.s !== state.key)) await loadScene(p.s);
   else if (modelOf(state.s.sc) !== state.s.model) await loadScene(state.key, true);
   else if (state.model !== state.browseModel) { drawBrowse(); markPressed(); }

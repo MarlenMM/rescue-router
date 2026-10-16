@@ -11,9 +11,11 @@ FloodNet labels on and steadier across training seeds (sd .014 vs Chameleon's .0
 ensemble with flips reaches .617 on the full FloodNet test (Chameleon .507) on a CPU. Chameleon wins at 1-5 FloodNet
 photos and, with its 30 tuning photos, at 10-20 RescueNet photos (2 of 3 support draws at 20); counting those tuning
 photos as labels, the baseline is ahead everywhere. The registered product-model rule picked a Chameleon + baseline
-mix (full test .591, false-safe rate .052 vs Chameleon .111), statistically level with the CPU-only seed ensemble; the
-viewer and the published numbers stay on the submitted model pending that product decision. The local web viewer shows every test scene with either model and
-marks the houses they route differently. Details: "Since submission" below, `PLAN.md` §16.
+mix (full test .591, false-safe rate .052 vs Chameleon .111), statistically level with the CPU-only seed ensemble,
+which became the viewer's FloodNet model (it needs no GPU). **The viewer (local build) opens each disaster on its
+better model**: FloodNet on the DeepLabV3 ensemble, RescueNet on Chameleon; a switch shows the other model on the same
+photos, with its own statuses, tiers and measured error rates, and marks the houses the two route differently. The
+public demo stays at the submitted version until grading. Details: "Since submission" below, `PLAN.md` §16.
 
 **Track A (segmentation).** [Chameleon](https://github.com/GitGyun/chameleon) (Kim et al., ECCV 2024), meta-trained
 by the course, is adapted with **50 labelled FloodNet photos** to five classes: clear road, flooded road, flooded
@@ -43,7 +45,7 @@ rest the truck route crosses water or flooded road that the model left unlabelle
 "check first" (79 %). The "labelled map" these numbers
 compare with is the same router run on the human labels: the datasets label pixels, not reachability.
 
-**Try it:** <https://marlenmm.github.io/rescue-router-demo/> (public copy of `docs/`). The web viewer (`docs/`, no server needed) shows all 200 eval100 photos: prediction vs labelled map,
+**Try it:** <https://marlenmm.github.io/rescue-router-demo/> (public copy of `docs/` as submitted; the local `docs/` has the two-model viewer described above). The web viewer (`docs/`, no server needed) shows all 200 eval100 photos: prediction vs labelled map,
 house statuses and tiers, animated truck → boat → walk routes, minutes and metres, a water-probability layer and
 shareable links. The Gradio app (`src/gradio_app.py`) does the same in Python and, on a GPU, runs the model on an
 uploaded photo.
@@ -101,7 +103,7 @@ Work since then (PLAN §16; §16.5 for the latest review):
   choice (registered):** Chameleon + self-trained baseline with flips, 50/50 (full test .591 [.556, .627]; stranded F1
   .844, false safe .052; vs Chameleon +.084 [+.059, +.111], −.058 false safe); the registered baseline-only choice,
   the seed ensemble with flips (CPU), .617 [.583, .652], false safe .068; the two paired: indistinguishable
-  (`product_options.md`). Not applied to the viewer or the published numbers.
+  (`product_options.md`). The CPU-only ensemble became the viewer's FloodNet model (17 Oct, PLAN §16.9).
 - **Memory safety on the Mac** (16 Oct, after the post-processing exhausted 24 GB + 33 GB of swap): CPU worker pools
   size themselves to the free memory (`src/rr/mem.py`), `src/memguard.py` pauses the youngest heavy job of this
   repository when memory runs out and resumes it afterwards (started by the Phase 2 finisher, `post.py` and the job
@@ -122,9 +124,12 @@ Work since then (PLAN §16; §16.5 for the latest review):
   links now open exactly the view they name, Esc closes a route, the About text states the false-safe rate and the
   baseline result). Baseline training resumes after a crash or reboot (`--save_every`).
 - **Viewer model switch** (local `docs/`): every one of the 200 scenes can be shown with the submitted Chameleon model
-  or the same-budget DeepLabV3-ResNet50 (same photos and router, each model's own statuses, tiers, per-photo IoU and
-  measured false-safe rate in the printed briefing; link key `mo=b`); `src/export_web_assets.py` writes the second
-  model's layers to `scenes/<key>/b/`, and the JS router parity test covers both models (400 scenes). Where the
+  or a standard segmenter on the same photos: on FloodNet the DeepLabV3 seed ensemble with flips and the same 30
+  tuning photos (the Phase 2 CPU product choice), on RescueNet one DeepLabV3-ResNet50 (same router and gates, each
+  model's own statuses, tiers, per-photo IoU and measured false-safe rate in the printed briefing). Each dataset opens
+  on its better model (FloodNet: the ensemble, RescueNet: Chameleon); a link names the other with `mo=a` / `mo=b`.
+  `src/export_web_assets.py` writes the second model's layers to `scenes/<key>/b/`, and the JS router parity test
+  covers both models (400 scenes). Where the
   other model routes a house differently (from the same entry point), the house list, the counter, the CSV and the
   briefing say so: a disagreement between two independent models is a natural "check first" signal. The printed
   briefing opens with a dispatch plan (houses a truck reaches at the door, per truck stop the houses reached by boat
@@ -181,7 +186,15 @@ then open <http://localhost:8766/#s=rescuenet_12195&h=8&m=gt> (canal row: truck,
 serves the Gradio app from the caches on <http://127.0.0.1:7860>; `src/gradio_viewer.py` (same arguments) puts the web
 viewer inside Gradio, so an uploaded photo gets every viewer visual (animated route, swipe, layers), and keeps the
 classic view as a second tab. On a plain CPU, `--live_baseline results/baselines/ckpt/<run>.pt` serves uploads with
-the same-budget baseline (~0.5 s per photo; a comma list of checkpoints = their mean, `--live_tta` adds flips).
+the same-budget baseline (~0.5 s per photo; a comma list of checkpoints = their mean, `--live_tta` adds flips,
+`--live_decode` a tuned decode). The viewer's FloodNet model (~4 s per photo on a CPU):
+
+```bash
+~/.venvs/rr/bin/python src/gradio_viewer.py --live_tta \
+  --live_baseline results/baselines/ckpt/baseline_deeplabv3_r50_50shot_s0.pt,results/baselines/ckpt/baseline_deeplabv3_r50_50shot_s1_sup0.pt,results/baselines/ckpt/baseline_deeplabv3_r50_50shot_s2_sup0.pt \
+  --live_decode results/baselines/decode/baseline_deeplabv3_r50_50shot_s0_ens3_tta.json
+```
+
 Live inference with Chameleon needs a GPU:
 `kaggle/gradio_live/colab_gradio_live.py` (one Colab cell, T4) or `kaggle/gradio_live/run_gradio_live.py` (Kaggle T4)
 starts it with a public share link.

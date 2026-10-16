@@ -120,25 +120,29 @@
 
     <section class="about">
       <h2 data-i18n>About</h2>
-      <p data-i18n-html="About text">A drone photo is mapped into five classes by <b>Chameleon</b>, adapted from only <b>50 labelled photos</b> (FloodNet) or 20 (RescueNet); 30 more labelled validation photos per dataset chose the checkpoint, the decode thresholds and the router settings.
-        A router on 4×4-pixel cells then finds the cheapest way from the entry point to each house: truck on dry ground
+      <p data-i18n-html="About text">A drone photo is mapped into five classes by one of two models trained on the same <b>50 labelled photos</b> (FloodNet) or 20 (RescueNet), with 30 more labelled validation photos per dataset for the decode thresholds and the router settings:
+        <b>Chameleon</b>, the few-shot model this project started from, and a standard segmenter (DeepLabV3-ResNet50; on
+        FloodNet an ensemble of three with flipped views). Each dataset opens on the model that is better there (see
+        below); the Model switch shows the other. A router on 4×4-pixel cells then finds the cheapest way from the entry point to each house: truck on dry ground
         (roads, or yards at 4× cost; never where water is likely), then a boat across water, then the last stretch on foot
         (never back into a vehicle). Vehicles have a width: a truck needs about 2.5 m between buildings and a boat
         about 1.6 m, so neither squeezes through the gap between two houses; people on foot can. The labelled map is the same router run on the human labels: the datasets label pixels,
         not reachability.</p>
       <p data-i18n-html="About confidence">Confidence: the prediction is routed twice, with the normal off-road rule (land where p_wet &lt; 0.3 for
         FloodNet, 0.2 for RescueNet, each tuned on the dataset's validation photos) and a cautious one (p_wet &lt; 0.05 /
-        0.15). Houses a truck reaches even on the cautious map are confident (100 % truly truck-reachable on FloodNet test
-        photos); the others are marked "check first" (79 %). Overall about one in nine houses shown as truck-reachable
-        was not (11 % on the full FloodNet test), mostly where the route crosses water the model missed. Minutes and metres are
+        0.15). Houses a truck reaches even on the cautious map are confident (on FloodNet test photos 99 % truly
+        truck-reachable for the ensemble, 100 % for Chameleon); the others are marked "check first" (82 % / 79 %). On the
+        full FloodNet test about 7 % of the houses the ensemble shows as truck-reachable were not (Chameleon 11 %), mostly
+        where the route crosses water the model missed. Minutes and metres are
         rough estimates (truck 20 km/h on roads, 5 off-road, boat 6, on foot 3; scale from the cars in the photo).</p>
-      <p data-i18n-html="About numbers">FloodNet 50-shot: mIoU .51 on the full 448-image test (PSPNet with 1,445 labels: .85 on these classes).
-        One showcase scene is an honest failure: shallow water read as dry land. A standard segmenter (DeepLabV3-ResNet50)
-        fine-tuned on the same 50 photos, without the 30 tuning photos, does better: mIoU .58, and 8 % instead of 11 % of its
-        truck-reachable houses are not. The Model switch shows it on the same 200 photos, with the same router and gates
-        and its own statuses, tiers and per-photo IoU (its confident tier: 97 % truly truck-reachable on FloodNet, Chameleon's
-        100 %); Chameleon is the model as submitted. Houses the other model routes differently are marked in the house list
-        and counted under the map; the sort "models disagree most" lists those photos first.</p>
+      <p data-i18n-html="About numbers">FloodNet, full 448-photo test: the DeepLabV3 ensemble mIoU .62, Chameleon .51 (PSPNet trained on all 1,445
+        labelled photos: .85 on these classes). A pre-registered comparison on the same photos (Phase 2) found Chameleon
+        ahead only with very few labels (1-5 FloodNet photos) and on a new disaster at 10-20 photos, where its 30 tuning
+        photos help: RescueNet here, 20 photos, mIoU .42 against .36 for one DeepLabV3 (eval100), so RescueNet opens on
+        Chameleon. Both models use the same router and gates, each with its own statuses, tiers and per-photo IoU.
+        Houses the other model routes differently are marked in the house list and counted under the map; the sort
+        "models disagree most" lists those photos first. One showcase scene shows an honest failure of Chameleon: shallow
+        water read as dry land.</p>
       <p data-i18n-html="About browse">Besides the 8 showcase scenes you can browse all 200 test photos of the evaluation split (100 FloodNet,
         100 RescueNet), not picked by us: an orange count is the houses a truck cannot reach on the prediction, a pink dot
         marks a photo where prediction and labelled map disagree. "Water probability" shows what the model believes

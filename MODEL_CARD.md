@@ -1,6 +1,28 @@
 # Model card: Rescue Router flood mapper (FloodNet 50-shot) and router v3
 
-## What it is
+## Two models on the same labelled photos (17 Oct 2026; PLAN §16.8-16.9)
+
+The project started with Chameleon (this card, the model submitted on 8 Oct). A pre-registered comparison
+(`experiments/phase2/PROTOCOL.md`) then found a standard segmenter trained on the same photos better on FloodNet, so the
+viewer now opens FloodNet on it and keeps Chameleon one click away; RescueNet opens on Chameleon, which is better there.
+
+| FloodNet, full test (448 photos) | DeepLabV3 ensemble (FloodNet default) | Chameleon (submitted) |
+|---|---|---|
+| what | 3 × DeepLabV3-ResNet50 (COCO-pretrained), training seeds 0-2, test-time flips averaged | Chameleon generalist + bias / matching-module fine-tune, SAM building outlines |
+| labels | the same 50 training photos + the same 30 tuning photos (thresholds) | 50 + 30 (checkpoint, thresholds, filters) |
+| mIoU [95 % CI] | **.617** [.583, .652] (paired vs Chameleon +.110 [+.079, +.144]) | .507 [.474, .538] |
+| stranded-house F1 (router v3) | .817 | .752 |
+| false-safe rate (shown truck-reachable, not) | **.068** | .111 |
+| "confident truck" houses truly truck-reachable (eval100) | 99.4 % of 361 | 100 % of 208 |
+| hardware, time per photo | CPU, ~4 s | GPU (T4), ~17 s |
+| stability (5 training runs at 50 photos, eval100) | single network .555 ± .014 | .487 ± .054 |
+
+RescueNet (Hurricane Michael, 20 labelled photos): Chameleon .421 vs one DeepLabV3-ResNet50 .360 (eval100; paired −.061
+[−.098, −.027]); over three support draws with one recipe Chameleon (+30 tuning photos) .439 ± .037 vs .396 ± .013 on
+the full test. Its lead depends on the 30 tuning photos: a DeepLabV3 trained on all 50 photos (20 + 30) reaches .479.
+Reproduce: `src/ensemble.py --paired --baselines_only`, `experiments/product_options.py`, `src/baseline_report.py`.
+
+## What it is (Chameleon, as submitted)
 
 - **Segmentation:** [Chameleon](https://github.com/GitGyun/chameleon) (Kim et al., ECCV 2024), the generalist
   meta-trained by the AIC200 course (`generalist.ckpt`, 2.97 GB), fine-tuned on 50 labelled FloodNet drone photos for five
@@ -59,7 +81,8 @@ on FloodNet at 50 labels, Chameleon's few-shot adaptation does not beat ordinary
   self-trained DeepLabV3 with flips (full test .591 [.556, .627], stranded F1 .844, false safe .052 [.015, .107]); the
   CPU-only alternative (the baselines' seed ensemble with flips, the registered baseline-only choice) .617 [.583, .652],
   false safe .068; the two are statistically level. The router's gates re-chosen on val30 + confirm100 stay at 0.3 and
-  0.05. This card still describes the submitted model; the product switch is a separate decision.
+  0.05. Since 17 Oct the viewer opens FloodNet on the CPU-only ensemble (the table at the top); this card's other
+  sections describe the submitted Chameleon model.
 
 The web viewer (local build) shows every test scene with either model (Chameleon or the baseline), each with its own
 statuses, tiers and measured false-safe rate, and marks the houses the two models route differently.

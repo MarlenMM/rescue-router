@@ -262,10 +262,12 @@ class BaselineLive:
     on a laptop CPU, no GPU and no Chameleon files. Its own decode (argmax over the 5 classes + other) replaces the
     Chameleon decode; the router, tiers and viewer are unchanged (the cautious tier gate was chosen for Chameleon's
     probabilities, so read the tiers with care). Several checkpoints (comma list) = their mean softmax, as the seed
-    ensemble of PROTOCOL amendment 3 (src/baseline_avg.py); tta=True averages the four flips of each, as --tta."""
+    ensemble of PROTOCOL amendment 3 (src/baseline_avg.py); tta=True averages the four flips of each, as --tta.
+    decode: a decode JSON instead of the argmax (e.g. results/baselines/decode/<run>.json, the val30-tuned thresholds of
+    the viewer's FloodNet model: the three seeds with flips = the Phase 2 baseline-only product choice, PLAN §16.8)"""
     decode = {'argmax': True}
 
-    def __init__(self, ckpt, device='cpu', tta=False):
+    def __init__(self, ckpt, device='cpu', tta=False, decode=None):
         import torch
         from baseline_seg import build
         self.torch, self.device, self.tta, self.models = torch, device, tta, []
@@ -279,6 +281,9 @@ class BaselineLive:
         self.model = self.models[0]
         self.run = os.path.basename(paths[0])[:-3]              # e.g. baseline_deeplabv3_r50_50shot_s0 (viewer scene meta)
         self.name = self.run + (f' + {len(paths) - 1} more (mean)' if len(paths) > 1 else '') + (', flips' if tta else '')
+        if decode:
+            self.decode = json.load(open(decode))['chosen']
+            self.name += ', tuned thresholds'
 
     def __call__(self, photo):
         from baseline_seg import predict
@@ -290,7 +295,7 @@ class BaselineLive:
 def live_model(a):
     """the upload model chosen on the command line: --live (Chameleon, GPU), --live_baseline (CPU), --fake_live"""
     if getattr(a, 'live_baseline', None):
-        return BaselineLive(a.live_baseline, tta=getattr(a, 'live_tta', False))
+        return BaselineLive(a.live_baseline, tta=getattr(a, 'live_tta', False), decode=getattr(a, 'live_decode', None))
     return LiveModel(a) if a.live else FakeLive(a) if a.fake_live else None
 
 
@@ -495,6 +500,9 @@ def main():
                     help='CPU live inference with this baseline checkpoint (results/baselines/ckpt/<run>.pt); a comma list '
                          'of checkpoints = their mean (the seed ensemble)')
     ap.add_argument('--live_tta', action='store_true', help='with --live_baseline: average the four flips (as --tta)')
+    ap.add_argument('--live_decode', default=None, help='with --live_baseline: a decode JSON (results/baselines/decode/'
+                    '<run>.json) instead of the argmax; the viewer\'s FloodNet model = the three seed checkpoints with '
+                    '--live_tta and baseline_deeplabv3_r50_50shot_s0_ens3_tta.json')
     a = ap.parse_args()
     a.results, a.data = os.path.abspath(a.results), os.path.abspath(a.data)
     live = live_model(a)

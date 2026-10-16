@@ -1,9 +1,15 @@
 {
  "id": "7291",
  "dataset": "floodnet",
- "run": "baseline_deeplabv3_r50_50shot_s0",
+ "run": "baseline_deeplabv3_r50_50shot_s0_ens3_tta",
  "decode": {
-  "argmax": true
+  "tau": [
+   0.6,
+   0.65,
+   0.35,
+   0.2,
+   0.3
+  ]
  },
  "caption": "",
  "size": [
@@ -52,10 +58,10 @@
   "road clear": null,
   "road flooded": 0.01,
   "building flooded": null,
-  "building dry": 0.0,
-  "water": 0.625
+  "building dry": 0.007,
+  "water": 0.609
  },
- "miou": 0.212,
+ "miou": 0.209,
  "n_buildings": 2,
  "status_pred": {
   "TRUCK": 2,
@@ -71,8 +77,8 @@
  },
  "n_disagree": 2,
  "tiers_pred": {
-  "CONFIDENT_TRUCK": 2,
-  "PROBABLE_TRUCK": 0,
+  "CONFIDENT_TRUCK": 0,
+  "PROBABLE_TRUCK": 2,
   "BOAT": 0,
   "FOOT": 0,
   "ISOLATED": 0
@@ -80,11 +86,11 @@
  "tier_stats": {
   "cautious_gate": 0.05,
   "tuned_gate": 0.3,
-  "confident": 0.9731051344743277,
-  "probable": 0.6458333333333334
+  "confident": 0.9944598337950139,
+  "probable": 0.8243243243243243
  },
  "m_per_cell": 0.5,
  "scale_source": "2 labelled cars",
  "model": "b",
- "model_name": "DeepLabV3-ResNet50"
+ "model_name": "DeepLabV3 ensemble"
 }

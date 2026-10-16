@@ -172,6 +172,9 @@ def main():
                     help='CPU live inference with this baseline checkpoint (results/baselines/ckpt/<run>.pt); a comma list '
                          'of checkpoints = their mean (the seed ensemble)')
     ap.add_argument('--live_tta', action='store_true', help='with --live_baseline: average the four flips (as --tta)')
+    ap.add_argument('--live_decode', default=None, help='with --live_baseline: a decode JSON (results/baselines/decode/'
+                    '<run>.json) instead of the argmax; the viewer\'s FloodNet model = the three seed checkpoints with '
+                    '--live_tta and baseline_deeplabv3_r50_50shot_s0_ens3_tta.json')
     a = ap.parse_args()
     assert a.viewer, 'built viewer not found: run src/build_viewer.py (docs/) or pass --viewer'
     a.results, a.data = os.path.abspath(a.results), os.path.abspath(a.data)

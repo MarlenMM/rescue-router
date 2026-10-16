@@ -20,10 +20,13 @@ Per scene (folder <out>/<dataset>_<id>/):
 plus <out>/scenes.json (index: showcase scenes first, then every eval100 photo of both datasets). The predicted map uses the run's tuned decode and the off-road gate
 (route_eval.PRED_OFFROAD_MAXWET, per dataset); the GT map has no gate, as in route_eval.py.
 
-Model switch (PLAN §16.6): the same-budget baseline (MODEL_B: DeepLabV3-ResNet50 on the same 50 / 20 photos,
-src/baseline_seg.py, argmax decode) gets its own layers per scene in <out>/<dataset>_<id>/b/: pred.png, scene.rrb,
-meta.json and ref.json as above (photo, thumbnail and labelled map are shared), where its eval100 cache exists. Same
-router and gates as Chameleon; the route card's tier shares come from the baseline's own tiers report.
+Model switch (PLAN §16.6, §16.9): model b, a standard segmenter on the same photos (MODEL_B, per dataset: FloodNet
+the Phase 2 product choice among the baselines, the seed ensemble of three DeepLabV3-ResNet50 with test-time flips and
+thresholds tuned on the same 30 photos as Chameleon's; RescueNet the single DeepLabV3-ResNet50 on the same 20 photos,
+argmax), gets its own layers per scene in <out>/<dataset>_<id>/b/: pred.png, scene.rrb, meta.json and ref.json as
+above (photo, thumbnail and labelled map are shared), where its eval100 cache exists. Same router and gates as
+Chameleon (the ensemble's own registered cautious gate is the same 0.05); the route card's tier shares come from each
+model's own tiers report. The viewer opens each dataset on its better model (DEFAULT_MODEL); the switch shows the other.
 
     python src/export_web_assets.py --out app/scenes --models b    # only the baseline layers (index rebuilt)
 """
@@ -54,20 +57,33 @@ from rr.paths import RR_DATA  # noqa: E402
 
 RUNS = {'floodnet': 'floodnet_50shot_s0_stratified', 'rescuenet': 'rescuenet_20shot_s0_stratified'}
 ROOT = os.path.dirname(HERE)
-# the viewer's second model ('b', scenes/<key>/b/): same photos and labels as Chameleon, no tuning labels; tier shares
-# from `src/tiers.py --results results/baselines --run <run> --argmax ...` (its tiers.json, per dataset)
-MODEL_B = dict(name='DeepLabV3-ResNet50', results=os.path.join(ROOT, 'results/baselines'), decode={'argmax': True},
-               runs={'floodnet': 'baseline_deeplabv3_r50_50shot_s0', 'rescuenet': 'baseline_deeplabv3_r50_rescuenet_20shot_s0'},
-               tiers={'floodnet': os.path.join(ROOT, 'results/baselines/report/tiers/tiers.json'),
-                      'rescuenet': os.path.join(ROOT, 'results/baselines/report/tiers_rescuenet/tiers.json')})
+# the viewer's second model ('b', scenes/<key>/b/): the same training photos as Chameleon. FloodNet: the registered
+# baseline-only product choice (PLAN §16.8: full test mIoU .617 vs Chameleon .507, false safe .068 vs .111), its
+# val30-tuned thresholds written by src/ensemble.py to results/baselines/decode/<run>.json; RescueNet: one network,
+# argmax (no ensemble there). Tier shares from each run's `src/tiers.py --results results/baselines --run <run> ...`.
+ENS = 'baseline_deeplabv3_r50_50shot_s0_ens3_tta'
+MODEL_B = dict(name='DeepLabV3', results=os.path.join(ROOT, 'results/baselines'),
+               names={'floodnet': 'DeepLabV3 ensemble', 'rescuenet': 'DeepLabV3-ResNet50'},
+               tuned={'floodnet': True, 'rescuenet': False},            # thresholds tuned on the 30 tuning photos
+               runs={'floodnet': ENS, 'rescuenet': 'baseline_deeplabv3_r50_rescuenet_20shot_s0'},
+               decode={'floodnet': os.path.join(ROOT, f'results/baselines/decode/{ENS}.json'), 'rescuenet': {'argmax': True}},
+               tiers={'floodnet': os.path.join(ROOT, 'results/baselines/report/tiers_ens3_tta/tiers.json'),
+                      'rescuenet': os.path.join(ROOT, 'results/baselines/report/tiers_rescuenet/tiers.json')},
+               # routing of the tuned ensemble = ensemble.py --paired --baselines_only (product_choice_baselines)
+               routing={'floodnet': ['results/baselines/report/routing_full_product_choice_baselines.json',
+                                     'results/baselines/report/routing_product_choice_baselines.json'],
+                        'rescuenet': ['results/baselines/report/routing_full_baseline_deeplabv3_r50_rescuenet_20shot_s0.json',
+                                      'results/baselines/report/routing_baseline_deeplabv3_r50_rescuenet_20shot_s0.json']})
+# the model a dataset opens on: the better one there (FloodNet: the ensemble; RescueNet at 20 photos: Chameleon, eval100
+# .421 vs .360 for the baseline, paired −.061 [−.098, −.027]); the switch shows the other
+DEFAULT_MODEL = {'floodnet': 'b', 'rescuenet': 'a'}
 # where each model's measured false-safe rate (houses shown truck-reachable that are not, router v3, lam 5) comes from,
 # per dataset: the full test where it was routed, else eval100. The printed briefing quotes the rate of the model and
 # dataset on screen (one FloodNet number on RescueNet photos would overstate Chameleon's .026 there by 4x).
 ROUTING = {'a': {'floodnet': ['results/routing/full/pred_floodnet_50shot_full_tuned.json',
                               'results/routing/pred_floodnet_50shot_s0_stratified_tuned.json'],
                  'rescuenet': ['results/routing/pred_rescuenet_20shot_s0_stratified_tuned.json']},
-           'b': {ds: [f'results/baselines/report/routing_full_{r}.json', f'results/baselines/report/routing_{r}.json']
-                 for ds, r in MODEL_B['runs'].items()}}
+           'b': MODEL_B['routing']}
 LAMS = (5.0, 0.0)
 STATUS_RGB = {R.TRUCK: (46, 204, 64), R.BOAT: (255, 140, 0), R.FOOT: (167, 139, 250), R.ISOLATED: (230, 30, 60)}
 
@@ -106,11 +122,16 @@ def b_cache(dataset):
     return f if os.path.exists(f) else None
 
 
+def b_decode(dataset):
+    d = MODEL_B['decode'][dataset]
+    return json.load(open(d))['chosen'] if isinstance(d, str) else d
+
+
 def load_cached(dataset, i, results, data, model='a'):
-    """photo, GT class map, cached uint8 probabilities and the tuned decode of one eval100 image (model 'a' =
-    Chameleon; 'b' = MODEL_B with its argmax decode)."""
+    """photo, GT class map, cached uint8 probabilities and the decode of one eval100 image (model 'a' = Chameleon,
+    its tuned decode; 'b' = MODEL_B with its decode per dataset)."""
     if model == 'b':
-        run, z, dec = MODEL_B['runs'][dataset], np.load(b_cache(dataset)), MODEL_B['decode']
+        run, z, dec = MODEL_B['runs'][dataset], np.load(b_cache(dataset)), b_decode(dataset)
     else:
         run = RUNS[dataset]
         z = np.load(os.path.join(results, 'preds', f'{run}_{dataset}_test_eval100_fp16.npz'))
@@ -321,7 +342,7 @@ def export(s, out, caption='', data=RR_DATA):
                 tiers_pred={t: sum(r['tier_pred'] == t for r in s['buildings']) for t in R.TIERS},
                 tier_stats=tier_stats(s['dataset'], *([MODEL_B['tiers'][s['dataset']]] if b else [])), **scene_scale(s))
     if b:
-        meta.update(model='b', model_name=MODEL_B['name'])
+        meta.update(model='b', model_name=MODEL_B['names'][s['dataset']])
     json.dump(meta, open(os.path.join(d, 'meta.json'), 'w'), indent=1)
     return meta
 
@@ -425,15 +446,19 @@ def main():
         for ds in sorted(set(RUNS) - have):
             print(f"no {MODEL_B['runs'][ds]} eval100 cache in {MODEL_B['results']}/preds: {ds} without model b")
         jobs += [(ds, i, caps.get((ds, i), ''), a.results, a.data, a.out, 'b') for ds, i in todo if ds in have]
-    with Pool(a.workers) as pool:
+    from rr import mem
+    with Pool(mem.workers(a.workers, 1.5, 'export workers')) as pool:    # ~1.5 GB per scene worker (PLAN §16.8)
         pool.map(_export_one, jobs)
     index = [index_entry(a.out, ds, i, caps.get((ds, i), '')) for ds, i in todo]
     have_b = {e['dataset'] for e in index if 'b' in e}
     json.dump(dict(scenes=index, runs=RUNS, offroad_maxwet_pred=PRED_OFFROAD_MAXWET,
                    offroad_maxwet_cautious=PRED_CAUTIOUS_MAXWET,
                    models=dict(a=dict(name='Chameleon', runs=RUNS, false_safe={d: false_safe('a', d) for d in RUNS}),
-                               b=dict(name=MODEL_B['name'], runs={d: r for d, r in MODEL_B['runs'].items() if d in have_b},
-                                      false_safe={d: false_safe('b', d) for d in MODEL_B['runs'] if d in have_b}))),
+                               b=dict(name=MODEL_B['name'], names={d: MODEL_B['names'][d] for d in have_b},
+                                      tuned={d: MODEL_B['tuned'][d] for d in have_b},
+                                      runs={d: r for d, r in MODEL_B['runs'].items() if d in have_b},
+                                      false_safe={d: false_safe('b', d) for d in MODEL_B['runs'] if d in have_b}),
+                               default={d: DEFAULT_MODEL[d] if d in have_b else 'a' for d in RUNS})),
               open(os.path.join(a.out, 'scenes.json'), 'w'), separators=(',', ':'))
     print(f"{len(index)} scenes -> {a.out} ({sum('b' in e for e in index)} with model b)")
 

@@ -269,6 +269,13 @@ def main():
     else:
         best = max((n for n in cands), key=lambda n: info[n]['val30_tuned'])
     tag = '' if not protocol else '_choice_baselines' if a.baselines_only else '_choice'
+    if protocol:                    # each baseline's val30-tuned decode (w = 0), for tiers.py / the viewer (load_chosen)
+        os.makedirs(os.path.join(a.baselines, 'decode'), exist_ok=True)
+        for n in cands:
+            if n.startswith('w=0.0 '):
+                json.dump(dict(run=n[len('w=0.0 '):], chosen=dict(tau=info[n]['tau']),
+                               rule='per-class thresholds tuned on val30 (decode_tune rule; src/ensemble.py)'),
+                          open(os.path.join(a.baselines, 'decode', f"{n[len('w=0.0 '):]}.json"), 'w'), indent=1)
     json.dump(dict(baselines=a.baselines_list, choose_on=choose, chosen=best, results=res),
               open(os.path.join(a.out, f'ensemble_{a.baselines_list[0]}{tag}.json'), 'w'), indent=1)
     cols = ([f'{"+".join(choose)} (choice)'] if protocol else ['val30 (tuned)']) + ['eval100', 'full test']
