@@ -279,6 +279,12 @@ def main():
         f'resume > {a.resume_gb} GB)')
     last_swap, last_action = mem.swap_used_gb(), 0.0
     while True:
+        avail, swap = mem.available_gb(), mem.swap_used_gb()
+        growth = None if swap is None or last_swap is None else swap - last_swap
+        last_swap = swap
+        if not paused and avail is not None and avail >= a.pause_gb + 2:
+            time.sleep(a.every)                                  # plenty of memory: no process scan (top costs ~0.3 s)
+            continue
         rows = ps()
         alive = {r['pid'] for r in rows}
         paused[:] = [p for p in paused if p['pid'] in alive]
@@ -287,9 +293,6 @@ def main():
         running = [j for j in all_jobs if j['gb'] >= HEAVY_GB and j['pid'] not in paused_pids and not j['stopped']]
         for p in paused:                                         # a paused job's new children belong to it as well
             p['pids'] = sorted(set(p['pids']) | set(next((j['pids'] for j in all_jobs if j['pid'] == p['pid']), [])))
-        avail, swap = mem.available_gb(), mem.swap_used_gb()
-        growth = None if swap is None or last_swap is None else swap - last_swap
-        last_swap = swap
         act = decide(running, paused, avail, growth, time.time() - last_action, a)
         if act:
             kind, j = act
