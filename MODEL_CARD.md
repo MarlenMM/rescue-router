@@ -41,19 +41,25 @@ Recipe: 1,000 steps, cosine lr 1e-3, batch 2, fp16, 384-px crops of 768×576 pho
 
 The last row (14 Oct) is better than this model on all three (paired intervals exclude zero, `results/baselines/report/`):
 on FloodNet at 50 labels, Chameleon's few-shot adaptation does not beat ordinary fine-tuning of a pretrained segmenter.
-With fewer labels the two are level (eval100, baseline − Chameleon: 5 photos −.013 [−.053, +.025], 10 photos −.014
-[−.061, +.032], although Chameleon's decode also uses the 30 tuning labels); from 20 photos the baseline leads (+.047
-[+.004, +.090]). With the same k labels for both (Chameleon's label-free decode) the baseline is ahead at every point
-(5: +.021 [−.012, +.053], 10: +.035 [+.004, +.066], 20: +.096, 50: +.114 [+.083, +.148]); at 1 label they are level
-(.139 vs .138; Chameleon with its 30 tuning labels .264). The second disaster (RescueNet, 20 photos, eval100) is the
-first place where Chameleon with its 30 tuning labels is ahead of the baseline (+.061 [+.027, +.098]; stranded F1 .818
-vs .605), on 4 of the 5 classes; with equal labels the two are level (+.018 [−.033, +.063] for the baseline). At 50
-RescueNet photos the baseline is ahead again (.456 vs .402, +.054 [+.019, +.088]; equal labels +.082 [+.030, +.131]):
-Chameleon's advantage on a new disaster is a low-label one. The baseline's RescueNet curve: 5 / 10 / 20 / 50 photos
-.186 / .278 / .360 / .456 (eval100); Chameleon's 5 and 10 come with Phase 2.
 
-Training variance (seeds, choice of the photos) is not yet measured: every number is one run (Phase 2: A3 at 50
-FloodNet photos, and two more draws of the RescueNet 20-photo point, PROTOCOL amendment 5).
+**Phase 2 (16-17 Oct; pre-registered, `experiments/phase2/PROTOCOL.md`, PLAN §16.8).**
+- **Is val30 over-fitted (F2)?** No: on 100 other validation photos (confirm100) this model scores .502 vs .516 on
+  val30 (registered limit .03).
+- **Training variance (A3, eval100):** five 50-photo runs with the same recipe (support draws 0-2, training seeds 0-2)
+  give .487 ± .054; this model (.519) is the second best of the five; one training seed gave .396 (normal training
+  log). The baseline's five runs: .555 ± .014, ahead in every one (+.032 to +.152).
+- **Learning curve with one recipe, full tests, baseline − Chameleon (Chameleon also tuned on 30 labels):** FloodNet 1
+  / 5 / 10 / 20 photos −.122 / −.023 / −.020 (n.s.) / +.028; RescueNet 5 / 10 / 20 photos −.008 (n.s.) / −.023 / −.006
+  (draw 0) and −.064 / −.057 (draws 3, 4), 50 photos +.060 (eval100). Chameleon's lead lives at 1-5 FloodNet photos and
+  at 10-20 photos of the second disaster; with the same labels for both it keeps only FloodNet 1-5 and two of three
+  RescueNet 20-photo draws, and when the baseline also trains on the 30 tuning photos it leads everywhere. The
+  published RescueNet 20-photo point (.421, eval100) came from a longer recipe with val30 checkpoint selection; the
+  one recipe gives .358 on that draw (three draws .420 ± .056).
+- **Product-model choice (registered rule on val30 + confirm100):** a 50/50 probability mix of this model and the
+  self-trained DeepLabV3 with flips (full test .591 [.556, .627], stranded F1 .844, false safe .052 [.015, .107]); the
+  CPU-only alternative (the baselines' seed ensemble with flips, the registered baseline-only choice) .617 [.583, .652],
+  false safe .068; the two are statistically level. The router's gates re-chosen on val30 + confirm100 stay at 0.3 and
+  0.05. This card still describes the submitted model; the product switch is a separate decision.
 
 The web viewer (local build) shows every test scene with either model (Chameleon or the baseline), each with its own
 statuses, tiers and measured false-safe rate, and marks the houses the two models route differently.

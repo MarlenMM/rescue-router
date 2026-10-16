@@ -3,15 +3,17 @@
 Few-shot flood mapping from drone photos, and rescue routes on the predicted map. KAIST AIC200 mini-project
 (Chameleon, Track A + B).
 
-**Status (16 Oct 2026).** Submitted on 8 Oct (tag `submitted-2026-10-08`; the sections below describe that model).
-Since then: an ordinary segmenter (DeepLabV3-ResNet50) fine-tuned on the same photos beats the submitted Chameleon
-model at 50 labels and, with the same labels for both, at every FloodNet label count measured (1 level, 5–50 ahead).
-On the second disaster (RescueNet) Chameleon is ahead at 20 photos when it also uses its 30 tuning photos (level
-with equal labels), but the baseline overtakes it by 50 photos (eval100 .456 vs .402, paired +.054 [+.019, +.088]).
-The one-recipe Chameleon curve, its training variance and the RescueNet points (incl. two more support draws of the
-20-photo point) are the next GPU round (Phase 2, prepared, not started). The local web viewer
-shows every test scene with either model and marks the houses they route differently. Details: "Since submission"
-below, `PLAN.md` §16.
+**Status (17 Oct 2026).** Submitted on 8 Oct (tag `submitted-2026-10-08`; the sections below describe that model).
+Since then a pre-registered GPU round (Phase 2, 16-17 Oct; `experiments/phase2/PROTOCOL.md`, PLAN §16.8) measured
+Chameleon with one recipe, its training variance and a second disaster, each paired photo by photo with an ordinary
+segmenter (DeepLabV3-ResNet50) fine-tuned on the same photos. The ordinary segmenter is the better model from 10-20
+FloodNet labels on and steadier across training seeds (sd .014 vs Chameleon's .054 over five 50-photo runs); its seed
+ensemble with flips reaches .617 on the full FloodNet test (Chameleon .507) on a CPU. Chameleon wins at 1-5 FloodNet
+photos and, with its 30 tuning photos, at 10-20 RescueNet photos (2 of 3 support draws at 20); counting those tuning
+photos as labels, the baseline is ahead everywhere. The registered product-model rule picked a Chameleon + baseline
+mix (full test .591, false-safe rate .052 vs Chameleon .111), statistically level with the CPU-only seed ensemble; the
+viewer and the published numbers stay on the submitted model pending that product decision. The local web viewer shows every test scene with either model and
+marks the houses they route differently. Details: "Since submission" below, `PLAN.md` §16.
 
 **Track A (segmentation).** [Chameleon](https://github.com/GitGyun/chameleon) (Kim et al., ECCV 2024), meta-trained
 by the course, is adapted with **50 labelled FloodNet photos** to five classes: clear road, flooded road, flooded
@@ -68,7 +70,7 @@ uploaded photo.
 | `MODEL_CARD.md`, `DATA.md` | what the model is, how far to trust it; data sources, licences and splits |
 | `PLAN.md` | the project plan and the full log of decisions and results (§16 first since 14 Oct) |
 
-## Since submission (14–15 Oct 2026)
+## Since submission (14–17 Oct 2026)
 
 The submitted state is tag `submitted-2026-10-08`; the public demo stays frozen until grading (`release/DEMO_FROZEN`).
 Work since then (PLAN §16; §16.5 for the latest review):
@@ -83,11 +85,30 @@ Work since then (PLAN §16; §16.5 for the latest review):
   every point: 5 +.021 [−.012, +.053], 10 +.035 [+.004, +.066], 20 +.096 [+.054, +.138], 50 +.114 [+.083, +.148].
   **RescueNet (second disaster), 20 photos:** Chameleon with its tuning labels is ahead (baseline −.061 [−.098,
   −.027], stranded F1 .605 vs .818), with equal labels the two are level (+.018 [−.033, +.063]): the first point where
-  Chameleon wins. 1 photo (FloodNet): level with equal labels (.139 vs .138). Other support draws and training seeds run on the Mac
-  (`experiments/phase2/mac_queue.txt`, restartable: `src/job_queue.py`); Chameleon's one-recipe curve is Phase 2.
+  Chameleon wins. 1 photo (FloodNet): level with equal labels (.139 vs .138). Other support draws and training seeds ran on the Mac
+  (`experiments/phase2/mac_queue.txt`, restartable: `src/job_queue.py`) and the last five on Kaggle; Chameleon's
+  one-recipe curve came with Phase 2 (results below: the published-recipe RescueNet 20-photo lead does not hold on
+  draw 0 with the one recipe).
+- **Phase 2 results (16-17 Oct; PLAN §16.8, `results/phase2/report/phase2.md`, `results/baselines/report/`).**
+  Three Kaggle sessions (`rr-p2-curve` 8.1 h, `rr-p2-var` 5.6 h, `rr-p2-baselines` 4.9 h), every job OK, both
+  Chameleon sessions passing the environment check. **F2:** confirm100 .502 vs val30 .516 (within the registered .03).
+  **A4, one recipe, full tests, baseline − Chameleon (+30 tuning photos):** FloodNet 1 / 5 / 10 / 20 / 50 photos −.122
+  / −.023 / −.020 (n.s.) / +.028 / +.074; RescueNet 5 / 10 / 20 −.008 (n.s.) / −.023 / −.006 on draw 0 and −.064,
+  −.057 on draws 3-4; 50 +.060 (eval100). With equal labels Chameleon leads only at FloodNet 1-5 and RescueNet 20 draws
+  3-4; with equal total labels (the baseline trained on k + 30 photos) the baseline leads everywhere. **A3 (FloodNet
+  50, eval100):** Chameleon .487 ± .054 over 5 runs (sd over seeds .070, over support draws .023), the baseline .555 ±
+  .014, ahead in all 5. **Gates** re-chosen on val30 + confirm100: unchanged (0.3, cautious 0.05). **Product-model
+  choice (registered):** Chameleon + self-trained baseline with flips, 50/50 (full test .591 [.556, .627]; stranded F1
+  .844, false safe .052; vs Chameleon +.084 [+.059, +.111], −.058 false safe); the registered baseline-only choice,
+  the seed ensemble with flips (CPU), .617 [.583, .652], false safe .068; the two paired: indistinguishable
+  (`product_options.md`). Not applied to the viewer or the published numbers.
+- **Memory safety on the Mac** (16 Oct, after the post-processing exhausted 24 GB + 33 GB of swap): CPU worker pools
+  size themselves to the free memory (`src/rr/mem.py`), `src/memguard.py` pauses the youngest heavy job of this
+  repository when memory runs out and resumes it afterwards (started by the Phase 2 finisher, `post.py` and the job
+  queue), and MPS trainings wait for room before they start.
 - **FloodNet label errors** (`src/label_audit.py`, `splits/floodnet_label_errors.tsv`): 11 test and 2 validation
   photos label large dry areas as water; results are given with and without them.
-- **Phase 2** (GPU, not started): pre-registered in `experiments/phase2/PROTOCOL.md` (amendment 1: one-recipe curve
+- **Phase 2 set-up** (run 16-17 Oct, results above): pre-registered in `experiments/phase2/PROTOCOL.md` (amendment 1: one-recipe curve
   paired with the baseline on the full test, lean variance design, RescueNet 5–50 shots, product-model candidates);
   `kaggle/phase2/make_plan.py` builds the sessions (pinned to the 8 Oct Kaggle image; each session first checks that
   the submitted model reproduces its published predictions, `src/env_check.py`, and stops otherwise),

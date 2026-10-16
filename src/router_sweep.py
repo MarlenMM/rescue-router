@@ -74,7 +74,7 @@ def main():
     ap.add_argument('--out', default='results/routing/router_sweep')
     ap.add_argument('--calibration', default='results/kaggle_v2/report/calibration/calibration.json')
     ap.add_argument('--splits', default='val30,eval100')
-    ap.add_argument('--workers', type=int, default=8)
+    ap.add_argument('--workers', type=int, default=8, help='at most; fewer when they do not fit in free memory (rr.mem)')
     ap.add_argument('--run', default=RUN, help='any run with caches in --results (e.g. a baseline in results/baselines)')
     ap.add_argument('--argmax', action='store_true', help='decode by argmax (softmax baselines) instead of decode/<run>.json')
     ap.add_argument('--raw_only', action='store_true', help='raw probabilities only (the calibration is fitted to Chameleon)')
@@ -87,7 +87,10 @@ def main():
     splits = [s for s in a.splits.split(',') if cache(a.results, a.run, SPLITS[s])]
     cals, reaches = (False,) if a.raw_only else (False, True), [None] if a.no_reach else REACH
     jobs = [(a, s, c, g, r) for s, c, g, r in itertools.product(splits, cals, GATES, reaches)]
-    with ThreadPoolExecutor(a.workers) as ex:
+    sys.path.insert(0, HERE)
+    from rr import mem
+    # each route_eval holds ~4.6 GB on confirm100 / eval100: 8 of them next to a baseline training froze the 24 GB Mac
+    with ThreadPoolExecutor(mem.workers(a.workers, 5.0, 'route_eval workers')) as ex:
         rows = list(ex.map(one, jobs))
     json.dump(rows, open(os.path.join(a.out, 'router_sweep.json'), 'w'), indent=1)
     who = 'FloodNet 50-shot, published decode' if (a.run, a.argmax) == (RUN, False) else \

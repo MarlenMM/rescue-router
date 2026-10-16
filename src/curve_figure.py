@@ -111,7 +111,9 @@ def main():
                    title={'floodnet': 'FloodNet (Hurricane Harvey)', 'rescuenet': 'RescueNet (Hurricane Michael)'}[ds],
                    ylim=(0, 0.9))
             ax.grid(alpha=0.3)
-            ax.legend(fontsize=7, loc='lower right')
+            # RescueNet's curve lies low and to the right: its legend goes in the empty upper left (lower right hid the
+            # label-free points at 5 and 10 photos)
+            ax.legend(fontsize=7, loc='lower right' if ds == 'floodnet' else 'upper left')
         fig.suptitle('Chameleon vs a standard segmenter (DeepLabV3-ResNet50) trained on the same photos; 95 % CIs over photos'
                      + ('; x = all labelled photos used' if total else ''), fontsize=9)
         fig.tight_layout()

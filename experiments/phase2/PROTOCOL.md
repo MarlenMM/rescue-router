@@ -237,4 +237,43 @@ probabilities, `baseline_report.label_free_tau`).
 
 ## Deviation log
 
-(none yet)
+Every entry is procedural: no registered run, recipe, split, decode or choice rule was changed, and no result
+was looked at before the step it concerns (16-17 Oct 2026).
+
+1. **Launch timing.** `curve` was pushed on 16 Oct 08:41 KST and passed its environment check after 2.9 min
+   (`ENVCHECK PASS: max |diff| 0.50/255, mean 0.106/255`). `var` was meant to follow at once but was pushed at 16:53:
+   the watcher read `kaggle kernels logs` (no `-f`), which prints nothing until a script kernel ends, so the check's
+   line was seen only when `curve` had finished. No effect on any run (same image, same code `132a463`); `var` passed
+   the same check (identical values). The two sessions ran one after the other instead of side by side.
+2. **Session lengths.** `curve` 8.13 h (planned ~6.4 h), `var` 5.63 h (~4.5 h): fine-tunes took 47-63 min and full-test
+   predictions 29-65 min on the T4s. Every job group started before its start limit (curve 7.1 h, var 5.2 h); none
+   failed or was skipped (`curve` 10/10, `var` 6/6).
+3. **Mac restart during post-processing** (16 Oct ~19:30-20:40): `router_sweep.py`'s 8 parallel `route_eval` workers
+   (~4.6 GB each) next to the Mac queue's 7.5 GB MPS training exhausted the 24 GB of memory and 33 GB of swap; the Mac
+   was restarted, killing every local job. Post-processing resumed where it stopped (each step skips finished
+   outputs; all 146 router-sweep files checked as valid JSON). Since then the CPU pools size themselves to the free
+   memory (`src/rr/mem.py`) and `src/memguard.py` pauses the youngest heavy job of this repository when memory runs
+   out (PLAN §16.8). A second worker for the remaining router-sweep configurations ran the same jobs in reverse order
+   (identical commands; finished files skipped).
+4. **The last baseline jobs ran on a Kaggle 2×T4 (CUDA) instead of the Mac (MPS)** (Marlen, 16 Oct ~21:00: "we can
+   run anything you want in kaggle"): `rn35`, `rn40`, `rn80` (amendment 4, equal total labels) and `rn20d3`,
+   `rn20d4` (amendment 5), session `rr-p2-baselines` (`kaggle/phase2/baselines_kernel.py`; same script at `132a463`,
+   recipe, seeds and photos; `rn35` was stopped on the Mac at step 600 of 3,000 and rerun from scratch on Kaggle). Device
+   control in the same session: the RescueNet 20-photo baseline (draw 0), already trained on the Mac, trained again on
+   CUDA: full RescueNet test .387 vs .393, CUDA − MPS **−.005 [−.010, −.002]** (eval100 −.008 [−.018, +.001];
+   `results/baselines/report/device_control.md`, `experiments/device_control.py`), the size of the spread between
+   support draws (sd .008); the moved baselines may sit up to that much lower than Mac runs would have.
+5. **The queue's `reports` step was run in its Phase 2 form.** `rebuild_all.py --only same_budget` called
+   `baseline_report.py` and `curve_figure.py` without `--phase2`, which would have written the pre-Phase-2 pairing
+   over the Phase 2 report; they were run with `--phase2 results/phase2/rr` (and `rebuild_all.py` now passes it when
+   the Phase 2 runs exist). `choice_bl` ran unchanged.
+6. **Reporting additions (no choice depends on them):** (a) the registered product-model choice on the full test with
+   the paired bootstrap the protocol names, which `ensemble.py` did not compute (`ensemble.py --paired`: vs the
+   submitted Chameleon and the plain baseline, all photos and without the label-error photos; plus routing of the
+   chosen mix, the router reading the mix's probabilities); (b) `baseline_report.py` pairs each A3 replicate with the
+   Chameleon run of the same training seed and support draw (before: of the same draw, so the baselines' seeds 1-2
+   were compared with the submitted seed-0 model) and reports the replicates of both models on one photo set per
+   group (FloodNet 50: eval100; RescueNet 20: the full test), tuned and with equal labels, with mean ± sd
+   (amendment 5's registered report).
+7. **RescueNet's cautious tier** has no confirm100 split: it stays at its published val30 choice (0.15); the
+   registered re-choice on val30 ∪ confirm100 concerns FloodNet.
