@@ -46,6 +46,10 @@ FULL = f'{R}/preds/{FN50}_floodnet_test_full_fp16.npz'
 # the Phase 2 runs (one recipe, PLAN §16.8): once they exist, the baseline report and the curves pair with them;
 # without --phase2 a rebuild would write the pre-Phase-2 pairing over the published report
 P2 = ['--phase2', 'results/phase2/rr'] if os.path.isdir(os.path.join(ROOT, 'results', 'phase2', 'rr', 'preds')) else []
+sys.path.insert(0, os.path.join(ROOT, 'kaggle', 'phase2'))
+from post import REGISTERED  # noqa: E402  (the registered product-model candidates, PROTOCOL amendments 1 and 3)
+REG = ','.join(REGISTERED)
+ENS = 'baseline_deeplabv3_r50_50shot_s0_ens3_tta'          # the viewer's FloodNet model (PLAN §16.9)
 TTA_FULL = f'{R}/preds/{FN50}_tta4_floodnet_test_full_fp16.npz'
 # name: (commands run in order, dependencies, what it writes)
 STEPS = {
@@ -93,20 +97,30 @@ STEPS = {
              route('floodnet', 'floodnet_test_full', f'{RT}/tta/pred_floodnet_50shot_tta4_full_default.json', TTA_FULL),
              py('tta.py', 'report')], ['decode', 'route_full'], 'report/tta/: test-time flips (not adopted)'),
     'b13': ([py('b13_report.py')], ['decode'], 'report/b13/: Batch 13 headline switch recomputed (val30 chain, paired test)'),
-    'baseline_tiers': ([py('tiers.py', '--results', 'results/baselines', '--run', 'baseline_deeplabv3_r50_50shot_s0', '--argmax',
+    # the registered product-model choices (PROTOCOL "Model choice", PLAN §16.8): with Chameleon and among the baselines
+    # alone, each on the full test with the paired bootstrap; writes results/baselines/decode/<run>.json (tuned decodes)
+    'product_choice': ([py('ensemble.py', '--choose_on', 'val30,confirm100', '--baselines_only', '--baseline', REG),
+                        py('ensemble.py', '--choose_on', 'val30,confirm100', '--baseline', REG),
+                        py('ensemble.py', '--paired', '--baseline', REG),
+                        py('ensemble.py', '--paired', '--baselines_only', '--baseline', REG),
+                        [PY, os.path.join('experiments', 'product_options.py')]], ['same_budget'],
+                       'results/baselines/report/ensemble_*_choice*.md, product_options.md, baselines/decode/'),
+    'baseline_tiers': ([py('tiers.py', '--results', 'results/baselines', '--run', ENS, '--choose_on', 'val30,confirm100',
+                           '--out', 'results/baselines/report/tiers_ens3_tta', '--fig', 'none'),
+                        py('tiers.py', '--results', 'results/baselines', '--run', 'baseline_deeplabv3_r50_50shot_s0', '--argmax',
                            '--choose_on', 'val30,confirm100', '--out', 'results/baselines/report/tiers', '--fig', 'none'),
                         py('tiers.py', '--results', 'results/baselines', '--run', 'baseline_deeplabv3_r50_rescuenet_20shot_s0',
                            '--dataset', 'rescuenet', '--argmax', '--fixed_gate', '--out',
-                           'results/baselines/report/tiers_rescuenet', '--fig', 'none')], [],
+                           'results/baselines/report/tiers_rescuenet', '--fig', 'none')], ['product_choice'],
                        'results/baselines/report/tiers*/: the baseline\'s tiers (cautious gate; the viewer\'s model switch)'),
     'export': ([py('export_web_assets.py', '--out', 'app/scenes')], ['tiers', 'route_full', 'same_budget', 'baseline_tiers'],
-               'app/scenes/: 200 viewer scenes, each with Chameleon and (b/) the baseline'),
+               'app/scenes/: 200 viewer scenes, each with Chameleon and (b/) the standard segmenter'),
     'viewer': ([py('build_viewer.py')], ['export'], 'docs/: the built web viewer'),
     'tests': ([[PY, '-m', 'pytest', 'src/tests', '-q'], ['node', '--test', 'app/test/router.test.mjs', 'app/test/i18n.test.mjs']], ['export'],
               'Python tests + JS router parity (bit-exact on all scenes)'),
 }
 
-NEEDS_BASELINES = ('same_budget', 'label_audit', 'consensus', 'baseline_tiers')     # the same-budget baselines' prediction caches
+NEEDS_BASELINES = ('same_budget', 'label_audit', 'consensus', 'product_choice', 'baseline_tiers')     # the same-budget baselines' prediction caches
 
 # headline numbers as published (PLAN §15 Quick summary); --check compares the rebuilt files with these (3 decimals).
 # Updated 8 Oct (Batch 13.6): FloodNet 50-shot = the Batch 13 model (the published 7 Oct values: results/published_7oct.tar)

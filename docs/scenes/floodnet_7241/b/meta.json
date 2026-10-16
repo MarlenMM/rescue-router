@@ -1,9 +1,15 @@
 {
  "id": "7241",
  "dataset": "floodnet",
- "run": "baseline_deeplabv3_r50_50shot_s0",
+ "run": "baseline_deeplabv3_r50_50shot_s0_ens3_tta",
  "decode": {
-  "argmax": true
+  "tau": [
+   0.6,
+   0.65,
+   0.35,
+   0.2,
+   0.3
+  ]
  },
  "caption": "Honest failure: shallow water read as dry land",
  "size": [
@@ -50,12 +56,12 @@
  ],
  "iou": {
   "road clear": null,
-  "road flooded": 0.479,
-  "building flooded": 0.83,
+  "road flooded": 0.566,
+  "building flooded": 0.89,
   "building dry": null,
-  "water": 0.261
+  "water": 0.461
  },
- "miou": 0.523,
+ "miou": 0.639,
  "n_buildings": 14,
  "status_pred": {
   "TRUCK": 4,
@@ -71,8 +77,8 @@
  },
  "n_disagree": 7,
  "tiers_pred": {
-  "CONFIDENT_TRUCK": 4,
-  "PROBABLE_TRUCK": 0,
+  "CONFIDENT_TRUCK": 0,
+  "PROBABLE_TRUCK": 4,
   "BOAT": 2,
   "FOOT": 4,
   "ISOLATED": 4
@@ -80,11 +86,11 @@
  "tier_stats": {
   "cautious_gate": 0.05,
   "tuned_gate": 0.3,
-  "confident": 0.9731051344743277,
-  "probable": 0.6458333333333334
+  "confident": 0.9944598337950139,
+  "probable": 0.8243243243243243
  },
  "m_per_cell": 0.682,
  "scale_source": "12 labelled cars",
  "model": "b",
- "model_name": "DeepLabV3-ResNet50"
+ "model_name": "DeepLabV3 ensemble"
 }

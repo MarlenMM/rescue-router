@@ -1135,6 +1135,29 @@ finish.py / post.py / job_queue.py; MPS memory counted by footprint), admission 
 [--baselines_only]`; `baseline_report.py` replicate table (seed-and-draw pairing); `rebuild_all.py` passes `--phase2`;
 `experiments/device_control.py`, `experiments/product_options.py`.
 
+### 16.9 Product decision: two models, each dataset on its better one (17 Oct; Marlen: "keep both ... if CPU beats Chameleon it can become the main viewer and publishing option, but Chameleon will still show its numbers")
+
+- **Decision (Marlen's proposal, judged and adopted):** keep both models in the viewer. FloodNet opens on the CPU-only
+  DeepLabV3 seed ensemble with flips and val30-tuned thresholds (the registered baseline-only choice: full test .617,
+  false safe .068; level with the registered mix, needs no GPU, ~4 s per photo on a CPU); RescueNet opens on Chameleon
+  (eval100 .421 vs .360 for one DeepLabV3 at 20 photos); the switch shows the other model on every scene. Why not
+  the registered mix: it needs Chameleon (a GPU) at prediction and is not better than the ensemble (paired, §16.8).
+  Why not one default everywhere: on RescueNet the standard segmenter is the worse model. The ensemble keeps
+  Chameleon's exact label budget (50 training + the same 30 tuning photos), so the comparison stays label-fair.
+- **Viewer (local `docs/`; the public demo stays frozen):** model b per dataset (`export_web_assets.MODEL_B`: names,
+  decodes, tiers, routing per dataset; `DEFAULT_MODEL`); `scenes.json models.default`, `models.b.names/.tuned`;
+  `app.js` opens each dataset on its default, `mo=a|b` only when the shown model is not the default; captions,
+  briefing, tooltips and the About text (EN/KO) name the model and its label budget; uploads name the model that
+  served them. The ensemble's registered cautious gate (val30 ∪ confirm100, `tiers.py`) is the same 0.05 (99.1 %;
+  eval100 confident tier 99.4 % of 361 houses vs Chameleon's 100 % of 208), so both models route with one gate set.
+  Checked in the browser: defaults, switch, links, Korean, no console errors; JS parity 404/404.
+- **Gradio:** `--live_decode` (a decode JSON for `--live_baseline`): the viewer's FloodNet model on a CPU = the three
+  seed checkpoints with `--live_tta` and `results/baselines/decode/baseline_deeplabv3_r50_50shot_s0_ens3_tta.json`
+  (reproduces the cache: max |diff| 1/255). `src/ensemble.py` writes each baseline's val30-tuned decode to
+  `results/baselines/decode/<run>.json`.
+- **Docs:** README status and model switch, MODEL_CARD "Two models" table. Publishing (demo, public repo) waits for the
+  grade (`release/DEMO_FROZEN`).
+
 ## 15. Status / handoff (updated Wed 7 Oct, 18:15 KST)
 
 ### Quick summary (read this first; details below)

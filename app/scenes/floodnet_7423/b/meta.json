@@ -1,9 +1,15 @@
 {
  "id": "7423",
  "dataset": "floodnet",
- "run": "baseline_deeplabv3_r50_50shot_s0",
+ "run": "baseline_deeplabv3_r50_50shot_s0_ens3_tta",
  "decode": {
-  "argmax": true
+  "tau": [
+   0.6,
+   0.65,
+   0.35,
+   0.2,
+   0.3
+  ]
  },
  "caption": "Boat rescues across flooded roads",
  "size": [
@@ -50,17 +56,17 @@
  ],
  "iou": {
   "road clear": null,
-  "road flooded": 0.804,
-  "building flooded": 0.847,
+  "road flooded": 0.801,
+  "building flooded": 0.848,
   "building dry": 0.0,
-  "water": 0.102
+  "water": 0.184
  },
- "miou": 0.438,
+ "miou": 0.458,
  "n_buildings": 25,
  "status_pred": {
   "TRUCK": 16,
-  "BOAT": 2,
-  "FOOT": 7,
+  "BOAT": 3,
+  "FOOT": 6,
   "ISOLATED": 0
  },
  "status_gt": {
@@ -69,22 +75,22 @@
   "FOOT": 3,
   "ISOLATED": 0
  },
- "n_disagree": 4,
+ "n_disagree": 3,
  "tiers_pred": {
   "CONFIDENT_TRUCK": 16,
   "PROBABLE_TRUCK": 0,
-  "BOAT": 2,
-  "FOOT": 7,
+  "BOAT": 3,
+  "FOOT": 6,
   "ISOLATED": 0
  },
  "tier_stats": {
   "cautious_gate": 0.05,
   "tuned_gate": 0.3,
-  "confident": 0.9731051344743277,
-  "probable": 0.6458333333333334
+  "confident": 0.9944598337950139,
+  "probable": 0.8243243243243243
  },
  "m_per_cell": 0.725,
  "scale_source": "23 labelled cars",
  "model": "b",
- "model_name": "DeepLabV3-ResNet50"
+ "model_name": "DeepLabV3 ensemble"
 }
