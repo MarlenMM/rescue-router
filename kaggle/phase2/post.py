@@ -61,6 +61,10 @@ def main():
     ap.add_argument('--baseline_out', default=os.path.join(ROOT, 'results', 'baselines', 'report'))
     a = ap.parse_args()
     py, R = sys.executable, a.results
+    if not a.dry:
+        sys.path.insert(0, SRC)
+        import memguard
+        memguard.ensure_running()                              # pauses the youngest heavy job when memory runs out
     runs = [rid for rid, _, _ in session(a.session)]
 
     def run(cmd, out=None):
@@ -140,6 +144,9 @@ def main():
                   'python src/job_queue.py experiments/phase2/mac_queue.txt --status); rerun this script when they exist')
         else:
             run([py, os.path.join(SRC, 'ensemble.py'), '--choose_on', 'val30,confirm100'] + (['--baseline', ','.join(bl)] if bl else []))
+            # the choice on the full test with the registered paired bootstrap (vs Chameleon, vs the plain baseline)
+            run([py, os.path.join(SRC, 'ensemble.py'), '--paired', '--baseline', ','.join(bl)],
+                os.path.join(a.baseline_out, f'ensemble_{bl[0]}_choice_paired.json'))
     run([py, os.path.join(SRC, 'baseline_report.py'), '--phase2', R, '--out', a.baseline_out])
     run([py, os.path.join(SRC, 'curve_figure.py'), '--phase2', R, '--out', os.path.join(a.baseline_out, 'curve')])
     print('\nnext: src/backup.py pack && bash release/backup/upload.sh; PushNotification; PLAN §16.4; PROTOCOL deviation log')

@@ -1,6 +1,6 @@
 """After a Phase 2 session is pushed: wait for it, download its outputs, run every CPU step (read-only on Kaggle).
 
-    python kaggle/phase2/finish.py curve|var [--every 600] [--no_wait] [--dry]
+    python kaggle/phase2/finish.py curve|var [--every 600] [--no_wait] [--skip_download] [--dry]
 
 1. polls `kaggle kernels status marlenmelis/rr-p2-<session>` every --every seconds until it is complete, errored or
    cancelled (network errors are retried: the Mac may sleep);
@@ -70,9 +70,15 @@ def main():
     ap.add_argument('session', choices=['curve', 'var', 'var_full'])
     ap.add_argument('--every', type=int, default=600, help='seconds between status checks')
     ap.add_argument('--no_wait', action='store_true', help='do not poll: download and post-process now')
+    ap.add_argument('--skip_download', action='store_true',
+                    help='the outputs are in results/phase2/rr already: only post-process (under the lock)')
     ap.add_argument('--dry', action='store_true', help='print the steps only')
     a = ap.parse_args()
     slug = f'marlenmelis/rr-p2-{a.session}'
+    if not a.dry:
+        sys.path.insert(0, os.path.join(ROOT, 'src'))
+        import memguard
+        memguard.ensure_running()                              # the post-processing must not freeze the Mac (§16.8)
     log = open(os.path.expanduser(f'~/rr_local/phase2_finish_{a.session}.log'), 'a')
 
     def say(msg):
@@ -86,7 +92,7 @@ def main():
         if not a.dry:
             subprocess.run(cmd, check=True, cwd=ROOT)
 
-    if not (a.no_wait or a.dry):
+    if not (a.no_wait or a.dry or a.skip_download):
         while True:
             st = status(slug)
             say(f'{slug}: {st or "status unavailable (network?), retrying"}')
@@ -100,8 +106,9 @@ def main():
     if not a.dry:
         fcntl.flock(lock, fcntl.LOCK_EX)                       # one session's download + post-processing at a time
     stage = os.path.join(out, f'download_{a.session}')
-    run([KPY, os.path.join(ROOT, 'kaggle', 'fetch_output.py'), slug, stage])
-    if not a.dry:
+    if not a.skip_download:
+        run([KPY, os.path.join(ROOT, 'kaggle', 'fetch_output.py'), slug, stage])
+    if not (a.dry or a.skip_download):
         say(f'moved {len(merge(stage, os.path.join(out, "rr"), a.session))} files into results/phase2/rr')
     env = os.path.join(out, 'rr', 'logs', a.session, 'envcheck.txt')
     lines = open(env).read().splitlines() if os.path.exists(env) else []

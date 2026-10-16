@@ -32,6 +32,7 @@ from scipy import ndimage
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from decode_tune import NAMES, TAU_GRID, load  # noqa: E402
+from rr import mem  # noqa: E402
 from rr.metrics import OTHER_IDX, WET, confusion, decode, summarize  # noqa: E402
 from rr.paths import RR_DATA  # noqa: E402
 
@@ -134,6 +135,8 @@ def _cm_one(args):
 class Scorer:
     def __init__(self, probs, gts, workers=10):
         self.n = len(probs)
+        per_gb = (sum(p.nbytes for p in probs) + sum(g.nbytes for g in gts)) / 1024 ** 3 * 1.2 + 0.3   # a copy each
+        workers = mem.workers(workers, per_gb, 'decode workers')
         self.pool = ProcessPoolExecutor(workers, initializer=_init, initargs=(probs, gts))
 
     def __call__(self, kind, **params):

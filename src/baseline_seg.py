@@ -171,6 +171,9 @@ def main():
     ap.add_argument('--splits', default=None, help='comma list of split files (default per dataset)')
     ap.add_argument('--out', default='results/baselines')
     a = ap.parse_args()
+    if a.device == 'mps':                           # 7-8 GB of wired GPU memory: wait for room (PLAN §16.8)
+        import memguard
+        memguard.admit(float(os.environ.get('RR_ADMIT_GB', 8)), f'baseline_seg {a.dataset} {a.shot}-shot')
     ds = DATASETS[a.dataset]
     names = ds['names']
     splits = [f for f in (ds['splits'] if a.splits is None else a.splits).split(',') if f]   # '' = train only

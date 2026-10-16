@@ -14,7 +14,12 @@ simpler model). Every candidate is reported on eval100 and the full test; the ch
 --baselines_only: the same rule among the baselines alone (argmax and val30-tuned), usable before Phase 2 gives
 Chameleon its confirm100 predictions; the final choice still includes Chameleon and the mixes.
 
-    python src/ensemble.py [--baseline baseline_deeplabv3_r50_50shot_s0[,...]] [--choose_on val30,confirm100]
+--paired [--baselines_only] (after the protocol choice): the chosen candidate (or the baseline-only choice) on the full test with the paired bootstrap the protocol
+registers (2,000 resamples over photos, the same resamples for every model): chosen - Chameleon (submitted) and
+chosen - the plain baseline (argmax), all photos and without the label-error photos (amendment 1 item 6); it reads
+the choice from ensemble_<first baseline>_choice.json and writes ..._choice_paired.{json,md}.
+
+    python src/ensemble.py [--baseline baseline_deeplabv3_r50_50shot_s0[,...]] [--choose_on val30,confirm100] [--paired]
 """
 import argparse
 import json
@@ -96,6 +101,110 @@ def argmax6(P):
     return np.concatenate([P, 1 - P.sum(0, keepdims=True)]).argmax(0).astype(np.uint8)
 
 
+def _f3(d):
+    return f"{d['value']:.3f} [{d['lo']:.3f}, {d['hi']:.3f}]"
+
+
+def _fd(d):
+    return f"{d['value']:+.3f} [{d['lo']:+.3f}, {d['hi']:+.3f}]"
+
+
+def route_choice(a, best, tau, ids, mixed, first, B, tag='_choice'):
+    """router v3 on the chosen mix (its own probabilities and tau decode) on eval100 and the full test, paired with
+    the submitted Chameleon's and the plain baseline's routing on the same photos and resamples"""
+    import subprocess
+    from bootstrap_ci import boot, f1_from
+    from router import false_safe_from
+    sys.path.insert(0, HERE)
+    from baseline_report import cham_routing_file, per_photo_status
+    run = 'product' + tag                                       # product_choice / product_choice_baselines
+    preds = os.path.join(a.baselines, 'preds', f'{run}_floodnet_test_full.npz')
+    np.savez_compressed(preds, ids=np.array(ids), probs=np.stack(mixed))
+    dj = os.path.join(a.out, f'decode_{run}.json')
+    json.dump(dict(tau=[float(t) for t in tau], what=best), open(dj, 'w'))
+    out = {}
+    for key, sf in (('eval100', 'floodnet_test_eval100'), ('full test', 'floodnet_test_full')):
+        f = os.path.join(a.out, f'routing_{run}.json' if key == 'eval100' else f'routing_full_{run}.json')
+        subprocess.run([sys.executable, os.path.join(HERE, 'route_eval.py'), '--dataset', 'floodnet', '--split_file', sf,
+                        '--preds', preds, '--decode', dj, '--lams', '5', '--out', f], check=True, stdout=subprocess.DEVNULL)
+        ch = per_photo_status(f)
+        cc = per_photo_status(cham_routing_file(a.results, CHAM, sf))
+        cb = per_photo_status(os.path.join(a.out, f'routing_{first}.json' if key == 'eval100' else f'routing_full_{first}.json'))
+        common = sorted(set(ch) & set(cc) & set(cb))
+        out[key] = dict(n=len(common))
+        for m, fn in (('stranded_f1', f1_from), ('false_safe', false_safe_from)):
+            v = {k: boot(c, common, fn, B, np.random.default_rng(0)) for k, c in (('chosen', ch), ('chameleon', cc), ('baseline', cb))}
+            r = {k: x[0] for k, x in v.items()}
+            for other in ('chameleon', 'baseline'):
+                dd = v['chosen'][1] - v[other][1]
+                r[f'vs_{other}'] = dict(value=r['chosen']['value'] - r[other]['value'], lo=float(np.percentile(dd, 2.5)),
+                                        hi=float(np.percentile(dd, 97.5)))
+            out[key][m] = r
+    return out
+
+
+def paired_report(a, B=2000, tag='_choice'):
+    """the registered choice on the full test: paired bootstrap vs Chameleon (submitted) and vs the plain baseline"""
+    from bootstrap_ci import boot
+    from label_audit import errors
+    first = a.baselines_list[0]
+    d = json.load(open(os.path.join(a.out, f'ensemble_{first}{tag}.json')))
+    best, res = d['chosen'], d['results']
+    names = list(dict.fromkeys([best, 'chameleon', f'{first} argmax']))
+    funcs = {}
+    for n in names:
+        if n == 'chameleon':
+            funcs[n] = lambda x: x[1]
+        elif n.endswith(' argmax'):
+            funcs[n] = (lambda b: lambda x: argmax6(x[2][b]))(n[:-len(' argmax')])
+        else:
+            w, b = n.split(' ', 1)
+            funcs[n] = (lambda w, b, tau: lambda x: decode(mix(w, x[0], x[2][b]), tau=tau))(float(w[2:]), b, res[n]['tau'])
+    a.baselines_list = sorted({n[:-len(' argmax')] if n.endswith(' argmax') else n.split(' ', 1)[1]
+                               for n in names if n != 'chameleon'})
+    ids = [str(i) for i in np.load(cache(a.results, CHAM, SPLITS['full'][0]))['ids']]     # photos() order
+    cms = {n: {} for n in names}
+    w_b = None if best == 'chameleon' or best.endswith(' argmax') else (float(best.split(' ', 1)[0][2:]), best.split(' ', 1)[1])
+    mixed = []                                                    # the chosen mix's probabilities, for the router
+    for i, x in zip(ids, photos(a, 'full')):
+        for n, f in funcs.items():
+            cms[n][i] = confusion(f(x), x[3])
+        if w_b:
+            mixed.append(np.round(np.clip(mix(w_b[0], x[0], x[2][w_b[1]]), 0, 1) * 255).astype(np.uint8))
+    fn = lambda c: summarize(c, NAMES, WET['floodnet'])['miou']            # noqa: E731
+    bad = set(errors('test'))
+    out = dict(chosen=best, B=B, label_errors=sorted(bad & set(ids)))
+    for subset, use in (('all', ids), ('without_label_errors', [i for i in ids if i not in bad])):
+        vals = {n: boot(cms[n], use, fn, B, np.random.default_rng(0)) for n in names}      # same resamples
+        out[subset] = dict(n=len(use), models={n: v[0] for n, v in vals.items()}, diff={})
+        for other in names[1:]:
+            dd = vals[best][1] - vals[other][1]
+            out[subset]['diff'][other] = dict(value=vals[best][0]['value'] - vals[other][0]['value'],
+                                              lo=float(np.percentile(dd, 2.5)), hi=float(np.percentile(dd, 97.5)))
+    if w_b:
+        out['routing'] = route_choice(a, best, res[best]['tau'], ids, mixed, first, B, tag)
+    json.dump(out, open(os.path.join(a.out, f'ensemble_{first}{tag}_paired.json'), 'w'), indent=1)
+    md = [f'# The registered product-model choice on the FloodNet full test (paired bootstrap, {B} resamples)', '',
+          f'Chosen on val30 + confirm100: **{best}** (ensemble_{first}{tag}.md). Same photo resamples for every model.',
+          '', '| photos | model | mIoU [95 % CI] | chosen − model [95 % CI] |', '|---|---|---|---|']
+    for subset in ('all', 'without_label_errors'):
+        o = out[subset]
+        for n in names:
+            m, df = o['models'][n], o['diff'].get(n)
+            md.append(f"| {subset.replace('_', ' ')} ({o['n']}) | {n} | {m['value']:.3f} [{m['lo']:.3f}, {m['hi']:.3f}] | "
+                      + (f"**{df['value']:+.3f} [{df['lo']:+.3f}, {df['hi']:+.3f}]**" if df else '–') + ' |')
+    for key, r in out.get('routing', {}).items():
+        md += ['', f"Routing (router v3, published gate 0.3, lam 5) on {key} ({r['n']} photos), the router reading the "
+               "mix's probabilities:", '', '| metric | chosen | Chameleon | chosen − Chameleon | baseline | chosen − baseline |',
+               '|---|---|---|---|---|---|']
+        for m in ('stranded_f1', 'false_safe'):
+            x = r[m]
+            md.append(f"| {m.replace('_', ' ')} | {_f3(x['chosen'])} | {_f3(x['chameleon'])} | **{_fd(x['vs_chameleon'])}** | "
+                      f"{_f3(x['baseline'])} | **{_fd(x['vs_baseline'])}** |")
+    open(os.path.join(a.out, f'ensemble_{first}{tag}_paired.md'), 'w').write('\n'.join(md) + '\n')
+    print('\n'.join(md))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--results', default='results/kaggle_v2/rr')
@@ -107,9 +216,14 @@ def main():
                     help='candidates = the baselines (argmax, val30-tuned) only: their choice by the same rule before '
                          'Chameleon has confirm100 predictions (Phase 2)')
     ap.add_argument('--out', default='results/baselines/report')
+    ap.add_argument('--paired', action='store_true', help='the protocol choice on the full test, paired bootstrap')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     a.baselines_list = a.baseline.split(',')
+    if a.paired:                                  # --baselines_only: the registered baseline-only choice (CPU-only product)
+        tag = '_choice_baselines' if a.baselines_only else '_choice'
+        a.baselines_only = False                  # the comparison still needs Chameleon's predictions
+        return paired_report(a, tag=tag)
     choose = a.choose_on.split(',')
     protocol = choose != ['val30']
     keys = list(dict.fromkeys(['val30'] + choose + list(REPORT)))

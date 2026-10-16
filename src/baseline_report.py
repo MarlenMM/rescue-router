@@ -38,6 +38,7 @@ from rr.final_decode import decode_photo, load_chosen, photo  # noqa: E402
 from rr.metrics import WET, confusion, decode, gt_classes, summarize  # noqa: E402
 from rr.paths import RR_DATA  # noqa: E402
 from run_decode import GF  # noqa: E402
+from rr.runs import run_name  # noqa: E402
 
 REPO = os.path.dirname(HERE)
 NAMES = {'floodnet': PS.NAMES['floodnet'], 'rescuenet': PS.NAMES['rescuenet']}
@@ -150,13 +151,57 @@ def cham_label_free_cms(folder, run, ds, sf, gts, tau):
                                 tau=tau), g) for i, g in gts.items()}
 
 
+def replicates(rows, a, gts):
+    """A3 / amendment 5: every (seed, draw) replicate of a plain baseline next to the Chameleon run of the same seed and
+    draw, on the photos all of them predicted (FloodNet 50: eval100; RescueNet 20: the full test). Per replicate both
+    models tuned on val30 and with equal labels (baseline argmax vs Chameleon label-free), paired (same resamples); the
+    report adds each model's mean ± sd over the replicates"""
+    groups = defaultdict(list)
+    for r in rows:
+        if not r['tag'] and not r['tta'] and r.get('chameleon'):
+            groups[(r['dataset'], r['arch'], r['k'])].append(r)
+    out = []
+    for (ds, arch, k), v in sorted(groups.items()):
+        if len({(r['seed'], r['draw']) for r in v}) < 2:
+            continue
+        part = {r['run']: (os.path.join(REPO, r['chameleon']['folder']), r['chameleon']['run']) for r in v}
+        sf = next((s for s in EVAL[ds] if all(cache(a.baselines, r['run'], s) and cache(*part[r['run']], s) for r in v)), None)
+        if sf is None:
+            continue
+        g, fn = gts(ds, sf), miou_fn(ds)
+        ids = sorted(g)
+        reps = []
+        for r in sorted(v, key=lambda r: (r['seed'], r['draw'])):
+            cf, cr = part[r['run']]
+            Pb = probs(cache(a.baselines, r['run'], sf))
+            bm = {'argmax': {i: confusion(decode_photo(Pb[i], {'argmax': True}), g[i]) for i in ids}}
+            if r.get('tau'):
+                bm['tuned'] = {i: confusion(decode(Pb[i], tau=r['tau']), g[i]) for i in ids}
+            del Pb
+            cm = {'tuned': cham_cms(cf, cr, ds, sf, g)}
+            tau = label_free_tau(cf, cr, a.label_free, ds, k, r['draw'])
+            if tau:
+                cm['label_free'] = cham_label_free_cms(cf, cr, ds, sf, g, tau)
+            rep = dict(seed=r['seed'], draw=r['draw'], run=r['run'], chameleon=cr)
+            for view, bk, ck in (('tuned', 'tuned', 'tuned'), ('equal_labels', 'argmax', 'label_free')):
+                if bk in bm and ck in cm:
+                    rep[view] = paired(bm[bk], cm[ck], ids, fn, a.B)
+            reps.append(rep)
+            print('replicate', ds, k, (r['seed'], r['draw']), sf, {x: round(rep[x]['diff']['value'], 4) for x in
+                                                                     ('tuned', 'equal_labels') if x in rep}, flush=True)
+        out.append(dict(dataset=ds, arch=arch, k=k, split=sf, n=len(ids), replicates=reps))
+    return out
+
+
 def cham_for(b, a):
     """(folder, run, label) of the Chameleon run trained on the same photos, Phase 2 first; None if there is none"""
     ds, k, draw = b['dataset'], b['k'], b['draw']
     cands = []
     if a.phase2:
-        if ds == 'floodnet' and k == 50:
-            cands.append((a.phase2, f'{SUBMITTED}_sup{draw}' if draw else SUBMITTED, 'Phase 2 draw' if draw else 'submitted'))
+        if ds == 'floodnet' and k == 50:              # A3: the Chameleon replicate of the same seed and draw
+            seed = b['seed']
+            cands.append((a.phase2, run_name(ds, k, seed, support_seed=draw),
+                          'submitted' if (seed, draw) == (0, 0) else 'Phase 2 replicate'))
         elif draw == 0:
             cands.append((a.phase2, f'{ds}_{k}shot_s0_stratified_p2', 'Phase 2 (one recipe)'))
         else:                                       # amendment 5: RescueNet 20-shot draws 3-4 (recipe p2)
@@ -294,9 +339,11 @@ def main():
         x = row['argmax']
         print(b['run'], sf, round(x['baseline']['value'], 4), 'vs', cmp and cmp[1],
               x.get('chameleon', {}).get('value'), flush=True)
+    reps = replicates(rows, a, gts)
     json.dump(rows, open(os.path.join(a.out, 'baselines.json'), 'w'), indent=1, default=float)
-    open(os.path.join(a.out, 'baselines.md'), 'w').write('\n'.join(report(rows)) + '\n')
-    print('\n'.join(report(rows)))
+    json.dump(reps, open(os.path.join(a.out, 'baselines_replicates.json'), 'w'), indent=1, default=float)
+    open(os.path.join(a.out, 'baselines.md'), 'w').write('\n'.join(report(rows, reps)) + '\n')
+    print('\n'.join(report(rows, reps)))
 
 
 def f3(d):
@@ -311,11 +358,12 @@ def label(r):
     v = [r['arch'] if r['arch'] != 'deeplabv3_r50' else '',
          {'st': 'self-trained', 'ens3': 'seed ensemble (3)', 'ft50': 'from the FloodNet model (+50 FloodNet labels)'}
          .get(r['tag'], r['tag']),
-         'flips' if r['tta'] else '']
-    return ', '.join(x for x in v if x) or 'plain'
+         'flips' if r['tta'] else '',
+         f"draw {r['draw']}" if r['draw'] else '', f"seed {r['seed']}" if r['seed'] else '']   # the A3 replicates
+    return ', '.join([', '.join(x for x in v[:3] if x) or 'plain'] + [x for x in v[3:] if x])
 
 
-def report(rows):
+def report(rows, reps=()):
     md = ['# Same-label-budget baselines vs Chameleon on the same photos', '',
           'Baseline: DeepLabV3-ResNet50 (COCO weights) fine-tuned on the k photos Chameleon used (`src/baseline_seg.py`; '
           'fixed recipe, no validation labels); decoded by its own argmax (k labels) or with thresholds tuned on val30 '
@@ -370,20 +418,28 @@ def report(rows):
             for m, x in r['routing_full'].items():
                 md.append(f"| {r['run']} | {r.get('routing_full_n', '')} | {m.replace('_', ' ')} | {f3(x['baseline'])} | "
                           f"{x['chameleon']['value']:.3f} ({r['chameleon']['label']}) | {fd(x['diff'])} |")
-    groups = defaultdict(list)
-    for r in rows:
-        if not r['tag'] and not r['tta']:
-            groups[(r['dataset'], r['arch'], r['k'])].append(r)
-    spread = [(g, v) for g, v in groups.items() if len(v) > 1]
-    if spread:
-        md += ['', '## Spread over support draws and training seeds (baseline argmax, its own evaluation photos)', '',
-               '| dataset | k | runs (seed, draw) | mIoU each | mean ± sd | paired vs Chameleon of the same draw |',
-               '|---|---|---|---|---|---|']
-        for (ds, arch, k), v in sorted(spread):
-            vals = [r['argmax']['baseline']['value'] for r in v]
-            md.append(f"| {ds} | {k} | {', '.join(f'({r['seed']}, {r['draw']})' for r in v)} | "
-                      f"{', '.join(f'{x:.3f}' for x in vals)} | {np.mean(vals):.3f} ± {np.std(vals, ddof=1):.3f} | "
-                      + ', '.join(fd(r['argmax']['diff']) for r in v if 'diff' in r['argmax']) + ' |')
+    if reps:
+        md += ['', '## Replicates: support draws and training seeds (A3, amendment 5), both models on the same photos', '',
+               'Each baseline replicate next to the Chameleon run of the same training seed and support draw. "tuned": both '
+               'with val30-tuned thresholds (Chameleon: its chosen decode); "equal labels": baseline argmax vs Chameleon '
+               'label-free (k training labels each). Differences are baseline − Chameleon, paired (2,000 resamples).', '',
+               '| dataset | k | photos | (seed, draw) | baseline tuned | Chameleon tuned | difference | baseline (k labels) | '
+               'Chameleon label-free | difference |', '|---|---|---|---|---|---|---|---|---|---|']
+        for grp in reps:
+            cols = {c: [] for c in ('bt', 'ct', 'be', 'ce')}
+            for x in grp['replicates']:
+                t, e = x.get('tuned'), x.get('equal_labels')
+                if t:
+                    cols['bt'].append(t['baseline']['value']), cols['ct'].append(t['chameleon']['value'])
+                if e:
+                    cols['be'].append(e['baseline']['value']), cols['ce'].append(e['chameleon']['value'])
+                md.append(f"| {grp['dataset']} | {grp['k']} | {grp['split'].split('_', 1)[1]} ({grp['n']}) | "
+                          f"({x['seed']}, {x['draw']}) | "
+                          + (f"{t['baseline']['value']:.3f} | {t['chameleon']['value']:.3f} | **{fd(t['diff'])}** | " if t else '– | – | – | ')
+                          + (f"{e['baseline']['value']:.3f} | {e['chameleon']['value']:.3f} | **{fd(e['diff'])}** |" if e else '– | – | – |'))
+            ms = {c: (f'{np.mean(v):.3f} ± {np.std(v, ddof=1):.3f}' if len(v) > 1 else '–') for c, v in cols.items()}
+            md.append(f"| {grp['dataset']} | {grp['k']} | mean ± sd | {len(grp['replicates'])} runs | {ms['bt']} | {ms['ct']} | | "
+                      f"{ms['be']} | {ms['ce']} | |")
     return md
 
 

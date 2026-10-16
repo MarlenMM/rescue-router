@@ -30,14 +30,21 @@ rn10ft    src/baseline_seg.py --dataset rescuenet --shot 10 --init results/basel
 mbv3st    src/baseline_seg.py --arch deeplabv3_mbv3 --shot 50 --pseudo results/baselines/pseudo/baseline_deeplabv3_r50_50shot_s0_c90 --pseudo_frac 0.5 --bs 8 --accum 2 --iters 3000 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
 lrasppst  src/baseline_seg.py --arch lraspp_mbv3 --shot 50 --pseudo results/baselines/pseudo/baseline_deeplabv3_r50_50shot_s0_c90 --pseudo_frac 0.5 --bs 8 --accum 2 --iters 3000 --splits floodnet_val_tune30,floodnet_val_confirm100,floodnet_test_eval100,floodnet_test_full
 # equal TOTAL labels on RescueNet (amendment 4, 16 Oct): baseline partners at k + 30 for Chameleon's k + 30 tuning photos
-rn35      src/baseline_seg.py --dataset rescuenet --shot 35 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
-rn40      src/baseline_seg.py --dataset rescuenet --shot 40 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
-rn80      src/baseline_seg.py --dataset rescuenet --shot 80 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
+# 16 Oct ~21:20: moved to the Kaggle session rr-p2-baselines (2xT4, same recipe; PLAN §16.8)
+#rn35      src/baseline_seg.py --dataset rescuenet --shot 35 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
+# 16 Oct ~21:20: moved to the Kaggle session rr-p2-baselines (2xT4, same recipe; PLAN §16.8)
+#rn40      src/baseline_seg.py --dataset rescuenet --shot 40 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
+# 16 Oct ~21:20: moved to the Kaggle session rr-p2-baselines (2xT4, same recipe; PLAN §16.8)
+#rn80      src/baseline_seg.py --dataset rescuenet --shot 80 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
 # last: the CPU reports on everything above (baseline_report incl. the label-fair table, ensemble, curve figure, transfer)
+# 17 Oct ~02:30: run by hand after the Kaggle baselines (~/rr_local/final_reports.sh; marked done; PLAN §16.8)
 reports   ~/.venvs/rr/bin/python src/rebuild_all.py --only transfer,same_budget
 # the registered choice rule among the baselines alone (val30 + confirm100), before Chameleon's confirm100 exists
+# 17 Oct ~02:30: run by hand after the Kaggle baselines (~/rr_local/final_reports.sh; marked done; PLAN §16.8)
 choice_bl ~/.venvs/rr/bin/python src/ensemble.py --choose_on val30,confirm100 --baselines_only --baseline baseline_deeplabv3_r50_50shot_s0,baseline_deeplabv3_r50_50shot_s0_tta,baseline_deeplabv3_r50_50shot_s0_st,baseline_deeplabv3_r50_50shot_s0_st_tta,baseline_deeplabv3_mbv3_50shot_s0_st,baseline_lraspp_mbv3_50shot_s0_st,baseline_deeplabv3_r50_50shot_s0_ens3,baseline_deeplabv3_r50_50shot_s0_ens3_tta
 # PROTOCOL amendment 5 (16 Oct, before any Phase 2 run): the baseline partners of Chameleon's RescueNet 20-shot draws
 # 3 and 4 (RescueNet's draws 1-2 overlap its val30: src/splits_local.py rn_draws), seed 0, full test; after the reports
-rn20d3    src/baseline_seg.py --dataset rescuenet --shot 20 --seed 0 --support_seed 3 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
-rn20d4    src/baseline_seg.py --dataset rescuenet --shot 20 --seed 0 --support_seed 4 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
+# 16 Oct ~21:20: moved to the Kaggle session rr-p2-baselines (2xT4, same recipe; PLAN §16.8)
+#rn20d3    src/baseline_seg.py --dataset rescuenet --shot 20 --seed 0 --support_seed 3 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full
+# 16 Oct ~21:20: moved to the Kaggle session rr-p2-baselines (2xT4, same recipe; PLAN §16.8)
+#rn20d4    src/baseline_seg.py --dataset rescuenet --shot 20 --seed 0 --support_seed 4 --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full

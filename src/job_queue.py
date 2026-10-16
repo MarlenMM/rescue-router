@@ -65,8 +65,11 @@ def main():
         except (ProcessLookupError, ValueError):
             pass                                    # stale lock from a reboot
     open(f_lock, 'w').write(str(os.getpid()))
+    sys.path.insert(0, os.path.join(REPO, 'src'))
+    import memguard
     try:
         while True:
+            memguard.ensure_running()               # pauses the youngest heavy job when memory runs out (PLAN §16.8)
             done, failed = listed(f_done), listed(f_failed)
             todo = [(n, c) for n, c in jobs(a.queue) if n not in done and n not in failed]
             if not todo:

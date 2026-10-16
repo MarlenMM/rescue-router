@@ -43,6 +43,9 @@ def route(ds, split_file, out, preds=None, decode=None, *extra):
 
 
 FULL = f'{R}/preds/{FN50}_floodnet_test_full_fp16.npz'
+# the Phase 2 runs (one recipe, PLAN §16.8): once they exist, the baseline report and the curves pair with them;
+# without --phase2 a rebuild would write the pre-Phase-2 pairing over the published report
+P2 = ['--phase2', 'results/phase2/rr'] if os.path.isdir(os.path.join(ROOT, 'results', 'phase2', 'rr', 'preds')) else []
 TTA_FULL = f'{R}/preds/{FN50}_tta4_floodnet_test_full_fp16.npz'
 # name: (commands run in order, dependencies, what it writes)
 STEPS = {
@@ -71,7 +74,7 @@ STEPS = {
                    'routing/false_safe/: why houses are falsely truck-reachable (PLAN §16 A2)'),
     'router_sweep': ([py('router_sweep.py', '--results', R, '--out', f'{RT}/router_sweep')], ['decode', 'calibration'],
                      'routing/router_sweep/: gate x calibrated wetness x off-road reach (information)'),
-    'same_budget': ([py('baseline_report.py'), py('ensemble.py'), py('curve_figure.py')], ['decode', 'route_full'],
+    'same_budget': ([py('baseline_report.py', *P2), py('ensemble.py'), py('curve_figure.py', *P2)], ['decode', 'route_full'],
                   'results/baselines/report/: same-budget baselines vs Chameleon, ensemble (needs results/baselines)'),
     'label_audit': ([py('label_audit.py'), py('label_audit.py', '--impact')], ['route_full', 'same_budget'],
                     'report/label_audit/: FloodNet label errors (photo + label only) and their impact on both models'),

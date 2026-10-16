@@ -1048,6 +1048,93 @@ pre-registered choice rules are in `experiments/phase2/PROTOCOL.md` (amendment 1
   4. The RescueNet mix is reproducible from the repo: `experiments/rescuenet_mix.py` (same numbers;
      `results/baselines/report/rescuenet_mix.json`). Viewer About (EN/KO) explains the "differs" marks.
 
+### 16.8 Phase 2 results (16-17 Oct 2026; Marlen's go 16 Oct, amendments 4 and 5 kept)
+
+**Runs.** `rr-p2-curve` (pushed 16 Oct 08:41 KST, 8.13 h, 10/10 job groups OK) and `rr-p2-var` (16:53, 5.63 h, 6/6
+OK); both passed the environment check (`ENVCHECK PASS: max |diff| 0.50/255, mean 0.106/255`, the 8 Oct image, code
+`132a463`). The Mac queue's last baselines (RescueNet 35/40/80, the 20-photo draws 3-4) ran on Kaggle instead
+(`rr-p2-baselines`, 4.92 h, 6/6 OK, plus a device control; Marlen: "we can run anything you want in kaggle"). Quota
+~18.7 h of 30. Deviations (all procedural): `experiments/phase2/PROTOCOL.md` "Deviation log" (the 8 h gap before
+`var`, a Mac restart from memory exhaustion during the post-processing, the baselines on CUDA: CUDA − MPS −.005
+[−.010, −.002] on the full RescueNet test). Reports: `results/phase2/report/phase2.md`,
+`results/baselines/report/{baselines.md, curve/, ensemble_*_choice*.md, product_options.md, device_control.md}`,
+`results/phase2/report/{router_sweep, tiers}/`. Numbers: 95 % bootstrap intervals over photos, paired = the same
+resamples; "baseline − Chameleon" unless stated.
+
+**F2 (val30 over-fitted?)** No. The submitted model on `floodnet_val_confirm100`: mIoU .502 (chosen chain + SAM; .499
+without SAM) vs val30 .516: −.015, inside the registered .03, so val30-based claims stay unmarked.
+
+**A4 (one recipe, the submitted model's).** eval100, tuned decode, one recipe vs the published curve (first recipe):
+FloodNet 1 / 5 / 10 / 20 / 100 photos .228 / .370 / .396 / .423 / .553 vs .264 / .353 / .383 / .422 / – ; RescueNet
+5 / 10 / 20 / 50 .184 / .287 / .358 / .396 vs – / – / .421 / .402. The published FloodNet curve is reproduced within
+±.02 from 5 photos (1 photo −.036). The published RescueNet 20-photo point was the outlier: it trained 2,000 steps and
+kept the best-val30 checkpoint (30 tuning labels used twice); the one recipe gives .358 on its draw 0, and over three
+draws .420 ± .056 (eval100) / .439 ± .037 (full test). Full tests (one recipe): FloodNet 1/5/10/20 .245 / .355 / .382
+/ .370; RescueNet 5/10/20 .197 / .314 / .396.
+
+**Where Chameleon wins (full tests, paired with the same-photos baseline).**
+- *Chameleon with its 30 tuning photos* (k + 30 labels) vs the baseline (k labels): FloodNet 1 photo −.122 [−.139,
+  −.106] and 5 photos −.023 [−.045, −.003] (Chameleon ahead); 10 −.020 [−.043, +.004] (level); 20 +.028 [+.001, +.054]
+  and 50 +.074 [+.045, +.107] (baseline ahead); 100 +.028 [−.031, +.086] (eval100, level). RescueNet 5 −.008 (level),
+  10 −.023 [−.040, −.006] (Chameleon), 20: level on draw 0 (−.006), Chameleon on draws 3 and 4 (−.064 [−.079, −.050],
+  −.057 [−.074, −.037]): mean .439 ± .037 vs .396 ± .013; 50 +.060 [+.014, +.108] (eval100, baseline).
+- *Equal labels* (k each; Chameleon label-free): FloodNet 1 −.031 [−.042, −.020], 5 −.023 [−.045, −.002] (Chameleon);
+  10 +.090, 20 +.085, 50 +.114 (baseline). RescueNet draw 0: baseline at every k (5 +.032, 10 +.070, 20 +.047, 50
+  +.079); 20 photos over three draws: Chameleon ahead on draws 3-4 (−.056, −.052), the baseline on draw 0 (+.047);
+  means .409 ± .055 vs .388 ± .008. Chameleon's label-free thresholds are unreliable at 10-20 FloodNet photos (full test .272 /
+  .313; on eval100 .253 / .354, below the plain τ .5 decode's .320 / .370).
+- *Equal total labels* (the baseline also gets Chameleon's 30 tuning photos as training photos, k + 30): the baseline
+  wins everywhere. RescueNet: 35 photos .446 vs Chameleon 5 + 30 .197; 40 .443 vs 10 + 30 .314; 50 .479 vs 20 + 30
+  .396 (three-draw mean .439); 80 .503 (eval100 .485) vs 50 + 30 .396 (eval100). FloodNet `curve_total.png`: the
+  baseline curve lies above Chameleon's at every k + 30.
+- **The RescueNet crossover (the open question since 16 Oct):** counting only training photos, Chameleon leads at 10
+  and (on average, 2 of 3 draws) at 20 photos and the baseline from 50: the crossover lies between 20 and 50
+  photos. Counting the tuning photos as labels, there is none: the baseline is ahead at every point. Chameleon's
+  advantage is a tuning-label advantage on a new disaster at 10-20 photos, not a label-efficiency advantage.
+- Routing on the full tests (`curve_routing.png`): FloodNet 1 photo the baseline routes more stranded houses (+.047)
+  but with more false safes (.048 vs .007); 20 photos false safe .061 vs .099 (−.038 [−.083, −.002]); RescueNet 5-10
+  photos the baseline's stranded F1 is far higher (+.169, +.257) with fewer false safes; at 20 photos level (draw 0)
+  or Chameleon higher (draws 3-4, n.s.) with Chameleon's false safes lower on draws 3-4 (+.015, +.009 for the baseline).
+
+**A3 (FloodNet 50 photos, eval100; the L design).** Chameleon .487 ± .054 over 5 runs (tuned + SAM; sd over support
+draws .023, over training seeds .070: seed 1 .396, others .482-.525; its training log is normal, so it is a result,
+not a failure); stranded F1 sd .021 (draws) / .051 (seeds). The baseline .555 ± .014 (tuned; argmax .556 ± .009). The
+baseline is ahead in all 5 replicates (+.032 to +.152, 4 of 5 intervals exclude 0; equal labels +.055 to +.169). The
+submitted model (.519 eval100) is the second best of Chameleon's five runs: single-run Chameleon claims carry ±.05.
+
+**Registered gates (val30 ∪ confirm100).** Router off-road gate: **keep 0.3** (pooled stranded F1 .885, false safe
+.079; 0.2: .873 / .056). Cautious gate: **keep 0.05** (214 confident-truck houses, 100 % truly truck-reachable; the
+larger gates fall to 93.7-98.8 % once confirm100 is added). No change to `src/route_eval.py`.
+
+**Registered product-model choice** (`results/baselines/report/ensemble_baseline_deeplabv3_r50_50shot_s0_choice.md`):
+the **0.5 / 0.5 probability mix of Chameleon and the self-trained baseline with flips** (`w=0.5
+baseline_deeplabv3_r50_50shot_s0_st_tta`, val30-tuned thresholds; val30 + confirm100 .556, runner-up the seed ensemble
+with flips w .5 .555). Full test (paired, `..._choice_paired.md`): mIoU **.591** [.556, .627], vs the submitted
+Chameleon +.084 [+.059, +.111], vs the plain baseline +.010 [−.020, +.041]; routing stranded F1 .844 (vs Chameleon
++.092 [+.016, +.188]), false safe **.052** (vs Chameleon −.058 [−.102, −.022], vs the baseline −.028 [−.069, −.002]).
+The registered **baseline-only** choice (CPU only, `..._choice_baselines_paired.md`): the seed ensemble (3) with
+flips, val30-tuned: mIoU **.617** [.583, .652] (vs Chameleon +.110, vs the plain baseline +.036 [+.025, +.049]),
+stranded F1 .817, false safe .068 (vs the baseline −.013 [−.026, −.003]). The two options paired
+(`product_options.md`, `experiments/product_options.py`): mix − CPU-only mIoU −.026 [−.053, +.001], stranded F1 +.027
+[−.023, +.103], false safe −.015 [−.059, +.015]: indistinguishable. Not applied (product change = Marlen's call):
+the viewer's default model, `app/scenes`, the published numbers are unchanged.
+
+**What it means.** On FloodNet a standard segmenter fine-tuned on the same photos is the better model from 10-20
+labels on, its seed ensemble with flips best of all (.617 vs Chameleon .507 on the full test), and it runs on a CPU;
+Chameleon's few-shot strength shows only at 1-5 FloodNet photos and, with its 30 tuning photos, at 10-20 photos of a
+new disaster. Chameleon is also far less stable across training seeds (sd .070 vs the baseline's .014). The
+registered product model is the Chameleon + baseline mix, which needs a GPU for Chameleon and is not better than the
+CPU-only seed ensemble. **Proposal for Marlen:** switch the product model to the CPU-only seed ensemble with flips
+(the registered baseline-only choice; viewer default, re-export of `app/scenes`, published numbers), keep Chameleon as
+the second, few-shot model in the viewer; or adopt the registered mix if the GPU is acceptable.
+
+**Engineering (16-17 Oct).** `src/rr/mem.py` (worker pools sized to the free memory: router_sweep, the decode
+scorer), `src/memguard.py` (pauses the youngest heavy job of this repository when memory runs out, started by
+finish.py / post.py / job_queue.py; MPS memory counted by footprint), admission control in `baseline_seg.py` on MPS;
+`kaggle/phase2/finish.py --skip_download`; `kaggle/phase2/baselines_kernel.py`; `ensemble.py --paired
+[--baselines_only]`; `baseline_report.py` replicate table (seed-and-draw pairing); `rebuild_all.py` passes `--phase2`;
+`experiments/device_control.py`, `experiments/product_options.py`.
+
 ## 15. Status / handoff (updated Wed 7 Oct, 18:15 KST)
 
 ### Quick summary (read this first; details below)
