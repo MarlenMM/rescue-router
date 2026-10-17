@@ -336,3 +336,13 @@ def test_post_never_writes_over_the_published_reports(tmp_path):
     for c in cmds:
         assert f'--out {os.path.relpath(str(tmp_path), REPO)}' in c or f'--out {tmp_path}' in c, c
     assert '--fig none' in next(c for c in cmds if 'tiers.py' in c)
+
+
+def test_baseline_avg_takes_only_real_splits():
+    """baseline_avg: the glob of run ..._s0 also matches ..._s0_tta_<split> and ..._s0_ft50_<split>; only real split
+    files count (17 Oct: 'tta_rescuenet_test_full' was taken for a split and read RescueNet ids as FloodNet photos)"""
+    import baseline_avg as BA
+    pre = 'baseline_deeplabv3_r50_rescuenet_20shot_s0_'
+    files = [f'/x/preds/{pre}{s}.npz' for s in ('rescuenet_test_full', 'tta_rescuenet_test_full', 'ft50_rescuenet_val_tune30',
+                                                'sup3_rescuenet_test_eval100', 'rescuenet_val_tune30')]
+    assert BA.splits_of(files, pre) == ['rescuenet_test_full', 'rescuenet_val_tune30']

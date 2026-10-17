@@ -1157,7 +1157,7 @@ finish.py / post.py / job_queue.py; MPS memory counted by footprint), admission 
   `results/baselines/decode/<run>.json`.
 - **Docs:** README status and model switch, MODEL_CARD "Two models" table. Publishing (demo, public repo) waits for the
   grade (`release/DEMO_FROZEN`).
-- **RescueNet fairness check (registered 17 Oct ~05:40 KST, before any of its runs; Marlen: "Start with the RescueNet
+- **RescueNet fairness check (registered 17 Oct ~20:20 KST, before any of its runs; Marlen: "Start with the RescueNet
   fairness check"):** on FloodNet the default is a 3-network ensemble with flips, on RescueNet Chameleon was compared
   with one network. Same treatment for RescueNet: DeepLabV3-ResNet50 on the same 20 photos (draw 0), training seeds
   1 and 2 (Kaggle T4, `kaggle/phase2/baselines_kernel.py --jobs rn20seeds`) next to seed 0 (Mac), each with flips,
@@ -1167,6 +1167,18 @@ finish.py / post.py / job_queue.py; MPS memory counted by footprint), admission 
   full RescueNet test (Phase 2); mIoU primary, stranded F1 and false-safe rate reported. **Rule:** RescueNet's viewer
   default becomes the ensemble if its eval100 mIoU is higher than that of the viewer's Chameleon model in (a); else
   Chameleon stays; either way both numbers and intervals are published.
+  **Result (17 Oct ~22:40; `rr-p2-rn20seeds` 1.84 h, both seeds OK; `results/baselines/report/rescuenet_ensemble.md`,
+  `experiments/rescuenet_ensemble.py`):** (a) eval100, vs the viewer's Chameleon .421: ensemble tuned .373, **−.048
+  [−.083, −.014]** (argmax .385, −.036 [−.068, −.006]; one network .360, −.061); routing stranded F1 .622 vs .818,
+  false safe .040 vs .026. (b) full RescueNet test, vs the one-recipe Chameleon .396: ensemble tuned .395, −.001
+  [−.019, +.017] (argmax .408, +.012 [−.006, +.031]). **By the rule RescueNet stays on Chameleon**: the comparison was
+  not unfair, Chameleon's RescueNet lead holds against the ensemble too. The val30-tuned thresholds cost the ensemble
+  on RescueNet (.373 vs .385 argmax on eval100): 30 photos tune 5 thresholds poorly there; registered as tuned, so
+  reported as such. Viewer: the switch's RescueNet model is now this ensemble (tuned, as registered; eval100 .373 vs
+  the single network's .360; its tiers with the viewer's fixed gate 0.15: confident 96.0 % of 272 houses), so model b
+  is the same kind of model on both datasets. Found on the way: `baseline_avg.py` took `tta_<split>` of a longer run
+  name for a split (the glob of `..._s0_` matches `..._s0_tta_...`); it now keeps real split files only (test; the
+  FloodNet ensembles were not affected: the stray pass averaged the same flip caches into the same file).
 
 ## 15. Status / handoff (updated Wed 7 Oct, 18:15 KST)
 

@@ -121,8 +121,8 @@
     <section class="about">
       <h2 data-i18n>About</h2>
       <p data-i18n-html="About text">A drone photo is mapped into five classes by one of two models trained on the same <b>50 labelled photos</b> (FloodNet) or 20 (RescueNet), with 30 more labelled validation photos per dataset for the decode thresholds and the router settings:
-        <b>Chameleon</b>, the few-shot model this project started from, and a standard segmenter (DeepLabV3-ResNet50; on
-        FloodNet an ensemble of three with flipped views). Each dataset opens on the model that is better there (see
+        <b>Chameleon</b>, the few-shot model this project started from, and a standard segmenter (an ensemble of three
+        DeepLabV3-ResNet50 with flipped views). Each dataset opens on the model that is better there (see
         below); the Model switch shows the other. A router on 4×4-pixel cells then finds the cheapest way from the entry point to each house: truck on dry ground
         (roads, or yards at 4× cost; never where water is likely), then a boat across water, then the last stretch on foot
         (never back into a vehicle). Vehicles have a width: a truck needs about 2.5 m between buildings and a boat
@@ -138,8 +138,8 @@
       <p data-i18n-html="About numbers">FloodNet, full 448-photo test: the DeepLabV3 ensemble mIoU .62, Chameleon .51 (PSPNet trained on all 1,445
         labelled photos: .85 on these classes). A pre-registered comparison on the same photos (Phase 2) found Chameleon
         ahead only with very few labels (1-5 FloodNet photos) and on a new disaster at 10-20 photos, where its 30 tuning
-        photos help: RescueNet here, 20 photos, mIoU .42 against .36 for one DeepLabV3 (eval100), so RescueNet opens on
-        Chameleon. Both models use the same router and gates, each with its own statuses, tiers and per-photo IoU.
+        photos help: RescueNet here, 20 photos, mIoU .42 against .37 for the DeepLabV3 ensemble (eval100), so RescueNet
+        opens on Chameleon. Both models use the same router and gates, each with its own statuses, tiers and per-photo IoU.
         Houses the other model routes differently are marked in the house list and counted under the map; the sort
         "models disagree most" lists those photos first. One showcase scene shows an honest failure of Chameleon: shallow
         water read as dry land.</p>

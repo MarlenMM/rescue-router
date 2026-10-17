@@ -1,9 +1,15 @@
 {
  "id": "15647",
  "dataset": "rescuenet",
- "run": "baseline_deeplabv3_r50_rescuenet_20shot_s0",
+ "run": "baseline_deeplabv3_r50_rescuenet_20shot_s0_ens3_tta",
  "decode": {
-  "argmax": true
+  "tau": [
+   0.55,
+   0.3,
+   0.35,
+   0.1,
+   0.2
+  ]
  },
  "caption": "",
  "size": [
@@ -51,16 +57,16 @@
  "iou": {
   "road clear": null,
   "road blocked": null,
-  "building intact": 0.606,
+  "building intact": 0.556,
   "building damaged": null,
-  "water": 0.776
+  "water": 0.74
  },
- "miou": 0.691,
+ "miou": 0.648,
  "n_buildings": 2,
  "status_pred": {
   "TRUCK": 1,
-  "BOAT": 0,
-  "FOOT": 1,
+  "BOAT": 1,
+  "FOOT": 0,
   "ISOLATED": 0
  },
  "status_gt": {
@@ -69,22 +75,22 @@
   "FOOT": 1,
   "ISOLATED": 0
  },
- "n_disagree": 0,
+ "n_disagree": 1,
  "tiers_pred": {
   "CONFIDENT_TRUCK": 1,
   "PROBABLE_TRUCK": 0,
-  "BOAT": 0,
-  "FOOT": 1,
+  "BOAT": 1,
+  "FOOT": 0,
   "ISOLATED": 0
  },
  "tier_stats": {
   "cautious_gate": 0.15,
   "tuned_gate": 0.2,
-  "confident": 0.9597069597069597,
-  "probable": 0.0
+  "confident": 0.9595588235294118,
+  "probable": null
  },
  "m_per_cell": 0.31,
  "scale_source": "dataset value",
  "model": "b",
- "model_name": "DeepLabV3-ResNet50"
+ "model_name": "DeepLabV3 ensemble"
 }

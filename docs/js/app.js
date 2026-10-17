@@ -1,8 +1,8 @@
 // Rescue Router web viewer (PLAN §6.4). Plain ES module + Leaflet 1.9 (global L), no build step.
 // Scenes come from src/export_web_assets.py; routing runs in the browser with js/router.js.
 
-import { sceneGrids, parseScene, eta, tier, TRUCK, BOAT, FOOT, ISOLATED } from './router.js?v=51cb25d399';
-import { t, LANG, DEFAULT_LANG, setLang } from './i18n.js?v=51cb25d399';
+import { sceneGrids, parseScene, eta, tier, TRUCK, BOAT, FOOT, ISOLATED } from './router.js?v=39a9c65f07';
+import { t, LANG, DEFAULT_LANG, setLang } from './i18n.js?v=39a9c65f07';
 
 const CELL = 4;
 const KIND = ['truck', 'boat', 'foot', 'isolated'];
