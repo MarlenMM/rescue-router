@@ -50,6 +50,7 @@ sys.path.insert(0, os.path.join(ROOT, 'kaggle', 'phase2'))
 from post import REGISTERED  # noqa: E402  (the registered product-model candidates, PROTOCOL amendments 1 and 3)
 REG = ','.join(REGISTERED)
 ENS = 'baseline_deeplabv3_r50_50shot_s0_ens3_tta'          # the viewer's FloodNet model (PLAN §16.9)
+ENS_RN = 'baseline_deeplabv3_r50_rescuenet_20shot_s0_ens3_tta'   # its RescueNet counterpart (the switch's model there)
 TTA_FULL = f'{R}/preds/{FN50}_tta4_floodnet_test_full_fp16.npz'
 # name: (commands run in order, dependencies, what it writes)
 STEPS = {
@@ -105,13 +106,18 @@ STEPS = {
                         py('ensemble.py', '--paired', '--baselines_only', '--baseline', REG),
                         [PY, os.path.join('experiments', 'product_options.py')]], ['same_budget'],
                        'results/baselines/report/ensemble_*_choice*.md, product_options.md, baselines/decode/'),
+    # the RescueNet fairness check (PLAN §16.9): its ensemble's tuned decode, the paired report, the viewer's default
+    'rescuenet_ensemble': ([[PY, os.path.join('experiments', 'rescuenet_ensemble.py')]], ['same_budget'],
+                           'results/baselines/report/rescuenet_ensemble.md, baselines/decode/<RescueNet ensemble>.json'),
     'baseline_tiers': ([py('tiers.py', '--results', 'results/baselines', '--run', ENS, '--choose_on', 'val30,confirm100',
                            '--out', 'results/baselines/report/tiers_ens3_tta', '--fig', 'none'),
+                        py('tiers.py', '--results', 'results/baselines', '--run', ENS_RN, '--dataset', 'rescuenet',
+                           '--fixed_gate', '--out', 'results/baselines/report/tiers_rescuenet_ens3_tta', '--fig', 'none'),
                         py('tiers.py', '--results', 'results/baselines', '--run', 'baseline_deeplabv3_r50_50shot_s0', '--argmax',
                            '--choose_on', 'val30,confirm100', '--out', 'results/baselines/report/tiers', '--fig', 'none'),
                         py('tiers.py', '--results', 'results/baselines', '--run', 'baseline_deeplabv3_r50_rescuenet_20shot_s0',
                            '--dataset', 'rescuenet', '--argmax', '--fixed_gate', '--out',
-                           'results/baselines/report/tiers_rescuenet', '--fig', 'none')], ['product_choice'],
+                           'results/baselines/report/tiers_rescuenet', '--fig', 'none')], ['product_choice', 'rescuenet_ensemble'],
                        'results/baselines/report/tiers*/: the baseline\'s tiers (cautious gate; the viewer\'s model switch)'),
     'export': ([py('export_web_assets.py', '--out', 'app/scenes')], ['tiers', 'route_full', 'same_budget', 'baseline_tiers'],
                'app/scenes/: 200 viewer scenes, each with Chameleon and (b/) the standard segmenter'),
@@ -120,7 +126,7 @@ STEPS = {
               'Python tests + JS router parity (bit-exact on all scenes)'),
 }
 
-NEEDS_BASELINES = ('same_budget', 'label_audit', 'consensus', 'product_choice', 'baseline_tiers')     # the same-budget baselines' prediction caches
+NEEDS_BASELINES = ('same_budget', 'label_audit', 'consensus', 'product_choice', 'rescuenet_ensemble', 'baseline_tiers')     # the same-budget baselines' prediction caches
 
 # headline numbers as published (PLAN §15 Quick summary); --check compares the rebuilt files with these (3 decimals).
 # Updated 8 Oct (Batch 13.6): FloodNet 50-shot = the Batch 13 model (the published 7 Oct values: results/published_7oct.tar)

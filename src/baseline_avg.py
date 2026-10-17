@@ -37,6 +37,13 @@ def average(paths):
     return np.round(mean).astype(np.uint8), ids
 
 
+def splits_of(files, prefix, repo=REPO):
+    """the split files of a run's caches: the part after '<run><suffix>_' that is a split in splits/ (17 Oct: the glob of
+    run ..._20shot_s0 also matches ..._s0_tta_<split>, ..._s0_ft50_<split>, ...: 'tta_rescuenet_test_full' is no split)"""
+    names = [os.path.basename(f)[len(prefix):-4] for f in files]
+    return [sf for sf in names if os.path.exists(os.path.join(repo, 'splits', f'{sf}.txt'))]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--runs', required=True, help='comma list of baseline runs (results/baselines/preds/<run>_...)')
@@ -47,7 +54,7 @@ def main():
     runs = a.runs.split(',')
     pre = [f'{r}{a.suffix}_' for r in runs]
     first = sorted(glob.glob(os.path.join(a.baselines, 'preds', f'{pre[0]}*.npz')))
-    splits = [os.path.basename(f)[len(pre[0]):-4] for f in first]
+    splits = splits_of(first, pre[0])
     done = []
     for sf in splits:
         paths = [os.path.join(a.baselines, 'preds', f'{p}{sf}.npz') for p in pre]

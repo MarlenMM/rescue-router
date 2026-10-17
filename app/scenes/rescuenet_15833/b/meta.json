@@ -1,9 +1,15 @@
 {
  "id": "15833",
  "dataset": "rescuenet",
- "run": "baseline_deeplabv3_r50_rescuenet_20shot_s0",
+ "run": "baseline_deeplabv3_r50_rescuenet_20shot_s0_ens3_tta",
  "decode": {
-  "argmax": true
+  "tau": [
+   0.55,
+   0.3,
+   0.35,
+   0.1,
+   0.2
+  ]
  },
  "caption": "Hurricane Michael: clear road, intact and damaged houses",
  "size": [
@@ -49,10 +55,10 @@
   ]
  ],
  "iou": {
-  "road clear": 0.566,
+  "road clear": 0.628,
   "road blocked": 0.0,
-  "building intact": 0.359,
-  "building damaged": 0.052,
+  "building intact": 0.294,
+  "building damaged": 0.054,
   "water": null
  },
  "miou": 0.244,
@@ -80,11 +86,11 @@
  "tier_stats": {
   "cautious_gate": 0.15,
   "tuned_gate": 0.2,
-  "confident": 0.9597069597069597,
-  "probable": 0.0
+  "confident": 0.9595588235294118,
+  "probable": null
  },
  "m_per_cell": 0.344,
  "scale_source": "3 labelled cars",
  "model": "b",
- "model_name": "DeepLabV3-ResNet50"
+ "model_name": "DeepLabV3 ensemble"
 }

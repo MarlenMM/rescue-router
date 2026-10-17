@@ -124,8 +124,8 @@ Work since then (PLAN §16; §16.5 for the latest review):
   links now open exactly the view they name, Esc closes a route, the About text states the false-safe rate and the
   baseline result). Baseline training resumes after a crash or reboot (`--save_every`).
 - **Viewer model switch** (local `docs/`): every one of the 200 scenes can be shown with the submitted Chameleon model
-  or a standard segmenter on the same photos: on FloodNet the DeepLabV3 seed ensemble with flips and the same 30
-  tuning photos (the Phase 2 CPU product choice), on RescueNet one DeepLabV3-ResNet50 (same router and gates, each
+  or a standard segmenter on the same photos, the DeepLabV3 seed ensemble with flips and the same 30 tuning photos
+  (on FloodNet the Phase 2 CPU product choice; on RescueNet the fairness check of PLAN §16.9) (same router and gates, each
   model's own statuses, tiers, per-photo IoU and measured false-safe rate in the printed briefing). Each dataset opens
   on its better model (FloodNet: the ensemble, RescueNet: Chameleon); a link names the other with `mo=a` / `mo=b`.
   `src/export_web_assets.py` writes the second model's layers to `scenes/<key>/b/`, and the JS router parity test

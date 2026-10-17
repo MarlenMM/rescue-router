@@ -51,8 +51,8 @@ const KO = {
   'Every house of this photo with its status, tier, minutes and metres per mode (prediction; labelled map alongside)':
     '이 사진의 모든 가구: 상태, 신뢰 등급, 소요 시간(분), 수단별 거리(m) (예측; 라벨 지도 함께)',
   'About text': `드론 사진의 각 픽셀을 같은 라벨 사진으로 학습한 두 모델 중 하나가 다섯 가지 클래스로 분류합니다: 이
-    프로젝트가 출발한 퓨샷 모델 <b>Chameleon</b>과 일반적인 분할 모델(DeepLabV3-ResNet50; FloodNet에서는 뒤집은 영상을
-    평균하는 3개 앙상블)입니다. 학습에는 라벨이 있는 사진 <b>50장</b>(FloodNet) 또는 20장(RescueNet)을 사용했고,
+    프로젝트가 출발한 퓨샷 모델 <b>Chameleon</b>과 일반적인 분할 모델(뒤집은 영상을 평균하는 DeepLabV3-ResNet50 3개
+    앙상블)입니다. 학습에는 라벨이 있는 사진 <b>50장</b>(FloodNet) 또는 20장(RescueNet)을 사용했고,
     데이터셋마다 라벨이 있는 검증 사진 30장으로 임계값과 경로 설정을 골랐습니다. 각 데이터셋은 그 데이터에서 더 나은
     모델로 열리고(아래 참조), '모델' 전환으로 다른 모델을 볼 수 있습니다. 이어서 4×4 픽셀 셀 위에서 경로 탐색기가 진입 지점에서 각 가구까지 가장 싼 길을
     찾습니다: 마른 땅은 트럭(도로, 또는 비용 4배의 마당; 물일 가능성이 높은 곳은 제외), 물은 보트, 마지막 구간은 도보
@@ -68,7 +68,7 @@ const KO = {
   'About numbers': `FloodNet 전체 448장 테스트: DeepLabV3 앙상블 mIoU .62, Chameleon .51 (라벨 1,445장으로 학습한 PSPNet:
     같은 클래스에서 .85). 같은 사진으로 미리 등록한 비교(Phase 2)에서 Chameleon은 라벨이 아주 적을 때(FloodNet 사진
     1-5장)와, 조정용 사진 30장이 도움이 되는 새 재난의 사진 10-20장에서만 앞섰습니다: 여기의 RescueNet(사진 20장)에서
-    mIoU .42, DeepLabV3 하나는 .36(평가용 100장)이므로 RescueNet은 Chameleon으로 열립니다. 두 모델 모두 같은 경로
+    mIoU .42, DeepLabV3 앙상블은 .37(평가용 100장)이므로 RescueNet은 Chameleon으로 열립니다. 두 모델 모두 같은 경로
     탐색기와 임계값을 쓰고, 각자의 상태, 신뢰 등급, 사진별 IoU를 보여 줍니다. 다른 모델이 다르게 판단한 가구는 가구
     목록에 표시되고 지도 아래에 개수가 나오며, '두 모델이 가장 다른 순' 정렬로 그런 사진을 먼저 볼 수 있습니다. 대표 장면
     하나는 Chameleon의 정직한 실패 사례입니다: 얕은 물을 마른 땅으로 읽었습니다.`,

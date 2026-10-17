@@ -57,25 +57,29 @@ from rr.paths import RR_DATA  # noqa: E402
 
 RUNS = {'floodnet': 'floodnet_50shot_s0_stratified', 'rescuenet': 'rescuenet_20shot_s0_stratified'}
 ROOT = os.path.dirname(HERE)
-# the viewer's second model ('b', scenes/<key>/b/): the same training photos as Chameleon. FloodNet: the registered
-# baseline-only product choice (PLAN §16.8: full test mIoU .617 vs Chameleon .507, false safe .068 vs .111), its
-# val30-tuned thresholds written by src/ensemble.py to results/baselines/decode/<run>.json; RescueNet: one network,
-# argmax (no ensemble there). Tier shares from each run's `src/tiers.py --results results/baselines --run <run> ...`.
+# the viewer's second model ('b', scenes/<key>/b/): on both datasets the seed ensemble of three DeepLabV3-ResNet50 on
+# Chameleon's training photos, flips averaged, thresholds tuned on the same 30 photos (decodes in
+# results/baselines/decode/<run>.json: src/ensemble.py for FloodNet, experiments/rescuenet_ensemble.py for RescueNet).
+# FloodNet: the registered baseline-only product choice (PLAN §16.8: full test .617 vs Chameleon .507, false safe .068
+# vs .111); RescueNet: the fairness check of PLAN §16.9. Tier shares from each run's `src/tiers.py ... --run <run>`.
 ENS = 'baseline_deeplabv3_r50_50shot_s0_ens3_tta'
+ENS_RN = 'baseline_deeplabv3_r50_rescuenet_20shot_s0_ens3_tta'
 MODEL_B = dict(name='DeepLabV3', results=os.path.join(ROOT, 'results/baselines'),
-               names={'floodnet': 'DeepLabV3 ensemble', 'rescuenet': 'DeepLabV3-ResNet50'},
-               tuned={'floodnet': True, 'rescuenet': False},            # thresholds tuned on the 30 tuning photos
-               runs={'floodnet': ENS, 'rescuenet': 'baseline_deeplabv3_r50_rescuenet_20shot_s0'},
-               decode={'floodnet': os.path.join(ROOT, f'results/baselines/decode/{ENS}.json'), 'rescuenet': {'argmax': True}},
+               names={'floodnet': 'DeepLabV3 ensemble', 'rescuenet': 'DeepLabV3 ensemble'},
+               tuned={'floodnet': True, 'rescuenet': True},             # thresholds tuned on the 30 tuning photos
+               runs={'floodnet': ENS, 'rescuenet': ENS_RN},
+               decode={ds: os.path.join(ROOT, f'results/baselines/decode/{r}.json') for ds, r in
+                       (('floodnet', ENS), ('rescuenet', ENS_RN))},
                tiers={'floodnet': os.path.join(ROOT, 'results/baselines/report/tiers_ens3_tta/tiers.json'),
-                      'rescuenet': os.path.join(ROOT, 'results/baselines/report/tiers_rescuenet/tiers.json')},
-               # routing of the tuned ensemble = ensemble.py --paired --baselines_only (product_choice_baselines)
+                      'rescuenet': os.path.join(ROOT, 'results/baselines/report/tiers_rescuenet_ens3_tta/tiers.json')},
+               # routing of the tuned ensembles: ensemble.py --paired --baselines_only, experiments/rescuenet_ensemble.py
                routing={'floodnet': ['results/baselines/report/routing_full_product_choice_baselines.json',
                                      'results/baselines/report/routing_product_choice_baselines.json'],
-                        'rescuenet': ['results/baselines/report/routing_full_baseline_deeplabv3_r50_rescuenet_20shot_s0.json',
-                                      'results/baselines/report/routing_baseline_deeplabv3_r50_rescuenet_20shot_s0.json']})
-# the model a dataset opens on: the better one there (FloodNet: the ensemble; RescueNet at 20 photos: Chameleon, eval100
-# .421 vs .360 for the baseline, paired −.061 [−.098, −.027]); the switch shows the other
+                        'rescuenet': [f'results/baselines/report/routing_full_{ENS_RN}_tuned.json',
+                                      f'results/baselines/report/routing_{ENS_RN}_tuned.json']})
+# the model a dataset opens on: the better one there. FloodNet: the ensemble. RescueNet at 20 photos: Chameleon, also
+# against the ensemble (registered fairness check, PLAN §16.9: eval100 .421 vs .373, paired −.048 [−.083, −.014]); the
+# switch shows the other
 DEFAULT_MODEL = {'floodnet': 'b', 'rescuenet': 'a'}
 # where each model's measured false-safe rate (houses shown truck-reachable that are not, router v3, lam 5) comes from,
 # per dataset: the full test where it was routed, else eval100. The printed briefing quotes the rate of the model and

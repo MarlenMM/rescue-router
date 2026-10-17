@@ -17,9 +17,10 @@ viewer now opens FloodNet on it and keeps Chameleon one click away; RescueNet op
 | hardware, time per photo | CPU, ~4 s | GPU (T4), ~17 s |
 | stability (5 training runs at 50 photos, eval100) | single network .555 ± .014 | .487 ± .054 |
 
-RescueNet (Hurricane Michael, 20 labelled photos): Chameleon .421 vs one DeepLabV3-ResNet50 .360 (eval100; paired −.061
-[−.098, −.027]); over three support draws with one recipe Chameleon (+30 tuning photos) .439 ± .037 vs .396 ± .013 on
-the full test. Its lead depends on the 30 tuning photos: a DeepLabV3 trained on all 50 photos (20 + 30) reaches .479.
+RescueNet (Hurricane Michael, 20 labelled photos): Chameleon .421 vs the same DeepLabV3 ensemble .373 (eval100; paired
+−.048 [−.083, −.014]; one network .360), so the viewer opens RescueNet on Chameleon (`results/baselines/report/
+rescuenet_ensemble.md`); over three support draws with one recipe Chameleon (+30 tuning photos) .439 ± .037 vs one
+network's .396 ± .013 on the full test. Its lead depends on the 30 tuning photos: a DeepLabV3 trained on all 50 photos (20 + 30) reaches .479.
 Reproduce: `src/ensemble.py --paired --baselines_only`, `experiments/product_options.py`, `src/baseline_report.py`.
 
 ## What it is (Chameleon, as submitted)
