@@ -1157,6 +1157,16 @@ finish.py / post.py / job_queue.py; MPS memory counted by footprint), admission 
   `results/baselines/decode/<run>.json`.
 - **Docs:** README status and model switch, MODEL_CARD "Two models" table. Publishing (demo, public repo) waits for the
   grade (`release/DEMO_FROZEN`).
+- **RescueNet fairness check (registered 17 Oct ~05:40 KST, before any of its runs; Marlen: "Start with the RescueNet
+  fairness check"):** on FloodNet the default is a 3-network ensemble with flips, on RescueNet Chameleon was compared
+  with one network. Same treatment for RescueNet: DeepLabV3-ResNet50 on the same 20 photos (draw 0), training seeds
+  1 and 2 (Kaggle T4, `kaggle/phase2/baselines_kernel.py --jobs rn20seeds`) next to seed 0 (Mac), each with flips,
+  averaged (`src/baseline_avg.py`), thresholds tuned on RescueNet val30 (the same 20 + 30 labels as Chameleon), as
+  the FloodNet product. Compared, paired (2,000 resamples), with (a) **the viewer's Chameleon RescueNet model** (the
+  published 20-shot run, eval100: the photos the viewer shows) and (b) the one-recipe Chameleon of the same draw on the
+  full RescueNet test (Phase 2); mIoU primary, stranded F1 and false-safe rate reported. **Rule:** RescueNet's viewer
+  default becomes the ensemble if its eval100 mIoU is higher than that of the viewer's Chameleon model in (a); else
+  Chameleon stays; either way both numbers and intervals are published.
 
 ## 15. Status / handoff (updated Wed 7 Oct, 18:15 KST)
 

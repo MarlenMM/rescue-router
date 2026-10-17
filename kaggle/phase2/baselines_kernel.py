@@ -5,9 +5,11 @@ and a T4 trains one in ~25 min instead of ~75. Same script, recipe and seeds as 
 device control: rn20 (draw 0, done on the Mac 16 Oct 01:41) again on the T4, written to a separate folder, so the
 CUDA-vs-MPS difference is measured instead of assumed.
 
-    python kaggle/phase2/baselines_kernel.py      # ~/rr_push/rr-p2-baselines/ (code of git HEAD embedded)
-    cd ~/rr_push/rr-p2-baselines && ~/.venvs/kaggle/bin/kaggle kernels push -p .
-    ~/.venvs/kaggle/bin/python kaggle/fetch_output.py marlenmelis/rr-p2-baselines results/phase2/download_baselines
+    python kaggle/phase2/baselines_kernel.py [--jobs mac_queue|rn20seeds]   # ~/rr_push/<slug>/ (code of git HEAD)
+    cd ~/rr_push/<slug> && ~/.venvs/kaggle/bin/kaggle kernels push -p .
+    ~/.venvs/kaggle/bin/python kaggle/fetch_output.py marlenmelis/<slug> results/phase2/download_<jobs>
+Job sets: mac_queue (16 Oct, slug rr-p2-baselines, below) and rn20seeds (17 Oct, rr-p2-rn20seeds, PLAN §16.9: the
+RescueNet fairness check, training seeds 1 and 2 on the 20 draw-0 photos, each then predicted again with flips).
 Outputs: baselines/{preds,metrics,logs,ckpt}/ (-> results/baselines/), baselines_cuda_control/ (-> results/
 baselines_cuda_control/), logs/<job>.log.
 """
@@ -23,12 +25,18 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 from make_plan import DOCKER_IMAGE  # noqa: E402
 
-SLUG = 'rr-p2-baselines'
 RN = '--dataset rescuenet --splits rescuenet_val_tune30,rescuenet_test_eval100,rescuenet_test_full'
-LANES = {0: [('rn80', 'baselines', f'{RN} --shot 80'), ('rn35', 'baselines', f'{RN} --shot 35'),
-             ('rn20cuda', 'baselines_cuda_control', f'{RN} --shot 20')],
-         1: [('rn40', 'baselines', f'{RN} --shot 40'), ('rn20d3', 'baselines', f'{RN} --shot 20 --seed 0 --support_seed 3'),
-             ('rn20d4', 'baselines', f'{RN} --shot 20 --seed 0 --support_seed 4')]}
+JOBS = {
+    'mac_queue': ('rr-p2-baselines', {
+        0: [('rn80', 'baselines', f'{RN} --shot 80'), ('rn35', 'baselines', f'{RN} --shot 35'),
+            ('rn20cuda', 'baselines_cuda_control', f'{RN} --shot 20')],
+        1: [('rn40', 'baselines', f'{RN} --shot 40'), ('rn20d3', 'baselines', f'{RN} --shot 20 --seed 0 --support_seed 3'),
+            ('rn20d4', 'baselines', f'{RN} --shot 20 --seed 0 --support_seed 4')]}),
+    # the second run of each lane finds the checkpoint of the first and only predicts, with flips (cache name _tta)
+    'rn20seeds': ('rr-p2-rn20seeds', {
+        g: [(f'rn20s{s}', 'baselines', f'{RN} --shot 20 --seed {s} --support_seed 0'),
+            (f'rn20s{s}tta', 'baselines', f'{RN} --shot 20 --seed {s} --support_seed 0 --tta')] for g, s in ((0, 1), (1, 2))}),
+}
 
 RUNNER = r'''"""rr-p2-baselines: DeepLabV3 baselines on 2xT4 (PLAN §16.8; built by kaggle/phase2/baselines_kernel.py)."""
 import base64, glob, io, os, subprocess, sys, tarfile, threading, time
@@ -102,6 +110,10 @@ print(f'ALL DONE {(time.time() - T0) / 3600:.2f} h', flush=True)
 
 
 def main():
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--jobs', default='mac_queue', choices=sorted(JOBS))
+    SLUG, LANES = JOBS[ap.parse_args().jobs]
     subprocess.run(['zsh', os.path.join(ROOT, 'kaggle/build_rr_code.sh')], check=True, capture_output=True)
     b64 = base64.b64encode(open(os.path.expanduser('~/rr_push/ds/rr_code.tar.gz'), 'rb').read()).decode()
     lanes = {g: [(n, out, shlex.split(args)) for n, out, args in jobs] for g, jobs in LANES.items()}
