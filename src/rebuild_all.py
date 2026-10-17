@@ -122,7 +122,7 @@ STEPS = {
     'export': ([py('export_web_assets.py', '--out', 'app/scenes')], ['tiers', 'route_full', 'same_budget', 'baseline_tiers'],
                'app/scenes/: 200 viewer scenes, each with Chameleon and (b/) the standard segmenter'),
     'viewer': ([py('build_viewer.py')], ['export'], 'docs/: the built web viewer'),
-    'tests': ([[PY, '-m', 'pytest', 'src/tests', '-q'], ['node', '--test', 'app/test/router.test.mjs', 'app/test/i18n.test.mjs']], ['export'],
+    'tests': ([[PY, '-m', 'pytest', 'src/tests', '-q'], ['node', '--test', 'app/test/router.test.mjs', 'app/test/i18n.test.mjs', 'app/test/scenebuild.test.mjs']], ['export'],
               'Python tests + JS router parity (bit-exact on all scenes)'),
 }
 

@@ -2,6 +2,7 @@
 // Scenes come from src/export_web_assets.py; routing runs in the browser with js/router.js.
 
 import { sceneGrids, parseScene, eta, tier, TRUCK, BOAT, FOOT, ISOLATED } from './router.js';
+import { buildUploadScene, quantize } from './scenebuild.js';
 import { t, LANG, DEFAULT_LANG, setLang } from './i18n.js';
 
 const CELL = 4;
@@ -54,6 +55,8 @@ const MODEL = {
 // served it (meta.model_name: the Gradio app's CPU baseline, one network or the ensemble)
 function modelWhat(model, ds, shots, html = true, meta = null) {
   const ko = LANG === 'ko', n = html ? `<b>${shots}</b>` : shots;
+  if (meta && meta.local) return ko ? `이 브라우저에서 실행한 ${meta.model_name} (FloodNet 라벨 사진 ${n}장 + 조정용 30장)`
+    : `${meta.model_name}, run in this browser (FloodNet: ${n} labelled photos + 30 for tuning)`;
   if (meta && meta.upload && model === 'b') return ko ? `CPU 모델 ${meta.model_name || 'DeepLabV3'} (업로드 사진)` : `CPU model ${meta.model_name || 'DeepLabV3'} (uploaded photo)`;
   if (model !== 'b') return ko ? `라벨 사진 ${n}장(+조정용 30장)으로 적응한 Chameleon` : `Chameleon adapted from ${n} labelled photos (+30 for tuning)`;
   if (bInfo(ds).tuned) {
@@ -180,8 +183,11 @@ function markPressed() {
   }
 }
 
-// an uploaded photo (Gradio app, src/gradio_viewer.py): scenes/up/<token>/, not in the index, no labels
-const uploadEntry = (key) => (/^up\/[\w-]+$/.test(key || '') ? { key, dataset: 'floodnet', id: 'upload', caption: '', upload: true } : null);
+// an uploaded photo, not in the index, no labels: the Gradio app's (src/gradio_viewer.py, scenes/up/<token>/) or one
+// the reader's browser mapped itself (LOCAL, key local/<n>: kept in memory only, gone on reload)
+const LOCAL = new Map();
+const uploadEntry = (key) => (/^up\/[\w-]+$/.test(key || '') ? { key, dataset: 'floodnet', id: 'upload', caption: '', upload: true }
+  : LOCAL.has(key) ? { key, dataset: 'floodnet', id: 'upload', caption: '', upload: true, local: true } : null);
 
 function setNoLabels(on) {                                         // hide everything that compares with labels
   state.nolabels = on;
@@ -193,9 +199,11 @@ function setNoLabels(on) {                                         // hide every
 async function loadScene(key, keepView = false) {             // keepView: the same photo on the other model
   const sc = state.index.scenes.find(s => s.key === key) || uploadEntry(key) || state.index.scenes[0];
   const model = modelOf(sc), dir = `scenes/${sc.key}/`, mdir = model === 'b' ? `${dir}b/` : dir;   // photo and labels: dir
-  const [meta, { grid, buildings: blds }] = await Promise.all([
+  const local = LOCAL.get(sc.key);                                 // made in this browser: everything in memory
+  const [meta, { grid, buildings: blds }] = local ? [local.meta, local] : await Promise.all([
     fetch(mdir + 'meta.json').then(r => r.json()),
     fetch(mdir + 'scene.rrb').then(r => r.arrayBuffer()).then(parseScene)]);
+  const img = (name, folder) => (local ? local.urls[name] : `${folder}${name}.${name === 'photo' ? 'jpg' : 'png'}`);
   stopAnim();
   state.key = sc.key;
   state.sel = null;
@@ -212,17 +220,18 @@ async function loadScene(key, keepView = false) {             // keepView: the s
   drawCaption();
   for (const k of Object.keys(groups)) groups[k].clearLayers();
   const bounds = [[0, 0], [H, W]];
-  L.imageOverlay(dir + 'photo.jpg', bounds).addTo(groups.photo);
+  L.imageOverlay(img('photo', dir), bounds).addTo(groups.photo);
   state.overlays = {
-    pred: L.imageOverlay(mdir + 'pred.png', bounds, { pane: 'pred', opacity: opacity() }).addTo(groups.pred),
-    gt: L.imageOverlay(dir + 'gt.png', bounds, { pane: 'gt', opacity: opacity() }).addTo(groups.gt),
+    pred: L.imageOverlay(img('pred', mdir), bounds, { pane: 'pred', opacity: opacity() }).addTo(groups.pred),
+    gt: L.imageOverlay(img('gt', dir), bounds, { pane: 'gt', opacity: opacity() }).addTo(groups.gt),
     pwet: L.imageOverlay(pwetImage(grid), bounds, { pane: 'pred', opacity: 0, className: 'pwet' }).addTo(groups.pred),
   };
   setOpacities();
   drawPwetLegend();
   if (state.cb) applyPalette();
   map.attributionControl._attributions = {};
-  map.attributionControl.addAttribution(`${DATASET[meta.dataset].attrib} · ${MODEL[state.s.model].attrib}`);
+  map.attributionControl.addAttribution(meta.local ? LOCAL_ATTRIB : `${DATASET[meta.dataset].attrib} · ${MODEL[state.s.model].attrib}`);
+  $('copyLink').hidden = Boolean(meta.local);                      // a photo mapped in this browser has no link
   drawLegend();
   $('routeCard').hidden = true;
   solve();
@@ -260,7 +269,7 @@ function drawCaption() {
   const { meta, model } = state.s, sc = summary(state.s.sc);
   const ko = LANG === 'ko';
   // the showcase captions describe Chameleon's map: the baseline gets the generic one
-  $('caption').textContent = `${t(DATASET[meta.dataset].event)} · ${((ko && !meta.upload) || model === 'b' ? '' : sc.caption) || (ko ? `테스트 사진 ${sc.id}: ` +
+  $('caption').textContent = `${meta.upload ? t('Your photo') : t(DATASET[meta.dataset].event)} · ${(!meta.upload && (ko || model === 'b') ? '' : sc.caption) || (ko ? `테스트 사진 ${sc.id}: ` +
     (!sc.n_buildings ? '라벨 지도에 가구 없음' : sc.n_disagree ? `가구 ${sc.n_buildings}곳 중 ${sc.n_disagree}곳이 라벨 지도와 다름`
       : `가구 ${sc.n_buildings}곳 모두 라벨 지도와 일치`) : `Test photo ${sc.id}: ` +
     (!sc.n_buildings ? 'no houses in the labelled map' : sc.n_disagree
@@ -269,7 +278,7 @@ function drawCaption() {
   const ious = Object.values(meta.iou).filter(v => v != null);
   const miouTxt = ious.length ? fmt(ious.reduce((a, b) => a + b, 0) / ious.length) : null;
   const what = modelWhat(model, meta.dataset, shots, true, meta);
-  $('model').innerHTML = `${DATASET[meta.dataset].name} · ${what} · ` + (LANG === 'ko'
+  $('model').innerHTML = `${meta.local ? '' : `${DATASET[meta.dataset].name} · `}${what} · ` + (LANG === 'ko'
     ? (miouTxt ? `이 사진: 평균 IoU ${miouTxt}` : '업로드 사진: 채점할 라벨 없음')
     : (miouTxt ? `this photo: mean IoU ${miouTxt}` : 'uploaded photo: no labels to score it'));
   const tuned = bInfo(meta.dataset).tuned;                          // both models also tuned on the same 30 photos
@@ -936,6 +945,100 @@ $('csvHouses').addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 
+// ---------- your own photo (PLAN §16.10): the small FloodNet model runs in this browser; nothing is sent anywhere ----------
+// The photo is prepared as the Gradio app prepares an upload (gradio_app.prep_upload: portrait rotated, centre-cropped to
+// 4:3, resized to 768 x 576), mapped by the LR-ASPP-MobileNetV3 (models/floodnet_lraspp.onnx, onnxruntime-web, loaded
+// on first use), and turned into a routing scene by scenebuild.js (the same steps as Python, app/test/scenebuild.test.mjs).
+const LOCAL_ATTRIB = '<a href="https://pytorch.org/vision/stable/models/lraspp.html">LR-ASPP-MobileNetV3</a> (Howard et al. 2019; '
+  + 'torchvision) fine-tuned on FloodNet · <a href="https://onnxruntime.ai">ONNX Runtime Web</a> (MIT)';
+let ortModel = null;
+
+async function loadModel() {
+  if (ortModel) return ortModel;
+  const ort = await import('../vendor/onnxruntime-web/ort.wasm.min.mjs');
+  ort.env.wasm.wasmPaths = new URL('vendor/onnxruntime-web/', document.baseURI).href;
+  ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
+  const info = await fetch('models/floodnet_lraspp.json').then(r => r.json());
+  const session = await ort.InferenceSession.create(`models/${info.file}`, { executionProviders: ['wasm'] });
+  ortModel = { ort, info, session };
+  return ortModel;
+}
+
+async function preparePhoto(file) {                                 // -> {canvas 768 x 576, notes}
+  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const notes = [];
+  let src = bmp, w = bmp.width, h = bmp.height;
+  if (h > w) {                                                     // PIL rotate(90, expand=True): counter-clockwise
+    const r = new OffscreenCanvas(h, w), c = r.getContext('2d');
+    c.translate(0, w); c.rotate(-Math.PI / 2); c.drawImage(bmp, 0, 0);
+    src = r; [w, h] = [h, w];
+    notes.push(t('portrait photo rotated to landscape'));
+  }
+  let cw = w, ch = h;
+  if (Math.abs(w / h - 4 / 3) > 0.02) {
+    if (w / h > 4 / 3) cw = Math.round(h * 4 / 3); else ch = Math.round(w * 3 / 4);
+    notes.push(`${t('cropped to the centre')} ${cw}×${ch} (4:3)`);
+  }
+  if (cw < 768) notes.push(t('small photo upscaled: expect a blurrier map'));
+  const canvas = document.createElement('canvas');
+  canvas.width = 768; canvas.height = 576;
+  const c = canvas.getContext('2d', { willReadFrequently: true });
+  c.imageSmoothingQuality = 'high';
+  c.drawImage(src, Math.floor((w - cw) / 2), Math.floor((h - ch) / 2), cw, ch, 0, 0, 768, 576);
+  return { canvas, notes };
+}
+
+function classImage(cls, colors, W, H) {                            // viz.colorize: 'other' transparent
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d'), im = ctx.createImageData(W, H);
+  for (let i = 0; i < W * H; i++) {
+    const k = cls[i];
+    if (k < 5) { im.data.set(colors[k], 4 * i); im.data[4 * i + 3] = 255; }
+  }
+  ctx.putImageData(im, 0, 0);
+  return c.toDataURL('image/png');
+}
+
+async function uploadPhoto(file) {
+  const status = $('uploadStatus'), btn = $('uploadBtn');
+  btn.disabled = true;
+  try {
+    status.textContent = t(ortModel ? 'Preparing the photo…' : 'Loading the model (first use: 27 MB)…');
+    const [{ ort, info, session }, { canvas, notes }] = await Promise.all([loadModel(), preparePhoto(file)]);
+    status.textContent = t('Mapping the photo in this browser…');
+    await new Promise(r => setTimeout(r, 30));                      // let the message paint before the model runs
+    const W = 768, H = 576, px = canvas.getContext('2d').getImageData(0, 0, W, H).data, x = new Float32Array(3 * W * H);
+    for (let i = 0; i < W * H; i++) { x[i] = px[4 * i]; x[W * H + i] = px[4 * i + 1]; x[2 * W * H + i] = px[4 * i + 2]; }
+    const t0 = performance.now();
+    const out = await session.run({ [info.input.name]: new ort.Tensor('float32', x, info.input.shape) });
+    const probs = quantize(out[info.output.name].data);
+    const scene = buildUploadScene(probs, H, W, info.dataset, info.decode.tau);
+    const secs = ((performance.now() - t0) / 1000).toFixed(1);
+    const key = `local/${LOCAL.size + 1}`, pred = classImage(scene.cls, info.class_colors, W, H);
+    const caption = (LANG === 'ko' ? '라벨 없음: 가구와 진입 지점은 모델의 지도에서 나옵니다'
+      : 'no labels: the houses and the entry point come from the model\'s own map') + (notes.length ? `; ${notes.join('; ')}` : '');
+    const meta = { id: 'upload', dataset: info.dataset, run: info.run, decode: info.decode, caption, upload: true, local: true,
+      size: [W, H], photo_px: [W, H], class_names: info.class_names, class_colors: info.class_colors, iou: {}, miou: null,
+      n_buildings: scene.buildings.length, tier_stats: null, m_per_cell: info.m_per_cell, scale_source: 'dataset value',
+      model: 'b', model_name: 'LR-ASPP-MobileNetV3' };
+    LOCAL.set(key, { meta, grid: scene.grid, buildings: scene.buildings,
+      urls: { photo: canvas.toDataURL('image/jpeg', 0.9), pred, gt: pred } });
+    status.textContent = LANG === 'ko' ? `이 브라우저에서 ${secs}초 만에 지도 완성: 가구 ${scene.buildings.length}곳.`
+      : `Mapped in this browser in ${secs} s: ${scene.buildings.length} houses.`;
+    location.hash = `s=${key}`;
+  } catch (e) {
+    console.error(e);
+    status.textContent = `${t('The photo could not be mapped')}: ${e.message || e}`;
+  } finally {
+    btn.disabled = false;
+    $('uploadFile').value = '';
+  }
+}
+
+$('uploadBtn').addEventListener('click', () => $('uploadFile').click());
+$('uploadFile').addEventListener('change', (e) => { if (e.target.files[0]) uploadPhoto(e.target.files[0]); });
+
 $('copyLink').addEventListener('click', async () => {
   writeHash();
   let ok = true;
@@ -991,7 +1094,7 @@ async function applyHash() {
   const p = readHash();
   state.model = ['a', 'b'].includes(p.mo) ? p.mo : null;
   if (!state.s || (p.s && p.s !== state.key)) await loadScene(p.s);
-  else if (modelOf(state.s.sc) !== state.s.model) await loadScene(state.key, true);
+  else if (!state.s.meta.upload && modelOf(state.s.sc) !== state.s.model) await loadScene(state.key, true);
   else if (state.model !== state.browseModel) { drawBrowse(); markPressed(); }
   const lam = p.r === '0' ? 0 : 5;
   if (lam !== state.lam) { $('tRisk').checked = Boolean(lam); state.lam = lam; solve(); }

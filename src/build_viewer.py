@@ -24,14 +24,14 @@ def stamped(app):
     """{relative path: text} of the files the build rewrites: index.html and js/app.js with ?v=<content hash> on every
     reference to our own scripts and stylesheet (vendored Leaflet keeps its integrity-pinned URLs)"""
     h = hashlib.sha256()
-    for rel in ('js/app.js', 'js/i18n.js', 'js/router.js', 'css/style.css'):
+    for rel in ('js/app.js', 'js/i18n.js', 'js/router.js', 'js/scenebuild.js', 'css/style.css'):
         h.update(rel.encode() + b'\0' + open(os.path.join(app, rel), 'rb').read())
     v = h.hexdigest()[:10]
     html = open(os.path.join(app, 'index.html'), encoding='utf-8').read()
     html = re.sub(r'(src|href)="(js/app\.js|css/style\.css)"', rf'\1="\2?v={v}"', html)
     js = open(os.path.join(app, 'js', 'app.js'), encoding='utf-8').read()
-    js = re.sub(r"from '\./(router|i18n)\.js'", rf"from './\1.js?v={v}'", js)
-    assert html.count(f'?v={v}') == 2 and js.count(f'?v={v}') == 2, 'cache-busting: a reference was not found'
+    js = re.sub(r"from '\./(router|i18n|scenebuild)\.js'", rf"from './\1.js?v={v}'", js)
+    assert html.count(f'?v={v}') == 2 and js.count(f'?v={v}') == 3, 'cache-busting: a reference was not found'
     return {'index.html': html, os.path.join('js', 'app.js'): js}
 
 

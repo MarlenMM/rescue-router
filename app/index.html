@@ -55,6 +55,10 @@
         <option value="models" data-i18n>models disagree most</option>
       </select></label>
       <div class="all" id="allScenes" data-i18n-attr="aria-label:" role="list" aria-label="Test photos"></div>
+      <h2 class="sub" data-i18n>Your photo</h2>
+      <button class="link-btn" id="uploadBtn" data-i18n>Try your own drone photo</button>
+      <input type="file" id="uploadFile" accept="image/*" hidden>
+      <p class="model" id="uploadStatus" aria-live="polite" data-i18n>A small model runs in this browser: the photo never leaves your computer (first use downloads 27 MB).</p>
       <h2 class="sub"><span data-i18n>Model</span> <span class="h2-note" id="modelNote"></span></h2>
       <div class="seg models" role="radiogroup" aria-label="Model" aria-keyshortcuts="M" data-i18n-attr="aria-label:">
         <button role="radio" data-model="a" aria-checked="true" data-i18n-attr="title:" title="Chameleon as submitted: few-shot, plus 30 labelled photos for tuning">Chameleon</button>
@@ -147,6 +151,11 @@
         100 RescueNet), not picked by us: an orange count is the houses a truck cannot reach on the prediction, a pink dot
         marks a photo where prediction and labelled map disagree. "Water probability" shows what the model believes
         cell by cell. The address bar keeps the scene, house, entry point and view, so a link opens exactly this view.</p>
+      <p data-i18n-html="About upload">"Try your own drone photo" maps a photo in this browser with a small model
+        (LR-ASPP-MobileNetV3, 13 MB, trained on the same 50 labelled FloodNet photos plus unlabelled ones the baseline
+        labelled itself: full-test mIoU .60) and routes
+        it with the same rules; the photo is never sent anywhere. It has no labels, so the houses and the entry point come
+        from the model's own map; it suits drone photos taken straight down at FloodNet's height.</p>
     </section>
   </div>
 </aside>

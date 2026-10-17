@@ -1180,6 +1180,29 @@ finish.py / post.py / job_queue.py; MPS memory counted by footprint), admission 
   name for a split (the glob of `..._s0_` matches `..._s0_tta_...`); it now keeps real split files only (test; the
   FloodNet ensembles were not affected: the stray pass averaged the same flip caches into the same file).
 
+### 16.10 "Try your own drone photo" in the static viewer (18 Oct; Marlen: build it in the private repo's local viewer only, do not touch the public demo)
+
+- **Public demo untouched** (checked 17 Oct: `MarlenMM/rescue-router-demo` last pushed 8 Oct; the private repo has no
+  Pages site; `release/DEMO_FROZEN` in place). Everything below is in `app/` and the local `docs/` build.
+- **Model:** the self-trained LR-ASPP-MobileNetV3 (13 MB; full test mIoU .609 argmax / .601 with its val30-tuned
+  thresholds, the registered choice between its two decodes on val30 + confirm100), exported with its normalization and
+  softmax by `src/export_onnx.py` to `app/models/floodnet_lraspp.onnx` (+ `.json`: decode, classes, colours, scale);
+  onnxruntime vs PyTorch on 3 test photos: max |Δp| 9.4e-6, 99.995 % of the uint8 values equal.
+- **Runtime:** onnxruntime-web 1.30.0, WebAssembly build only (`app/vendor/onnxruntime-web/`, MIT, NOTICE.md), loaded on
+  the first upload (model + runtime 27 MB); single-threaded without cross-origin isolation (GitHub Pages).
+- **Scene in the browser:** `app/js/scenebuild.js` ports the Python upload path (decode, cells, both gates' flags with
+  exact distance transforms and SciPy morphology, entry cells, houses, goal rings; outlines by boundary tracing).
+  `app/test/scenebuild.test.mjs` (CI) compares it with Python's scene on fixed probabilities (`src/upload_fixtures.py`,
+  2 FloodNet photos, 42 houses, all four statuses): every array bit-exact, entry cells, every house and goal ring,
+  statuses; outlines within 5 % area (display only).
+- **Viewer:** "Your photo" → "Try your own drone photo" (EN/KO): prepared as the Gradio upload (portrait rotated,
+  centre-cropped to 4:3, 768 × 576), mapped and routed in the browser (0.3-0.7 s after loading); no labels (the houses
+  and entry come from the prediction), no link (kept in memory), the photo is never sent. Fixed on the way: an upload's
+  caption was replaced by a test-photo caption when served by model b, and uploads were labelled "Hurricane Harvey".
+- Checked in the browser: FloodNet photo (18 houses, route card), a portrait non-4:3 photo (rotated, cropped), Korean, no
+  console errors. JS tests 407/407, Python 90 passed. `.git` 138 MB before (+27 MB in `app/` and its copy in `docs/`):
+  the public repo gets a slimmer history (E4) when it opens after the grade.
+
 ## 15. Status / handoff (updated Wed 7 Oct, 18:15 KST)
 
 ### Quick summary (read this first; details below)
