@@ -13,6 +13,15 @@ const KO = {
   'most disagreements': '불일치 많은 순',
   'lowest mean IoU': '평균 IoU 낮은 순',
   'Copy link to this view': '이 화면 링크 복사',
+  // your own photo (PLAN §16.10): the small model runs in this browser
+  'Your photo': '내 사진', 'Try your own drone photo': '내 드론 사진으로 해 보기',
+  'A small model runs in this browser: the photo never leaves your computer (first use downloads 27 MB).':
+    '작은 모델이 이 브라우저에서 실행됩니다: 사진은 컴퓨터 밖으로 나가지 않습니다 (처음 사용할 때 27 MB를 내려받습니다).',
+  'portrait photo rotated to landscape': '세로 사진을 가로로 회전', 'cropped to the centre': '가운데를 잘라냄',
+  'small photo upscaled: expect a blurrier map': '작은 사진을 확대함: 지도가 더 흐릴 수 있음',
+  'Preparing the photo…': '사진 준비 중…', 'Loading the model (first use: 27 MB)…': '모델 불러오는 중 (처음: 27 MB)…',
+  'Mapping the photo in this browser…': '이 브라우저에서 사진 지도 만드는 중…',
+  'The photo could not be mapped': '사진 지도를 만들지 못했습니다',
   'Map': '지도',
   'Prediction': '예측',
   'Labelled map': '라벨 지도',
@@ -72,6 +81,10 @@ const KO = {
     탐색기와 임계값을 쓰고, 각자의 상태, 신뢰 등급, 사진별 IoU를 보여 줍니다. 다른 모델이 다르게 판단한 가구는 가구
     목록에 표시되고 지도 아래에 개수가 나오며, '두 모델이 가장 다른 순' 정렬로 그런 사진을 먼저 볼 수 있습니다. 대표 장면
     하나는 Chameleon의 정직한 실패 사례입니다: 얕은 물을 마른 땅으로 읽었습니다.`,
+  'About upload': `'내 드론 사진으로 해 보기'는 작은 모델(LR-ASPP-MobileNetV3, 13 MB, 같은 FloodNet 라벨 사진 50장과
+    기준 모델이 스스로 라벨을 단 라벨 없는 사진으로 학습: 전체 테스트 mIoU .60)로 이 브라우저에서 사진의 지도를 만들고 같은 규칙으로 경로를 찾습니다. 사진은 어디에도
+    보내지지 않습니다. 라벨이 없으므로 가구와 진입 지점은 모델의 지도에서 나오며, FloodNet과 비슷한 높이에서 바로 아래로
+    찍은 드론 사진에 맞습니다.`,
   'About browse': `8개 대표 장면 외에 평가 세트의 테스트 사진 200장(FloodNet 100, RescueNet 100) 전체를 볼 수 있으며,
     우리가 고른 것이 아닙니다. 주황색 숫자는 예측 지도에서 트럭이 닿지 못하는 가구 수, 분홍색 점은 예측과 라벨 지도가 다른
     사진입니다. '물 확률'은 모델이 셀마다 믿는 값을 보여 줍니다. 주소창에 장면, 가구, 진입 지점, 보기가 저장되므로 링크를

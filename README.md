@@ -129,7 +129,10 @@ Work since then (PLAN §16; §16.5 for the latest review):
   model's own statuses, tiers, per-photo IoU and measured false-safe rate in the printed briefing). Each dataset opens
   on its better model (FloodNet: the ensemble, RescueNet: Chameleon); a link names the other with `mo=a` / `mo=b`.
   `src/export_web_assets.py` writes the second model's layers to `scenes/<key>/b/`, and the JS router parity test
-  covers both models (400 scenes). Where the
+  covers both models (400 scenes).
+- **Try your own drone photo** (local `docs/`, PLAN §16.10): a small model (LR-ASPP-MobileNetV3, 13 MB, full test mIoU
+  .60) runs in the browser with onnxruntime-web (`src/export_onnx.py`), and `app/js/scenebuild.js` builds the routing
+  scene there exactly as Python does (`app/test/scenebuild.test.mjs`): no server, the photo never leaves the computer. Where the
   other model routes a house differently (from the same entry point), the house list, the counter, the CSV and the
   briefing say so: a disagreement between two independent models is a natural "check first" signal. The printed
   briefing opens with a dispatch plan (houses a truck reaches at the door, per truck stop the houses reached by boat

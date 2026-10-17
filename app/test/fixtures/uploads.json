@@ -1,0 +1,96 @@
+[
+ {
+  "id": "7301",
+  "shape": [
+   5,
+   576,
+   768
+  ],
+  "decode": {
+   "tau": [
+    0.8,
+    0.55,
+    0.4,
+    0.1,
+    0.3
+   ]
+  },
+  "status": [
+   "FOOT",
+   "FOOT",
+   "BOAT",
+   "TRUCK",
+   "BOAT",
+   "FOOT",
+   "FOOT",
+   "FOOT",
+   "BOAT",
+   "TRUCK",
+   "TRUCK",
+   "TRUCK",
+   "TRUCK",
+   "TRUCK",
+   "TRUCK",
+   "TRUCK",
+   "TRUCK",
+   "FOOT",
+   "FOOT",
+   "TRUCK",
+   "TRUCK",
+   "TRUCK",
+   "TRUCK",
+   "TRUCK",
+   "TRUCK"
+  ],
+  "status_pred": {
+   "TRUCK": 15,
+   "BOAT": 3,
+   "FOOT": 7,
+   "ISOLATED": 0
+  },
+  "n_buildings": 25
+ },
+ {
+  "id": "7611",
+  "shape": [
+   5,
+   576,
+   768
+  ],
+  "decode": {
+   "tau": [
+    0.8,
+    0.55,
+    0.4,
+    0.1,
+    0.3
+   ]
+  },
+  "status": [
+   "ISOLATED",
+   "BOAT",
+   "BOAT",
+   "BOAT",
+   "FOOT",
+   "BOAT",
+   "BOAT",
+   "FOOT",
+   "TRUCK",
+   "TRUCK",
+   "TRUCK",
+   "BOAT",
+   "TRUCK",
+   "FOOT",
+   "TRUCK",
+   "TRUCK",
+   "TRUCK"
+  ],
+  "status_pred": {
+   "TRUCK": 7,
+   "BOAT": 6,
+   "FOOT": 3,
+   "ISOLATED": 1
+  },
+  "n_buildings": 17
+ }
+]
