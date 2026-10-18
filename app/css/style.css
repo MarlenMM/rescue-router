@@ -27,9 +27,11 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
 
 .title { position: fixed; top: 12px; left: 12px; z-index: 1000; padding: 10px 14px; max-width: min(460px, calc(100vw - 400px)); }
-.title h1 { padding-right: 64px; }
-.lang-btn { position: absolute; top: 9px; right: 10px; padding: 2px 8px; font-size: 12px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.35);
-  background: transparent; color: inherit; cursor: pointer; }
+.title h1 { padding-right: 132px; }
+.title-actions { position: absolute; top: 9px; right: 10px; display: flex; gap: 6px; }
+.lang-btn { padding: 2px 8px; font-size: 12px; line-height: 1.4; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.35);
+  background: transparent; color: inherit; cursor: pointer; font-family: inherit; }
+a.lang-btn { text-decoration: none; }
 .lang-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .title h1 { margin: 0; font-size: 18px; letter-spacing: 0.2px; }
 .title p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }

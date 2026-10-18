@@ -85,6 +85,10 @@ const KO = {
     기준 모델이 스스로 라벨을 단 라벨 없는 사진으로 학습: 전체 테스트 mIoU .60)로 이 브라우저에서 사진의 지도를 만들고 같은 규칙으로 경로를 찾습니다. 사진은 어디에도
     보내지지 않습니다. 라벨이 없으므로 가구와 진입 지점은 모델의 지도에서 나오며, FloodNet과 비슷한 높이에서 바로 아래로
     찍은 드론 사진에 맞습니다.`,
+  'Source code on GitHub': 'GitHub의 소스 코드',
+  'About source': `소스 코드, 평가 데이터 분할, 모든 수치의 측정 방법:
+    <a href="https://github.com/MarlenMM/rescue-router" target="_blank" rel="noopener">github.com/MarlenMM/rescue-router</a>.
+    연구용 시연이며 실제 구조 작전의 결정 도구가 아닙니다.`,
   'About browse': `8개 대표 장면 외에 평가 세트의 테스트 사진 200장(FloodNet 100, RescueNet 100) 전체를 볼 수 있으며,
     우리가 고른 것이 아닙니다. 주황색 숫자는 예측 지도에서 트럭이 닿지 못하는 가구 수, 분홍색 점은 예측과 라벨 지도가 다른
     사진입니다. '물 확률'은 모델이 셀마다 믿는 값을 보여 줍니다. 주소창에 장면, 가구, 진입 지점, 보기가 저장되므로 링크를

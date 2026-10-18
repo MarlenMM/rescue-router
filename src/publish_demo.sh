@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Publish the built web viewer (docs/) to the PUBLIC demo repo MarlenMM/rescue-router-demo (GitHub Pages).
-# The main repo rescue-router stays private until grading (PLAN §15). Needs Marlen's explicit OK each time.
+# The code repo MarlenMM/rescue-router serves the current viewer itself (GitHub Pages from docs/); this script updates the
+# separate demo repo, the version handed in for the course. Needs Marlen's explicit OK each time.
 #
 #   bash src/publish_demo.sh            # update an existing demo repo
 #   bash src/publish_demo.sh --create   # first time: create the public repo and enable Pages

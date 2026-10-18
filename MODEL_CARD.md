@@ -1,8 +1,9 @@
-# Model card: Rescue Router flood mapper (FloodNet 50-shot) and router v3
+# Model card: Rescue Router flood mappers and router v3
 
-## Two models on the same labelled photos (17 Oct 2026; PLAN §16.8-16.9)
+## Two models on the same labelled photos (17 Oct 2026; [`notes/PLAN.md`](notes/PLAN.md) §16.8–16.9)
 
-The project started with Chameleon (this card, the model submitted on 8 Oct). A pre-registered comparison
+The project started with Chameleon: "submitted" below means that model as handed in for the course on 8 Oct 2026
+(tag `submitted-2026-10-08`), and most of this card describes it. A pre-registered comparison
 (`experiments/phase2/PROTOCOL.md`) then found a standard segmenter trained on the same photos better on FloodNet, so the
 viewer now opens FloodNet on it and keeps Chameleon one click away; RescueNet opens on Chameleon, which is better there.
 
@@ -22,6 +23,17 @@ RescueNet (Hurricane Michael, 20 labelled photos): Chameleon .421 vs the same De
 rescuenet_ensemble.md`); over three support draws with one recipe Chameleon (+30 tuning photos) .439 ± .037 vs one
 network's .396 ± .013 on the full test. Its lead depends on the 30 tuning photos: a DeepLabV3 trained on all 50 photos (20 + 30) reaches .479.
 Reproduce: `src/ensemble.py --paired --baselines_only`, `experiments/product_options.py`, `src/baseline_report.py`.
+
+## The in-browser model ("Try your own drone photo")
+
+LR-ASPP-MobileNetV3 (torchvision, COCO-pretrained, 13 MB), fine-tuned on the same 50 labelled FloodNet photos plus
+pseudo-labels of the 1,395 other FloodNet training photos (only pixels where the 50-photo DeepLabV3 was at least
+90 % sure; no evaluation photo is among them). Full FloodNet test: mIoU .609 with argmax, .601 with its thresholds
+tuned on the 30 tuning photos (the registered rule picked the tuned decode on val30 + confirm100). Exported to ONNX
+with its normalization and softmax inside the graph (`src/export_onnx.py`); onnxruntime matches PyTorch to 1e-5 in
+probability. The viewer builds the routing scene from its output in JavaScript (`app/js/scenebuild.js`), checked
+array for array against the Python pipeline in CI. An uploaded photo has no labels, so its houses and entry point come
+from the model's own map, and the photo never leaves the browser.
 
 ## What it is (Chameleon, as submitted)
 
@@ -65,7 +77,7 @@ Recipe: 1,000 steps, cosine lr 1e-3, batch 2, fp16, 384-px crops of 768×576 pho
 The last row (14 Oct) is better than this model on all three (paired intervals exclude zero, `results/baselines/report/`):
 on FloodNet at 50 labels, Chameleon's few-shot adaptation does not beat ordinary fine-tuning of a pretrained segmenter.
 
-**Phase 2 (16-17 Oct; pre-registered, `experiments/phase2/PROTOCOL.md`, PLAN §16.8).**
+**Phase 2 (16-17 Oct; pre-registered, [`experiments/phase2/PROTOCOL.md`](experiments/phase2/PROTOCOL.md), [`notes/PLAN.md`](notes/PLAN.md) §16.8).**
 - **Is val30 over-fitted (F2)?** No: on 100 other validation photos (confirm100) this model scores .502 vs .516 on
   val30 (registered limit .03).
 - **Training variance (A3, eval100):** five 50-photo runs with the same recipe (support draws 0-2, training seeds 0-2)
@@ -85,7 +97,7 @@ on FloodNet at 50 labels, Chameleon's few-shot adaptation does not beat ordinary
   0.05. Since 17 Oct the viewer opens FloodNet on the CPU-only ensemble (the table at the top); this card's other
   sections describe the submitted Chameleon model.
 
-The web viewer (local build) shows every test scene with either model (Chameleon or the baseline), each with its own
+The [web viewer](https://marlenmm.github.io/rescue-router/) shows every test scene with either model (Chameleon or the baseline), each with its own
 statuses, tiers and measured false-safe rate, and marks the houses the two models route differently.
 
 ## Intended use

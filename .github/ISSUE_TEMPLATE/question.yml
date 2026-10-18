@@ -1,0 +1,11 @@
+name: Question or idea
+description: A question about the method or the results, or an idea for the project
+labels: [question]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question or idea
+      description: If it is about a number, please say which table or figure it comes from.
+    validations:
+      required: true

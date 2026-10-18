@@ -1,10 +1,11 @@
-# rescue-router repo: track only our own work. The vendored starter (chameleon/, chameleon.ipynb,
-# tools/, assets/; its README kept locally as README_starter.md) is cloned from github.com/GitGyun/AIC200-Project-StructuredPrediction
-# on Colab; datasets, checkpoints and caches live on Google Drive (PLAN.md §0.3).
+# Track only this project's own work. The course starter (chameleon/, chameleon.ipynb, tools/, assets/) comes from
+# github.com/GitGyun/AIC200-Project-StructuredPrediction; datasets, checkpoints and prediction caches live outside git
+# ($RR_DATA, results/; notes/PLAN.md §0.3).
 /*
 !/.gitignore
 !/.gitattributes
-!/PLAN.md
+!/notes/
+!/media/
 !/README.md
 !/LICENSE
 !/CITATION.cff

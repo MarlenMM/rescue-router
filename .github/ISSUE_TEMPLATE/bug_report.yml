@@ -1,0 +1,27 @@
+name: Bug report
+description: Something in the viewer or the code does not work as described
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: input
+    id: link
+    attributes:
+      label: Viewer link
+      description: For the viewer, "Copy link to this view" reopens exactly the view you saw.
+      placeholder: https://marlenmm.github.io/rescue-router/#s=...
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps or command to reproduce
+      render: shell
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: Browser and OS for the viewer; Python version and OS for the code.

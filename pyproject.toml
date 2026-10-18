@@ -1,7 +1,7 @@
 [project]
 name = "rescue-router"
-version = "0.2.0"
-description = "Few-shot flood mapping (Chameleon, 50 labelled photos) and truck/boat/foot rescue routing"
+version = "1.0.0"
+description = "Flood maps from 50 labelled drone photos and truck / boat / on-foot rescue routes to every house"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12,<3.13"

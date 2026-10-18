@@ -7,7 +7,8 @@ The per-scene ref.json (Python reference for the parity test) is not copied. The
 stylesheet with ?v=<hash of their contents> (index.html -> js/app.js, css/style.css; app.js -> its modules), so a
 browser never runs files of two builds together (GitHub Pages lets them be cached for 10 minutes; 16 Oct a cached
 i18n.js ran with a new app.js). app/ itself stays unstamped for local development.
-The public demo repo (MarlenMM/rescue-router-demo) receives exactly this folder.
+GitHub Pages serves docs/ from this repository (https://marlenmm.github.io/rescue-router/); src/publish_demo.sh copies
+the same folder to the separate demo repo MarlenMM/rescue-router-demo.
 """
 
 import argparse
