@@ -186,6 +186,18 @@ uv run pytest -q                      # 90 tests; those that need the datasets o
 node --test app/test/*.test.mjs       # router parity with Python on all 400 scenes, upload scene builder, Korean UI
 ```
 
+**Map your own photos with the trained models** (CPU; the weights are attached to the
+[v1.0.0 release](https://github.com/MarlenMM/rescue-router/releases/tag/v1.0.0)):
+
+```bash
+gh release download v1.0.0 -R MarlenMM/rescue-router -D weights      # or download them from the release page
+uv run python src/gradio_viewer.py --live_tta --live_decode weights/baseline_deeplabv3_r50_50shot_s0_ens3_tta.json \
+  --live_baseline weights/baseline_deeplabv3_r50_50shot_s0.pt,weights/baseline_deeplabv3_r50_50shot_s1_sup0.pt,weights/baseline_deeplabv3_r50_50shot_s2_sup0.pt
+```
+
+This serves the viewer on <http://127.0.0.1:7860> with uploaded photos mapped by the viewer's FloodNet ensemble
+(~4 s per photo on a CPU).
+
 **Prepare the data.** Download [FloodNet](https://github.com/BinaLab/FloodNet-Supervised_v1.0) and
 [RescueNet](https://springernature.figshare.com/collections/RescueNet_A_High_Resolution_UAV_Semantic_Segmentation_Benchmark_Dataset_for_Natural_Disaster_Damage_Assessment/6647354/1),
 run `python src/prep_data.py --floodnet_raw <dir> --rescuenet_raw <dir> --out <dir>` (768 × 576 photos, five-class
@@ -201,9 +213,9 @@ uv run python src/gradio_viewer.py --live_tta --live_baseline \
 ```
 
 The first line trains the ensemble's three networks (three seeds, the same 50 photos) and writes their predictions
-on the test set; the second serves the viewer with uploaded photos mapped by the ensemble on a CPU (`--live_decode`
-adds the thresholds tuned on the 30 tuning photos: [`src/baseline_avg.py`](src/baseline_avg.py), then
-[`src/decode_tune.py`](src/decode_tune.py)).
+on the test set; the second serves the viewer with uploads mapped by your ensemble. Its decode thresholds come from
+the 30 tuning photos ([`src/baseline_avg.py`](src/baseline_avg.py), then [`src/decode_tune.py`](src/decode_tune.py);
+`--live_decode`).
 
 **Chameleon** needs a GPU and the course's meta-trained checkpoint (from the
 [course starter](https://github.com/GitGyun/AIC200-Project-StructuredPrediction)): fine-tuning and prediction are
