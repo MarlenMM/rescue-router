@@ -89,7 +89,10 @@ def iframe(work, hash_, height=820):
 
 def build_app(args, live, work):
     import gradio as gr
-    dec50 = json.load(open(os.path.join(args.results, 'decode', f'{RUNS["floodnet"]}.json')))['chosen']
+
+    def chameleon_decode():
+        """the submitted model's decode (in results/, not in git): only --live and --fake_live predict with it"""
+        return json.load(open(os.path.join(args.results, 'decode', f'{RUNS["floodnet"]}.json')))['chosen']
     ex = args.examples
     examples = sorted(os.path.join(ex, f) for f in os.listdir(ex) if f.endswith('.jpg')) if os.path.isdir(ex) else []
 
@@ -105,7 +108,7 @@ def build_app(args, live, work):
             probs = live(photo)
         except ValueError as e:
             raise gr.Error(str(e))
-        s = build_scene('floodnet', photo, probs, getattr(live, 'decode', None) or dec50, gt=None)
+        s = build_scene('floodnet', photo, probs, getattr(live, 'decode', None) or chameleon_decode(), gt=None)
         token = uuid.uuid4().hex[:10]
         caption = ('TEST MODE: the cached prediction of eval100 photo %s, not the model' % live.last
                    if isinstance(live, G.FakeLive) else f'Your photo: CPU baseline {live.name}, live (no labels)'
@@ -127,23 +130,25 @@ def build_app(args, live, work):
         return iframe(work, f'up/{token}'), msg
 
     with gr.Blocks(title='Rescue Router') as demo:
-        gr.Markdown('# Rescue Router\nFlood map of a drone photo by **Chameleon** adapted from **50 labelled photos** '
+        gr.Markdown('# Rescue Router\nFlood map of a drone photo by a model adapted from **50 labelled photos** '
                     '(FloodNet; RescueNet from 20; plus 30 labelled validation photos for tuning), then truck → boat → on-foot '
                     'rescue routes on the predicted map.')
         with gr.Tabs():
             with gr.Tab('Viewer'):
                 with gr.Row():
                     with gr.Column(scale=1, min_width=260):
+                        cpu = isinstance(live, G.BaselineLive)
                         upload = gr.Image(type='numpy', sources=['upload'], height=220,
-                                          label='Upload a drone photo (live inference, GPU)')
+                                          label=f'Upload a drone photo (live inference, {"CPU" if cpu else "GPU"})')
                         if examples:
                             gr.Examples(examples, inputs=upload, label='Test photos the model never saw')
                         status = gr.Markdown(f'<small>{G.UPLOAD_NOTE}</small>')
                     with gr.Column(scale=4):
                         view = gr.HTML(iframe(work, START))
                 upload.change(on_upload, [upload], [view, status])
-            with gr.Tab('Classic view'):
-                G.build_ui(args, live).render()
+            if os.path.isdir(args.results):                     # the classic view reads the prediction caches
+                with gr.Tab('Classic view'):
+                    G.build_ui(args, live).render()
     return demo
 
 
