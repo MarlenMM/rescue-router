@@ -11,7 +11,7 @@
 ## Processing (`src/prep_data.py`)
 
 - Photos and labels resized to 768×576 (labels nearest-neighbour); FloodNet photos also at 1024×768 for the viewer.
-- Labels mapped to five channels (PLAN §3.3–3.4): FloodNet road-clear → clear road, road-flooded → flooded road,
+- Labels mapped to five channels ([`notes/PLAN.md`](notes/PLAN.md) §3.3–3.4): FloodNet road-clear → clear road, road-flooded → flooded road,
   building-flooded / building-non-flooded → flooded / dry building, water → water; everything else → "other" (254),
   unlabelled → ignore (255). RescueNet: road-clear, road-blocked, building no/minor damage → intact, major/total →
   damaged, water.

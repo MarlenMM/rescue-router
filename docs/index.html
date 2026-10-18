@@ -4,17 +4,29 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Rescue Router</title>
-<meta name="description" content="Few-shot flood mapping from drone photos (Chameleon, 50 labels) and truck/boat rescue routing on the predicted map.">
+<meta name="description" content="Flood maps from drone photos with 50 labelled examples, and truck, boat and on-foot rescue routes to every house on the predicted map. 200 test photos from two hurricanes; try your own photo in the browser.">
+<link rel="canonical" href="https://marlenmm.github.io/rescue-router/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Rescue Router: flood maps and rescue routes from drone photos">
+<meta property="og:description" content="Flood maps from drone photos with 50 labelled examples, and truck, boat and on-foot rescue routes to every house on the predicted map.">
+<meta property="og:url" content="https://marlenmm.github.io/rescue-router/">
+<meta property="og:image" content="https://marlenmm.github.io/rescue-router/og.jpg">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b1220'/%3E%3Cpath d='M10 44h44' stroke='%2322d3ee' stroke-width='6' stroke-linecap='round'/%3E%3Cpath d='M14 34l12-14 10 10 14-12' fill='none' stroke='%23f8fafc' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <!-- Leaflet 1.9.4, vendored from unpkg (same bytes as the CDN files: the integrity hashes are the published ones) -->
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=">
-<link rel="stylesheet" href="css/style.css?v=4cbca13769">
+<link rel="stylesheet" href="css/style.css?v=1c538684b4">
 </head>
 <body>
 <div id="map" data-i18n-attr="aria-label:" aria-label="Drone photo with flood map"></div>
 
 <header class="title card">
-  <button id="langBtn" class="lang-btn" aria-label="한국어 / English">한국어</button>
+  <div class="title-actions">
+    <a class="lang-btn" id="repoLink" href="https://github.com/MarlenMM/rescue-router" target="_blank" rel="noopener" data-i18n-attr="title:" title="Source code on GitHub">GitHub</a>
+    <button id="langBtn" class="lang-btn" aria-label="한국어 / English">한국어</button>
+  </div>
   <h1>Rescue Router</h1>
   <p id="caption" data-i18n>Loading…</p>
 </header>
@@ -156,6 +168,9 @@
         labelled itself: full-test mIoU .60) and routes
         it with the same rules; the photo is never sent anywhere. It has no labels, so the houses and the entry point come
         from the model's own map; it suits drone photos taken straight down at FloodNet's height.</p>
+      <p data-i18n-html="About source">Source code, the evaluation splits and how every number was measured:
+        <a href="https://github.com/MarlenMM/rescue-router" target="_blank" rel="noopener">github.com/MarlenMM/rescue-router</a>.
+        A research demonstration, not a tool for operational rescue decisions.</p>
     </section>
   </div>
 </aside>
@@ -163,6 +178,6 @@
 <div id="briefing" class="briefing" aria-hidden="true"></div>
 
 <script src="vendor/leaflet/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="></script>
-<script type="module" src="js/app.js?v=4cbca13769"></script>
+<script type="module" src="js/app.js?v=1c538684b4"></script>
 </body>
 </html>

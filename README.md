@@ -1,222 +1,252 @@
 # Rescue Router
 
-Few-shot flood mapping from drone photos, and rescue routes on the predicted map. KAIST AIC200 mini-project
-(Chameleon, Track A + B).
+[![CI](https://github.com/MarlenMM/rescue-router/actions/workflows/ci.yml/badge.svg)](https://github.com/MarlenMM/rescue-router/actions/workflows/ci.yml)
+[![Live viewer](https://img.shields.io/badge/live%20viewer-marlenmm.github.io%2Frescue--router-0f7a44.svg)](https://marlenmm.github.io/rescue-router/)
+[![FloodNet mIoU .617 from 50 labelled photos](https://img.shields.io/badge/FloodNet%20mIoU-.617%20from%2050%20labelled%20photos-1a7f37.svg)](#results)
+[![Pre-registered study](https://img.shields.io/badge/study-pre--registered-6f42c1.svg)](experiments/phase2/PROTOCOL.md)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB.svg)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-750014.svg)](LICENSE)
 
-**Status (17 Oct 2026).** Submitted on 8 Oct (tag `submitted-2026-10-08`; the sections below describe that model).
-Since then a pre-registered GPU round (Phase 2, 16-17 Oct; `experiments/phase2/PROTOCOL.md`, PLAN §16.8) measured
-Chameleon with one recipe, its training variance and a second disaster, each paired photo by photo with an ordinary
-segmenter (DeepLabV3-ResNet50) fine-tuned on the same photos. The ordinary segmenter is the better model from 10-20
-FloodNet labels on and steadier across training seeds (sd .014 vs Chameleon's .054 over five 50-photo runs); its seed
-ensemble with flips reaches .617 on the full FloodNet test (Chameleon .507) on a CPU. Chameleon wins at 1-5 FloodNet
-photos and, with its 30 tuning photos, at 10-20 RescueNet photos (2 of 3 support draws at 20); counting those tuning
-photos as labels, the baseline is ahead everywhere. The registered product-model rule picked a Chameleon + baseline
-mix (full test .591, false-safe rate .052 vs Chameleon .111), statistically level with the CPU-only seed ensemble,
-which became the viewer's FloodNet model (it needs no GPU). **The viewer (local build) opens each disaster on its
-better model**: FloodNet on the DeepLabV3 ensemble, RescueNet on Chameleon; a switch shows the other model on the same
-photos, with its own statuses, tiers and measured error rates, and marks the houses the two route differently. The
-public demo stays at the submitted version until grading. Details: "Since submission" below, `PLAN.md` §16.
+After a flood, rescue teams fly drones and come back with hundreds of photos, but someone still has to work out
+which streets a truck can use and which houses are cut off. **Rescue Router** turns a single drone photo into a flood
+map (clear road, flooded road, flooded and dry buildings, water) and then plans how a team reaches **every house**:
+by truck on dry ground, by boat across the water, on foot for the last stretch, or not at all (an air team). Every
+truck route also gets a confidence tier, so the routes most likely to be wrong are flagged before anyone drives them.
 
-**Track A (segmentation).** [Chameleon](https://github.com/GitGyun/chameleon) (Kim et al., ECCV 2024), meta-trained
-by the course, is adapted with **50 labelled FloodNet photos** to five classes: clear road, flooded road, flooded
-building, dry building, water. **Label budget:** 30 more labelled validation photos (val30) chose the checkpoint, the
-decode thresholds, the router settings and every Batch 13 idea, so the system has seen 80 labelled photos in all.
-With thresholds set from the 50 training labels alone (class shares matched on unlabelled photos,
-`src/prior_decode.py`) it scores **.468**; with no thresholds at all (plain 0.5), .278. On the full 448-photo FloodNet test set the final model reaches **mIoU .507 [.474, .538]**
-(bootstrap 95 % CI) with its decode tuned on 30 validation photos; our first model reached .472, and a round of 36
-improvement ideas tested on the validation photos only (Batch 13: a 1,000-step schedule, a weight average of two
-snapshots, a guided-filter decode and SAM to redraw building outlines; `writeup/batch13_improvements.md`) added
-+.035 [+.013, +.057] (paired). PSPNet trained on 1,445 labelled photos scores .848 on the same classes, so this is far
-below full supervision; flooded roads are the gap (IoU .31 vs .82). **A standard supervised model trained on the same
-50 photos does better** (14 Oct, `src/baseline_seg.py`, `results/baselines/report/`): DeepLabV3-ResNet50 (COCO
-weights) reaches **.581** with no tuning labels (paired +.074 [+.045, +.107]), routes better (stranded F1 .813 vs .752)
-and more safely (false safe 8 % vs 11 %), and runs in 0.5 s per photo on a CPU (Chameleon: 17 s on a T4 GPU). Learning curve and the second dataset (RescueNet, Hurricane Michael, 20 labels: .421 on eval100, a fixed
-100-photo subset of the test set) are in `results/kaggle_v2/report/`.
+The flood map is learned from **50 labelled photos**, not the thousands of labels a new disaster rarely has.
 
-**Track B (routing).** A router on 4×4-pixel cells sends a truck along dry roads, then a boat across water, then a
-walk to each house (never back into a vehicle), with vehicle widths, parked cars, tree canopy and a corner rule. On
-the predicted maps it finds the houses that cannot be reached by road with **F1 .752** on the full FloodNet test
-(.819 on eval100; RescueNet .818; the first model's .759 / .835 are within noise of these). The dangerous error is
-the **false-safe rate**: 11 % [5 %, 18 %] of the houses it shows as truck-reachable are not (full test; RescueNet 3 %);
-7 % once 11 test photos are set aside whose FloodNet labels mark dry lawns and river banks as water (42 of the 105
-false-safe houses are in two of them, where the model is right; `splits/floodnet_label_errors.tsv`). In most of the
-rest the truck route crosses water or flooded road that the model left unlabelled and the router took for dry yard
-(`results/routing/false_safe/`), which is why each truck-reachable house gets a confidence tier: all 208 "confident" houses on FloodNet eval100 were truly truck-reachable; the others say
-"check first" (79 %). The "labelled map" these numbers
-compare with is the same router run on the human labels: the datasets label pixels, not reachability.
+<p align="center">
+  <img src="media/hero.webp" width="900" alt="The Rescue Router viewer on a flooded Houston street after Hurricane Harvey. A click on a flooded house draws its route: a boat leaves the entry point at the edge of the photo, crosses the flooded canal and reaches the house; the card on the left reads 'Last stretch on foot, about 7 min'. The view then switches to the labelled map and a swipe handle compares the prediction with the human labels.">
+</p>
 
-**Try it:** <https://marlenmm.github.io/rescue-router-demo/> (public copy of `docs/` as submitted; the local `docs/` has the two-model viewer described above). The web viewer (`docs/`, no server needed) shows all 200 eval100 photos: prediction vs labelled map,
-house statuses and tiers, animated truck → boat → walk routes, minutes and metres, a water-probability layer and
-shareable links. The Gradio app (`src/gradio_app.py`) does the same in Python and, on a GPU, runs the model on an
-uploaded photo.
+**Live viewer: <https://marlenmm.github.io/rescue-router/>**. Two hurricanes, 200 test photos the models never
+trained on, the prediction next to the human-labelled map, animated routes with minutes and metres, a printable
+briefing for a field team, English and Korean. **Try your own drone photo** maps and routes a photo inside your
+browser with a 13 MB model: nothing is uploaded anywhere.
 
-## Repository
+### Measured
 
-| path | what |
+| | |
 |---|---|
-| `src/` | all code: data prep, fine-tuning and inference (GPU), metrics, decode tuning, router, evaluation, reports, viewer export, Gradio |
-| `src/rr/` | data loading, tiled inference, decode rules and metrics |
-| `src/tests/` | Python tests (router, metrics/decode, scene packing incl. the second model, Phase 2 tooling and lane order, support/tuning overlap guard, baseline resume, job queue, Gradio uploads) |
-| `app/` | web viewer source (plain HTML/JS + Leaflet 1.9.4, vendored); `app/js/router.js` is the JS port of `src/router.py` |
-| `app/test/` | JS router parity test against the Python reference (bit-exact on all 200 scenes, both models: 400); Korean coverage of the interface |
-| `docs/` | the built viewer (GitHub Pages folder), made by `src/build_viewer.py`; published at <https://marlenmm.github.io/rescue-router-demo/> by `src/publish_demo.sh` |
-| `notebook/` | the final notebook: generator `build_notebook.py`, executed copy `rescue_router_executed.ipynb` (the submitted one) |
-| `writeup/`, `slides/` | write-up (LaTeX, figures, PDF) and slides (PPTX, sources, GIF backup, recording storyboard) |
-| `release/` | submission builder and the app zip's README |
-| `kaggle/` | the Kaggle GPU notebooks (training queue, checkpoint selection, test-time flips, live checks, Gradio share link) |
-| `splits/`, `supports/` | fixed evaluation splits and the support (training) photo lists, with SHA-256 sums |
-| `demo/uploads/` | three FloodNet test photos (not in eval100) for the live-upload demo |
-| `experiments/phase2/` | the pre-registered protocol of the next GPU round and the Mac's baseline job list |
-| `kaggle/phase2/` | its session plans, Kaggle kernel builder and the local pre-flight |
-| `release/backup/` | off-site backup manifest (SHA-256 of every backed-up file) and upload script |
-| `MODEL_CARD.md`, `DATA.md` | what the model is, how far to trust it; data sources, licences and splits |
-| `PLAN.md` | the project plan and the full log of decisions and results (§16 first since 14 Oct) |
+| Flood-map accuracy, all 448 FloodNet test photos, 50 + 30 labelled photos | **mIoU .617** [.583, .652] (Chameleon: .507) |
+| Houses shown as truck-reachable that are not ("false safe", the dangerous error) | **6.8 %** (Chameleon: 11.1 %) |
+| Houses in the "confident" truck tier that really were truck-reachable | **99.4 %** of 361 (100-photo subset) |
+| Cut-off houses found, F1 against the same router on the human labels | **.817** |
+| Python router vs. its JavaScript port in the viewer | **bit-identical** on all 400 scene × model pairs |
+| A photo mapped and routed in the browser | **0.2–0.7 s** after a one-time 27 MB download |
 
-## Since submission (14–17 Oct 2026)
+Brackets are 95 % bootstrap confidence intervals over photos. The 30 extra labelled photos set the decision
+thresholds and the router's settings; no test photo was used to choose anything.
 
-The submitted state is tag `submitted-2026-10-08`; the public demo stays frozen until grading (`release/DEMO_FROZEN`).
-Work since then (PLAN §16; §16.5 for the latest review):
+Started as the structured-prediction mini-project of KAIST AIC.20000 *Introduction to AI Computing* (Fall 2026), which
+set [Chameleon](https://github.com/GitGyun/chameleon), a few-shot "generalist" vision model, as the model to adapt.
+The project then asked whether that choice was right, in a **pre-registered** comparison with ordinary fine-tuning on
+exactly the same labelled photos ([Results](#results)). The answer changed which model the viewer uses.
 
-- **Same-budget baseline** (`src/baseline_seg.py`, `src/baseline_report.py`): DeepLabV3-ResNet50 fine-tuned on the
-  same 50 photos beats Chameleon on the full test (mIoU .581 vs .507, stranded F1 .813 vs .752, false safe .081 vs
-  .111; paired intervals exclude 0) and runs on a CPU. **Learning curve** (eval100, same photos, baseline − Chameleon;
-  `results/baselines/report/baselines.md`, `curve/curve.png`): 5 photos −.013 [−.053, +.025], 10 photos −.014
-  [−.061, +.032] (level, although Chameleon's decode also uses the 30 tuning labels), 20 photos +.047 [+.004, +.090],
-  50 photos +.074 on the full test; the baseline reaches .609 with 100 photos and .728 with all 1,445 (full test).
-  **With equal labels** (Chameleon decoded with thresholds from its k training labels only) the baseline is ahead at
-  every point: 5 +.021 [−.012, +.053], 10 +.035 [+.004, +.066], 20 +.096 [+.054, +.138], 50 +.114 [+.083, +.148].
-  **RescueNet (second disaster), 20 photos:** Chameleon with its tuning labels is ahead (baseline −.061 [−.098,
-  −.027], stranded F1 .605 vs .818), with equal labels the two are level (+.018 [−.033, +.063]): the first point where
-  Chameleon wins. 1 photo (FloodNet): level with equal labels (.139 vs .138). Other support draws and training seeds ran on the Mac
-  (`experiments/phase2/mac_queue.txt`, restartable: `src/job_queue.py`) and the last five on Kaggle; Chameleon's
-  one-recipe curve came with Phase 2 (results below: the published-recipe RescueNet 20-photo lead does not hold on
-  draw 0 with the one recipe).
-- **Phase 2 results (16-17 Oct; PLAN §16.8, `results/phase2/report/phase2.md`, `results/baselines/report/`).**
-  Three Kaggle sessions (`rr-p2-curve` 8.1 h, `rr-p2-var` 5.6 h, `rr-p2-baselines` 4.9 h), every job OK, both
-  Chameleon sessions passing the environment check. **F2:** confirm100 .502 vs val30 .516 (within the registered .03).
-  **A4, one recipe, full tests, baseline − Chameleon (+30 tuning photos):** FloodNet 1 / 5 / 10 / 20 / 50 photos −.122
-  / −.023 / −.020 (n.s.) / +.028 / +.074; RescueNet 5 / 10 / 20 −.008 (n.s.) / −.023 / −.006 on draw 0 and −.064,
-  −.057 on draws 3-4; 50 +.060 (eval100). With equal labels Chameleon leads only at FloodNet 1-5 and RescueNet 20 draws
-  3-4; with equal total labels (the baseline trained on k + 30 photos) the baseline leads everywhere. **A3 (FloodNet
-  50, eval100):** Chameleon .487 ± .054 over 5 runs (sd over seeds .070, over support draws .023), the baseline .555 ±
-  .014, ahead in all 5. **Gates** re-chosen on val30 + confirm100: unchanged (0.3, cautious 0.05). **Product-model
-  choice (registered):** Chameleon + self-trained baseline with flips, 50/50 (full test .591 [.556, .627]; stranded F1
-  .844, false safe .052; vs Chameleon +.084 [+.059, +.111], −.058 false safe); the registered baseline-only choice,
-  the seed ensemble with flips (CPU), .617 [.583, .652], false safe .068; the two paired: indistinguishable
-  (`product_options.md`). The CPU-only ensemble became the viewer's FloodNet model (17 Oct, PLAN §16.9).
-- **Memory safety on the Mac** (16 Oct, after the post-processing exhausted 24 GB + 33 GB of swap): CPU worker pools
-  size themselves to the free memory (`src/rr/mem.py`), `src/memguard.py` pauses the youngest heavy job of this
-  repository when memory runs out and resumes it afterwards (started by the Phase 2 finisher, `post.py` and the job
-  queue), and MPS trainings wait for room before they start.
-- **FloodNet label errors** (`src/label_audit.py`, `splits/floodnet_label_errors.tsv`): 11 test and 2 validation
-  photos label large dry areas as water; results are given with and without them.
-- **Phase 2 set-up** (run 16-17 Oct, results above): pre-registered in `experiments/phase2/PROTOCOL.md` (amendment 1: one-recipe curve
-  paired with the baseline on the full test, lean variance design, RescueNet 5–50 shots, product-model candidates);
-  `kaggle/phase2/make_plan.py` builds the sessions (pinned to the 8 Oct Kaggle image; each session first checks that
-  the submitted model reproduces its published predictions, `src/env_check.py`, and stops otherwise),
-  `kaggle/phase2/launch_check.py` checks the launch list, `kaggle/phase2/finish.py` waits for a session, downloads it
-  and runs every CPU step (`kaggle/phase2/post.py`). Amendment 3 adds the baselines' seed ensemble as a product-model
-  candidate; amendment 4 (to keep or drop at the launch) scores RescueNet 5-20 shots on its full test. Equal-label
-  ("label-free") comparisons are reported for both datasets.
-- Engineering: off-site backup (`src/backup.py`), configurable paths (`RR_DATA`), `pyproject.toml` + `uv.lock`, CI,
-  the Chameleon scripts on Apple MPS / CPU for pre-flight checks (`RR_DEVICE`), calibration, label-free decode,
-  false-safe analysis, CSV house list, truck stop points and a Korean interface in the viewer (local `docs/`;
-  links now open exactly the view they name, Esc closes a route, the About text states the false-safe rate and the
-  baseline result). Baseline training resumes after a crash or reboot (`--save_every`).
-- **Viewer model switch** (local `docs/`): every one of the 200 scenes can be shown with the submitted Chameleon model
-  or a standard segmenter on the same photos, the DeepLabV3 seed ensemble with flips and the same 30 tuning photos
-  (on FloodNet the Phase 2 CPU product choice; on RescueNet the fairness check of PLAN §16.9) (same router and gates, each
-  model's own statuses, tiers, per-photo IoU and measured false-safe rate in the printed briefing). Each dataset opens
-  on its better model (FloodNet: the ensemble, RescueNet: Chameleon); a link names the other with `mo=a` / `mo=b`.
-  `src/export_web_assets.py` writes the second model's layers to `scenes/<key>/b/`, and the JS router parity test
-  covers both models (400 scenes).
-- **Try your own drone photo** (local `docs/`, PLAN §16.10): a small model (LR-ASPP-MobileNetV3, 13 MB, full test mIoU
-  .60) runs in the browser with onnxruntime-web (`src/export_onnx.py`), and `app/js/scenebuild.js` builds the routing
-  scene there exactly as Python does (`app/test/scenebuild.test.mjs`): no server, the photo never leaves the computer. Where the
-  other model routes a house differently (from the same entry point), the house list, the counter, the CSV and the
-  briefing say so: a disagreement between two independent models is a natural "check first" signal. The printed
-  briefing opens with a dispatch plan (houses a truck reaches at the door, per truck stop the houses reached by boat
-  or on foot from it with the longest trip, houses with no route). The built viewer loads its scripts with a
-  content-hash version, so a browser never mixes files of two builds.
-- Learning curves: `results/baselines/report/curve/` (`curve.png` mIoU by number of labels, `curve_total.png` with
-  Chameleon at k + 30, `curve_routing.png` stranded-house F1 and false-safe rate by k); with Phase 2 the routing is
-  also paired on the full test sets where both models predicted them.
-  Model and data: `MODEL_CARD.md`, `DATA.md`.
+---
 
-## Setup (CPU)
+## Contents
 
-```bash
-uv sync --locked          # CPU environment from uv.lock (or the pip line below); .venv may be a symlink out of iCloud
+- [How it works](#how-it-works)
+- [Results](#results)
+- [Limitations](#limitations)
+- [Getting started](#getting-started)
+- [Repository layout](#repository-layout)
+- [Credits and licences](#credits-and-licences)
+
+## How it works
+
+```mermaid
+flowchart LR
+    P["Drone photo<br/>768 × 576"] --> S["Segmentation<br/>5 classes + water probability"]
+    S --> D["Decode<br/>thresholds tuned on<br/>30 labelled photos"]
+    D --> G["Cell grid<br/>4 × 4-pixel cells"]
+    G --> R["Router<br/>truck → boat → on foot"]
+    R --> T["Per house: status,<br/>confidence tier, minutes"]
+    T --> V["Web viewer<br/>briefing · CSV · links"]
 ```
 
+**1. Segmentation.** Every pixel gets one of five classes (clear road, flooded road, flooded building, dry building,
+water; anything else is "other"), plus a water probability. Three models, all trained on the same 50 labelled FloodNet
+photos (20 for RescueNet):
+
+| model | where it is used | hardware |
+|---|---|---|
+| **DeepLabV3-ResNet50 ensemble**: 3 training seeds, each averaged over the photo and its flips | the viewer's FloodNet model | CPU, ~4 s per photo |
+| **Chameleon** (Kim et al., ECCV 2024), bias and matching-module fine-tuning; on FloodNet, SAM redraws the building outlines | the viewer's RescueNet model | GPU, ~17 s per photo |
+| **LR-ASPP-MobileNetV3**, self-trained on unlabelled photos with its own confident pseudo-labels, exported to ONNX | "Try your own drone photo", in the browser | browser, < 1 s |
+
+**2. Routing** ([`src/router.py`](src/router.py), ported bit for bit to [`app/js/router.js`](app/js/router.js)). A
+shortest-path search over (cell, mode) states on 4 × 4-pixel cells. A truck drives on dry roads, and slowly across dry
+yards where the model is confident there is no water; it can launch a boat into water, and either can drop the team
+off to walk the last stretch, but never back into a vehicle. Vehicles have a width (a truck needs about 2.5 m between
+buildings, a boat 1.6 m), parked cars are bridged, tree canopy over water is crossable by boat, and nothing squeezes
+diagonally between two touching obstacles. Each house ends up **truck**, **boat**, **on foot** or **no route**.
+
+**3. Confidence.** The prediction is routed twice, with the normal off-road rule and a cautious one that refuses
+ground with even a 5 % chance of water. Houses a truck still reaches are **confident**; the rest are marked
+**check first**. Both gates were chosen on the labelled tuning photos and confirmed on 100 more.
+
+**4. Viewer** ([`app/`](app/), static, no server). Leaflet map with the prediction, the human-labelled map and a swipe
+between them; animated truck → boat → foot routes with minutes and metres; a water-probability layer; a choice of
+entry point; a model switch that shows the other model on the same photo and marks the houses the two models route
+differently; a printable briefing that opens with a dispatch plan; CSV export; links that reopen exactly the same view;
+keyboard navigation, a colour-blind palette and a phone layout.
+
+## Results
+
+### The question
+
+Chameleon is built to learn new dense-prediction tasks from a handful of examples. The obvious control was missing:
+an ordinary segmentation network, pretrained on everyday photos and fine-tuned on **exactly the same labelled
+photos**. Before any GPU run, the questions, the single training recipe, the runs, the evaluation and the decision
+rules were written down and committed ([`experiments/phase2/PROTOCOL.md`](experiments/phase2/PROTOCOL.md); five
+amendments, each committed before the runs it concerns, and a log of every deviation). Four Kaggle T4 sessions (20.5
+hours) ran the study. Each Chameleon session first checked that the submitted model still reproduced its published
+predictions (largest difference 0.5/255) and would have stopped otherwise.
+
+<p align="center">
+  <img src="media/learning-curve.png" width="900" alt="Two panels of mIoU against the number of labelled training photos (log scale). FloodNet: the standard segmenter (orange) starts below Chameleon at 1 photo, meets it around 5 to 10 photos, and is above it from 20 photos on, reaching .64 at all 1,445 photos. RescueNet: the curves overlap from 5 to 20 photos and the standard segmenter keeps rising to 80 photos.">
+</p>
+
+### What it found
+
+Differences are paired photo by photo on the full test sets (95 % CIs); negative means Chameleon is ahead.
+
+| labelled training photos | FloodNet (Hurricane Harvey) | RescueNet (Hurricane Michael) |
+|---|---|---|
+| 1 | **−.122** [−.139, −.106] Chameleon | – |
+| 5 | **−.023** [−.045, −.003] Chameleon | −.008 [−.025, +.009] level |
+| 10 | −.020 [−.043, +.004] level | **−.023** [−.040, −.006] Chameleon |
+| 20 | **+.028** [+.001, +.054] DeepLabV3 | Chameleon ahead on 2 of 3 photo draws |
+| 50 | **+.074** [+.045, +.107] DeepLabV3 | **+.060** [+.014, +.108] DeepLabV3 (100-photo subset) |
+
+- **Ordinary fine-tuning wins from about 20 labelled photos**, and it routes more safely: at 50 photos a single
+  DeepLabV3 finds more cut-off houses (F1 +.060 [+.015, +.115]) with fewer false-safe houses (8.1 % vs 11.1 %;
+  routing along the whole curve: [figure](media/learning-curve-routing.png)).
+- **Chameleon wins with very few labels** (1–5 FloodNet photos) and on the second disaster at 10–20 photos. That edge
+  comes from its 30 tuning photos: when the standard model may also train on them, it leads at every point
+  ([figure](media/learning-curve-total-labels.png)). A tuning-label advantage, not a label-efficiency advantage.
+- **Chameleon is much less stable.** Five 50-photo runs (three photo draws, three training seeds): .487 ± .054 for
+  Chameleon, .555 ± .014 for DeepLabV3, which was ahead in all five. One Chameleon seed scored .396 after a normal
+  training run, so a single few-shot run carries roughly ±.05.
+- **The tuning photos were not over-fitted.** On 100 other validation photos the submitted model scores .502 against
+  .516 on the 30 it was tuned on, inside the registered limit of .03.
+- **Product decision.** The registered rule picked a Chameleon + DeepLabV3 probability mix (.591, false safe 5.2 %),
+  statistically level with the CPU-only DeepLabV3 ensemble (.617, false safe 6.8 %). The viewer uses the ensemble on
+  FloodNet because it needs no GPU, and keeps Chameleon on RescueNet, where a registered fairness check against the
+  same ensemble kept it ahead (.421 vs .373 on the 100-photo subset, paired −.048 [−.083, −.014]).
+
+### Final models, FloodNet test (448 photos)
+
+| model | labelled photos | mIoU [95 % CI] | cut-off houses F1 | false safe | runs on |
+|---|---|---|---|---|---|
+| **DeepLabV3 ensemble + flips** (viewer) | 50 + 30 | **.617** [.583, .652] | .817 | .068 | CPU, ~4 s |
+| Chameleon + DeepLabV3 mix (registered choice) | 50 + 30 | .591 [.556, .627] | .844 | .052 | GPU + CPU |
+| LR-ASPP-MobileNetV3, self-trained (browser) | 50 + 30 | .601 | – | – | browser, < 1 s |
+| DeepLabV3-ResNet50, one network | 50 | .581 [.545, .617] | .813 | .081 | CPU, 0.5 s |
+| Chameleon (the course model) | 50 + 30 | .507 [.474, .538] | .752 | .111 | GPU, 17 s |
+| DeepLabV3-ResNet50, all labels | 1,445 | .728 | | | CPU |
+| PSPNet, FloodNet paper (same classes) | 1,445 | .848 | | | |
+
+Per-class results, the routing evaluation, the label budget, the variance study and the full deviation log are in
+the [model card](MODEL_CARD.md), the [data card](DATA.md) and the protocol. Along the way, 11 FloodNet test photos were
+found to label dry lawns and river banks as water ([`splits/floodnet_label_errors.tsv`](splits/floodnet_label_errors.tsv));
+every number is also reported without them.
+
+## Limitations
+
+**Research code, not a tool for operational rescue decisions.**
+
+- On FloodNet, about 1 in 15 houses the viewer shows as truck-reachable is not, mostly where the route crosses
+  shallow or muddy water the model read as land. Only the "confident" tier was reliable in testing, and it covers fewer houses.
+- Flooded roads are the weakest class (IoU about .47 for the best model, .31 for Chameleon).
+- Trained on suburban Texas and Florida, photographed straight down from FloodNet's height. On unseen OpenAerialMap
+  photos from India and Jamaica, water was found well but flat concrete and damaged roofs were mostly missed
+  ([`demo/uploads/`](demo/uploads/README.md)).
+- Single photos without georeference: routes start at the photo's edge, and distances assume FloodNet's ground scale.
+- The routes are scored against the same router on the human pixel labels, not against field-checked access.
+
+## Getting started
+
+**Run the viewer locally** (no install; everything is in [`docs/`](docs/)):
+
 ```bash
-python3.12 -m venv ~/.venvs/rr && ~/.venvs/rr/bin/pip install -r requirements.txt
-```
-
-Data: the preprocessed 768×576 photos and labels in `~/rr_data/{floodnet_r768,rescuenet_r768}` (from
-`src/prep_data.py`; FloodNet 1024-px photos for the viewer in `~/rr_data/floodnet_r1024`). Prediction caches,
-checkpoints and decodes in `results/kaggle_v2/rr/` (the data zip holds them packed; restore with
-`python src/cache_pack.py unpack --src <unzipped folder>`). Node.js ≥ 20 for the JS test.
-
-## Reproduce
-
-GPU (not needed to rebuild the numbers): fine-tuning and the prediction caches ran on Kaggle T4s with
-`kaggle/queue/run_queue_kaggle.py` (queues `core`, `rerun50`, `select50`, `extra`, `flips`); see PLAN §15.
-
-CPU, everything from the caches in one command (~30 min on 8 cores; logs in `results/rebuild_logs/`):
-
-```bash
-~/.venvs/rr/bin/python src/rebuild_all.py
-```
-
-It rebuilds the result tables, decode tuning, routing reports (eval100, full test, gate sweeps, physical-rule
-ablation, tiers, sensitivity), bootstrap CIs, near-duplicate check, failure analysis, figures, the test-time-flip
-report, the 200 viewer scenes and `docs/`, runs the tests and checks the headline numbers against the published ones
-(`--check` alone does only that; `--list` shows the steps).
-
-## Run
-
-```bash
+git clone https://github.com/MarlenMM/rescue-router.git && cd rescue-router
 python3 -m http.server 8766 --directory docs
 ```
 
-then open <http://localhost:8766/#s=rescuenet_12195&h=8&m=gt> (canal row: truck, boat across the canal, then on foot).
+then open <http://localhost:8766/#s=rescuenet_12195&h=8&m=gt> (a canal row reached by truck, boat, then on foot).
+
+**Install and test** (Python 3.12 with [uv](https://docs.astral.sh/uv/), Node.js ≥ 20):
 
 ```bash
-~/.venvs/rr/bin/python src/gradio_app.py
+uv sync --locked                      # CPU environment from uv.lock (or: pip install -r requirements.txt)
+uv run pytest -q                      # 90 tests; those that need the datasets or prediction caches skip themselves
+node --test app/test/*.test.mjs       # router parity with Python on all 400 scenes, upload scene builder, Korean UI
 ```
 
-serves the Gradio app from the caches on <http://127.0.0.1:7860>; `src/gradio_viewer.py` (same arguments) puts the web
-viewer inside Gradio, so an uploaded photo gets every viewer visual (animated route, swipe, layers), and keeps the
-classic view as a second tab. On a plain CPU, `--live_baseline results/baselines/ckpt/<run>.pt` serves uploads with
-the same-budget baseline (~0.5 s per photo; a comma list of checkpoints = their mean, `--live_tta` adds flips,
-`--live_decode` a tuned decode). The viewer's FloodNet model (~4 s per photo on a CPU):
+**Prepare the data.** Download [FloodNet](https://github.com/BinaLab/FloodNet-Supervised_v1.0) and
+[RescueNet](https://springernature.figshare.com/collections/RescueNet_A_High_Resolution_UAV_Semantic_Segmentation_Benchmark_Dataset_for_Natural_Disaster_Damage_Assessment/6647354/1),
+run `python src/prep_data.py --floodnet_raw <dir> --rescuenet_raw <dir> --out <dir>` (768 × 576 photos, five-class
+labels, the fixed splits) and unpack its archives into `$RR_DATA` (default `~/rr_data`). Every split and support set
+is committed in [`splits/`](splits/) and [`supports/`](supports/) with SHA-256 sums.
+
+**Train the standard segmenter** on the same 50 photos (CPU or Apple GPU; no validation labels are used):
 
 ```bash
-~/.venvs/rr/bin/python src/gradio_viewer.py --live_tta \
-  --live_baseline results/baselines/ckpt/baseline_deeplabv3_r50_50shot_s0.pt,results/baselines/ckpt/baseline_deeplabv3_r50_50shot_s1_sup0.pt,results/baselines/ckpt/baseline_deeplabv3_r50_50shot_s2_sup0.pt \
-  --live_decode results/baselines/decode/baseline_deeplabv3_r50_50shot_s0_ens3_tta.json
+for s in 0 1 2; do uv run python src/baseline_seg.py --shot 50 --seed $s --support_seed 0; done
+uv run python src/gradio_viewer.py --live_tta --live_baseline \
+  results/baselines/ckpt/baseline_deeplabv3_r50_50shot_s0.pt,results/baselines/ckpt/baseline_deeplabv3_r50_50shot_s1_sup0.pt,results/baselines/ckpt/baseline_deeplabv3_r50_50shot_s2_sup0.pt
 ```
 
-Live inference with Chameleon needs a GPU:
-`kaggle/gradio_live/colab_gradio_live.py` (one Colab cell, T4) or `kaggle/gradio_live/run_gradio_live.py` (Kaggle T4)
-starts it with a public share link.
+The first line trains the ensemble's three networks (three seeds, the same 50 photos) and writes their predictions
+on the test set; the second serves the viewer with uploaded photos mapped by the ensemble on a CPU (`--live_decode`
+adds the thresholds tuned on the 30 tuning photos: [`src/baseline_avg.py`](src/baseline_avg.py), then
+[`src/decode_tune.py`](src/decode_tune.py)).
 
-## Submission
+**Chameleon** needs a GPU and the course's meta-trained checkpoint (from the
+[course starter](https://github.com/GitGyun/AIC200-Project-StructuredPrediction)): fine-tuning and prediction are
+[`src/finetune.py`](src/finetune.py) and [`src/predict.py`](src/predict.py), run on Kaggle T4s by
+[`kaggle/`](kaggle/). The executed end-to-end notebook is [`notebook/rescue_router_executed.ipynb`](notebook/rescue_router_executed.ipynb).
 
-`bash release/build_release.sh` assembles the KLMS zip `20260876_MarlenMelis_project.zip` (notebook, write-up,
-slides, data zip, app zip with `release/README_app.md`) and checks that it holds exactly one `.ipynb`.
+**Rebuild every number.** `python src/rebuild_all.py` recomputes every table, report, figure, viewer scene and the
+viewer itself from the prediction caches on a CPU (~30 min on 8 cores) and checks the headline numbers against the
+published ones; all randomness is seeded. The caches (~14 GB) are not in the repository.
 
-## Licences and credits
+## Repository layout
 
-- Our code and documentation: MIT (`LICENSE`). Third-party models, data and vendored code keep their own licences,
-  listed below; the datasets are not covered by the MIT licence.
-- Model: Chameleon, Kim et al., *Chameleon: A Data-Efficient Generalist for Dense Visual Prediction in the Wild*,
-  ECCV 2024 (<https://github.com/GitGyun/chameleon>); course starter
-  <https://github.com/GitGyun/AIC200-Project-StructuredPrediction>. Second pretrained model (Batch 13): SAM ViT-B,
-  Kirillov et al., *Segment Anything*, ICCV 2023 (<https://github.com/facebookresearch/segment-anything>, Apache-2.0),
-  used only to redraw the outlines of the buildings Chameleon predicts.
-- Data: FloodNet (Rahnemoonfar et al., 2021), CDLA-Permissive-1.0
-  (<https://github.com/BinaLab/FloodNet-Supervised_v1.0>); RescueNet (Rahnemoonfar et al., 2023), figshare CC0
-  (GitHub release CC BY-NC-ND 4.0). Viewer photos and labels are derived from these datasets.
-- Viewer: Leaflet 1.9.4 (BSD-2-Clause, `app/vendor/leaflet/LICENSE`).
+| path | contents |
+|---|---|
+| [`src/`](src/) | data preparation, fine-tuning and prediction, the standard-segmenter baselines, decoding, metrics, the router, evaluation and bootstrap CIs, reports, viewer export, the Gradio apps |
+| [`src/tests/`](src/tests/) | Python tests (router, metrics and decode, scene packing, study tooling, data-leak guards, resumable training) |
+| [`app/`](app/) | the web viewer: plain HTML/JS, vendored Leaflet and onnxruntime-web, the JS router, the in-browser scene builder, and its tests |
+| [`docs/`](docs/) | the built viewer served by GitHub Pages (`src/build_viewer.py`) |
+| [`experiments/`](experiments/) | the pre-registered protocol and the small studies it led to |
+| [`kaggle/`](kaggle/) | GPU sessions: kernel builders, the pinned environment check, the finishers that download and post-process |
+| [`splits/`](splits/), [`supports/`](supports/) | fixed evaluation splits, labelled-photo draws and the FloodNet label errors, hashed |
+| [`notebook/`](notebook/) | the end-to-end notebook (generator and executed copy) |
+| [`writeup/`](writeup/), [`slides/`](slides/) | the course write-up (LaTeX and PDF), slides and a 90-second video of the first version |
+| [`demo/`](demo/) | photos for live demos (none of them among the viewer's 200), with their sources and licences |
+| [`media/`](media/) | README figures and the script that records them from the viewer |
+| [`notes/`](notes/) | the working plan and decision log, kept as written during the project |
+| [`MODEL_CARD.md`](MODEL_CARD.md), [`DATA.md`](DATA.md) | what the models are and how far to trust them; data sources, licences and splits |
+
+The version handed in for the course is tagged
+[`submitted-2026-10-08`](https://github.com/MarlenMM/rescue-router/tree/submitted-2026-10-08).
+
+## Credits and licences
+
+- Code and documentation: [MIT](LICENSE). Data, models and vendored code keep their own licences.
+- **Chameleon**: Kim et al., *Chameleon: A Data-Efficient Generalist for Dense Visual Prediction in the Wild*, ECCV 2024
+  ([code](https://github.com/GitGyun/chameleon), MIT); meta-trained checkpoint from the course.
+- **SAM** ViT-B: Kirillov et al., *Segment Anything*, ICCV 2023
+  ([code](https://github.com/facebookresearch/segment-anything), Apache-2.0).
+- **DeepLabV3** and **LR-ASPP-MobileNetV3** from [torchvision](https://github.com/pytorch/vision) (BSD-3-Clause),
+  COCO-pretrained weights.
+- **FloodNet**: Rahnemoonfar et al., IEEE Access 2021, CDLA-Permissive-1.0. **RescueNet**: Rahnemoonfar et al.,
+  Scientific Data 2023, CC0 (figshare release). The viewer's photos and labels are derived from them. Two
+  [OpenAerialMap](https://openaerialmap.org) crops (CC BY 4.0, CC BY-NC 4.0) are used for live demos only.
+- Viewer: [Leaflet](https://leafletjs.com) 1.9.4 (BSD-2-Clause), [onnxruntime-web](https://onnxruntime.ai) 1.30.0 (MIT).
+
+If you use this work, please cite it with [`CITATION.cff`](CITATION.cff) and cite the models and datasets above.
