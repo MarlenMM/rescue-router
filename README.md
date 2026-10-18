@@ -56,15 +56,9 @@ exactly the same labelled photos ([Results](#results)). The answer changed which
 
 ## How it works
 
-```mermaid
-flowchart LR
-    P["Drone photo<br/>768 × 576"] --> S["Segmentation<br/>5 classes + water probability"]
-    S --> D["Decode<br/>thresholds tuned on<br/>30 labelled photos"]
-    D --> G["Cell grid<br/>4 × 4-pixel cells"]
-    G --> R["Router<br/>truck → boat → on foot"]
-    R --> T["Per house: status,<br/>confidence tier, minutes"]
-    T --> V["Web viewer<br/>briefing · CSV · links"]
-```
+<p align="center">
+  <img src="media/pipeline.svg" width="880" alt="Pipeline: drone photo, flood map (5 classes and a water probability), thresholds tuned on 30 labelled photos, router (truck, boat, on foot), and for every house a status, a confidence tier and minutes.">
+</p>
 
 **1. Segmentation.** Every pixel gets one of five classes (clear road, flooded road, flooded building, dry building,
 water; anything else is "other"), plus a water probability. Three models, all trained on the same 50 labelled FloodNet
