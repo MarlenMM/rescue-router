@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="96" viewBox="0 0 880 96" role="img" aria-labelledby="t d">
+  <title id="t">Rescue Router pipeline</title>
+  <desc id="d">Drone photo, then a flood map with five classes and a water probability, then thresholds tuned on 30 labelled photos, then the router (truck, boat, on foot), then per house a status, a confidence tier and minutes.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8b949e"/>
+    </marker>
+    <style>
+      .b { fill: #eef2ff; stroke: #6366f1; stroke-width: 1.5; }
+      .h { font: 600 15px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #111827; text-anchor: middle; }
+      .s { font: 400 12.5px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #374151; text-anchor: middle; }
+      .l { stroke: #8b949e; stroke-width: 2; marker-end: url(#a); }
+    </style>
+  </defs>
+  <g>
+    <rect class="b" x="2" y="14" width="140" height="68" rx="10"/>
+    <text class="h" x="72" y="44">Drone photo</text>
+    <text class="s" x="72" y="63">one, straight down</text>
+  </g>
+  <line class="l" x1="144" y1="48" x2="174" y2="48"/>
+  <g>
+    <rect class="b" x="176" y="14" width="158" height="68" rx="10"/>
+    <text class="h" x="255" y="44">Flood map</text>
+    <text class="s" x="255" y="63">5 classes + water prob.</text>
+  </g>
+  <line class="l" x1="336" y1="48" x2="366" y2="48"/>
+  <g>
+    <rect class="b" x="368" y="14" width="150" height="68" rx="10"/>
+    <text class="h" x="443" y="44">Thresholds</text>
+    <text class="s" x="443" y="63">tuned on 30 photos</text>
+  </g>
+  <line class="l" x1="520" y1="48" x2="550" y2="48"/>
+  <g>
+    <rect class="b" x="552" y="14" width="150" height="68" rx="10"/>
+    <text class="h" x="627" y="44">Router</text>
+    <text class="s" x="627" y="63">truck → boat → on foot</text>
+  </g>
+  <line class="l" x1="704" y1="48" x2="734" y2="48"/>
+  <g>
+    <rect class="b" x="736" y="14" width="142" height="68" rx="10"/>
+    <text class="h" x="807" y="44">Every house</text>
+    <text class="s" x="807" y="63">status · tier · minutes</text>
+  </g>
+</svg>
