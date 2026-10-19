@@ -121,7 +121,9 @@ h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: v
 .swipe-line { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 6px rgba(0, 0, 0, 0.7); left: var(--x, 50%); }
 .swipe-handle { position: absolute; top: 50%; left: var(--x, 50%); transform: translate(-50%, -50%); pointer-events: auto;
   width: 40px; height: 40px; border-radius: 50%; border: 2px solid #fff; background: #0f172a; color: #fff; font-size: 18px; cursor: ew-resize; touch-action: none; }
-.swipe-tag { position: absolute; top: calc(50% + 28px); padding: 2px 8px; border-radius: 6px; background: rgba(0, 0, 0, 0.6); font-size: 12px; font-weight: 600; }
+.swipe-tag { position: absolute; top: calc(50% + 28px); padding: 2px 8px; border-radius: 6px; background: rgba(0, 0, 0, 0.6); font-size: 12px; font-weight: 600;
+  white-space: nowrap; transition: opacity 0.15s; }
+.swipe-tag.off { opacity: 0; }
 .swipe-tag.left { right: calc(100% - var(--x, 50%) + 10px); }
 .swipe-tag.right { left: calc(var(--x, 50%) + 10px); }
 
