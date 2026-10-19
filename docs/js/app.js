@@ -1,9 +1,9 @@
 // Rescue Router web viewer (PLAN §6.4). Plain ES module + Leaflet 1.9 (global L), no build step.
 // Scenes come from src/export_web_assets.py; routing runs in the browser with js/router.js.
 
-import { sceneGrids, parseScene, eta, tier, TRUCK, BOAT, FOOT, ISOLATED } from './router.js?v=1c538684b4';
-import { buildUploadScene, quantize } from './scenebuild.js?v=1c538684b4';
-import { t, LANG, DEFAULT_LANG, setLang } from './i18n.js?v=1c538684b4';
+import { sceneGrids, parseScene, eta, tier, TRUCK, BOAT, FOOT, ISOLATED } from './router.js?v=f86d174ecd';
+import { buildUploadScene, quantize } from './scenebuild.js?v=f86d174ecd';
+import { t, LANG, DEFAULT_LANG, setLang } from './i18n.js?v=f86d174ecd';
 
 const CELL = 4;
 const KIND = ['truck', 'boat', 'foot', 'isolated'];
@@ -659,11 +659,23 @@ map.on('click', (e) => {
 });
 
 // ---------- map source, swipe ----------
+/** the divider as a fraction of the map width, kept where it can be seen and grabbed: from the left edge of the map to
+ *  the edge of the control panel, which lies over the map on a wide screen (on a phone it is a bottom sheet, so the
+ *  whole width is free); `pad` keeps the whole handle (radius 20 px) inside */
+function swipeRoom() {
+  const m = map.getContainer().getBoundingClientRect(), p = $('panel').getBoundingClientRect();
+  return { w: m.width, right: p.width && p.left > m.left + m.width / 2 ? p.left - m.left : m.width };
+}
+function clampSwipe(f) {
+  const { w, right } = swipeRoom(), pad = 26;
+  return Math.min((right - pad) / w, Math.max(pad / w, f));
+}
+
 function setSource(src) {
   if (state.nolabels && src !== 'pred') return;                     // an upload has no labelled map
   if (src === 'swipe' && state.src !== 'swipe' && state.s) {
     const c = map.latLngToContainerPoint(ll(state.s.W / 2, state.s.H / 2));
-    state.swipe = Math.min(0.9, Math.max(0.1, c.x / map.getSize().x));
+    state.swipe = clampSwipe(Math.min(0.9, Math.max(0.1, c.x / map.getSize().x)));
   }
   state.src = src;
   document.querySelectorAll('.seg button[data-src]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.src === src)));
@@ -684,6 +696,7 @@ function setSource(src) {
 
 function updateClip() {
   if (state.src !== 'swipe') { panes.pred.style.clipPath = panes.gt.style.clipPath = ''; return; }
+  state.swipe = clampSwipe(state.swipe);                            // a resized window can move the panel's edge
   const size = map.getSize();
   const nw = map.containerPointToLayerPoint([0, 0]), se = map.containerPointToLayerPoint(size);
   const x = map.containerPointToLayerPoint([size.x * state.swipe, 0]).x;
@@ -691,20 +704,27 @@ function updateClip() {
   panes.pred.style.clipPath = box(nw.x, x);                        // clip-path, not the deprecated clip: rect()
   panes.gt.style.clipPath = box(x, se.x);
   $('swipe').style.setProperty('--x', `${state.swipe * 100}%`);
+  // a tag with no room between the divider and the map's left edge or the panel fades out instead of being cut off
+  const xs = size.x * state.swipe, [tl, tr] = document.querySelectorAll('.swipe-tag');
+  tl.classList.toggle('off', tl.offsetWidth + 14 > xs);
+  tr.classList.toggle('off', xs + 14 + tr.offsetWidth > swipeRoom().right);
 }
 map.on('move zoom resize viewreset', updateClip);
 
 const handle = $('swipeHandle');
 handle.addEventListener('pointerdown', (e) => {
   handle.setPointerCapture(e.pointerId);
-  const move = (ev) => { state.swipe = Math.min(0.98, Math.max(0.02, ev.clientX / innerWidth)); updateClip(); };
+  const move = (ev) => {
+    const m = map.getContainer().getBoundingClientRect();
+    state.swipe = clampSwipe((ev.clientX - m.left) / m.width); updateClip();
+  };
   const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); };
   handle.addEventListener('pointermove', move);
   handle.addEventListener('pointerup', up);
 });
 handle.addEventListener('keydown', (e) => {
   const d = { ArrowLeft: -0.05, ArrowRight: 0.05 }[e.key];
-  if (d) { state.swipe = Math.min(0.98, Math.max(0.02, state.swipe + d)); updateClip(); e.preventDefault(); }
+  if (d) { state.swipe = clampSwipe(state.swipe + d); updateClip(); e.preventDefault(); }
 });
 
 // ---------- legend, controls ----------
