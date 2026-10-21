@@ -26,7 +26,7 @@ thresholds tuned on the same 30 photos as Chameleon's; RescueNet the single Deep
 argmax), gets its own layers per scene in <out>/<dataset>_<id>/b/: pred.png, scene.rrb, meta.json and ref.json as
 above (photo, thumbnail and labelled map are shared), where its eval100 cache exists. Same router and gates as
 Chameleon (the ensemble's own registered cautious gate is the same 0.05); the route card's tier shares come from each
-model's own tiers report. The viewer opens each dataset on its better model (DEFAULT_MODEL); the switch shows the other.
+model's own tiers report. The viewer opens each dataset on Chameleon (DEFAULT_MODEL); the switch shows the other.
 
     python src/export_web_assets.py --out app/scenes --models b    # only the baseline layers (index rebuilt)
 """
@@ -77,10 +77,8 @@ MODEL_B = dict(name='DeepLabV3', results=os.path.join(ROOT, 'results/baselines')
                                      'results/baselines/report/routing_product_choice_baselines.json'],
                         'rescuenet': [f'results/baselines/report/routing_full_{ENS_RN}_tuned.json',
                                       f'results/baselines/report/routing_{ENS_RN}_tuned.json']})
-# the model a dataset opens on: the better one there. FloodNet: the ensemble. RescueNet at 20 photos: Chameleon, also
-# against the ensemble (registered fairness check, PLAN §16.9: eval100 .421 vs .373, paired −.048 [−.083, −.014]); the
-# switch shows the other
-DEFAULT_MODEL = {'floodnet': 'b', 'rescuenet': 'a'}
+# Open both datasets on Chameleon; the switch still shows the ensemble on the same photos.
+DEFAULT_MODEL = {'floodnet': 'a', 'rescuenet': 'a'}
 # where each model's measured false-safe rate (houses shown truck-reachable that are not, router v3, lam 5) comes from,
 # per dataset: the full test where it was routed, else eval100. The printed briefing quotes the rate of the model and
 # dataset on screen (one FloodNet number on RescueNet photos would overstate Chameleon's .026 there by 4x).

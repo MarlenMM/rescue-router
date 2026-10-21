@@ -38,7 +38,7 @@ const CB_CLASS = {
 // the two models of the switch (scenes.json 'models'; model b's layers in scenes/<key>/b/): the submitted Chameleon
 // and a standard segmenter trained on the same labelled photos, per dataset (models.b.names / .tuned): on FloodNet the
 // seed ensemble of three DeepLabV3-ResNet50 with flips, its thresholds tuned on the same 30 photos as Chameleon's; on
-// RescueNet one DeepLabV3-ResNet50 (no tuning photos). Each dataset opens on its better model (models.default); the
+// RescueNet one DeepLabV3-ResNet50 (no tuning photos). Each dataset opens on its configured model (models.default); the
 // measured false-safe rates per dataset (for the printed briefing) are in models.<a|b>.false_safe.<dataset>
 const bInfo = (ds) => {
   const b = (state.index && state.index.models && state.index.models.b) || {};
@@ -122,7 +122,7 @@ async function loadIndex() {
 }
 
 // ---------- model switch: 'a' Chameleon, 'b' the standard segmenter where its layers exist (scene entry has 'b') ----------
-// state.model: the model the reader picked, or null = each dataset's better model (scenes.json models.default)
+// state.model: the model the reader picked, or null = the dataset's configured default (scenes.json models.default)
 const defaultModel = (ds) => (((state.index && state.index.models) || {}).default || {})[ds] || 'a';
 const modelOf = (sc) => ((state.model || defaultModel(sc ? sc.dataset : state.ds)) === 'b' && sc && sc.b ? 'b' : 'a');
 const summary = (sc) => (modelOf(sc) === 'b' ? { ...sc, ...sc.b } : sc);     // the browse badges of the shown model
