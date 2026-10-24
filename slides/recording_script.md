@@ -1,8 +1,7 @@
 # Rescue Router: talk plan, recording storyboard, demo backup
 
-Deck: an HTML slide deck (private; title + 6 slides, the
-full talk text is in each slide's speaker notes). For KLMS: download it as PDF (or PPTX) and save it as
-`slides/20260876_MarlenMelis_slides.pdf`.
+Deck: [`20260876_MarlenMelis_slides.pptx`](20260876_MarlenMelis_slides.pptx) (title + 6 slides; the full talk text is in
+each slide's speaker notes).
 
 ## 1. The 5-minute talk (course rule: ≤ 5:00, title + ≤ 6 slides)
 

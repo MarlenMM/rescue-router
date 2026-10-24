@@ -2,7 +2,7 @@
 
 [`PLAN.md`](PLAN.md) is the project's plan and decision log, kept as it was written while the work happened
 (5–18 Oct 2026), including the parts that later turned out wrong. Code comments and commit messages cite it by
-section, for example "PLAN §16.8".
+section, for example "PLAN §16.8". Private links and the student number were removed on 25 Oct 2026.
 
 | section | what it holds |
 |---|---|

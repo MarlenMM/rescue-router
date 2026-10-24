@@ -1,7 +1,7 @@
 # Rescue Router: Project Plan
 
 **Few-shot flood mapping and rescue routing with Chameleon.** KAIST AIC.20000 mini-project, **Track A + Track B**.
-Student: 20260876. Presentation: Thu 8 Oct 2026, in class (16:00). KLMS deadline: 8 Oct 23:59 KST. Target submission: **8 Oct 12:30**.
+Presentation: Thu 8 Oct 2026, in class (16:00). KLMS deadline: 8 Oct 23:59 KST. Target submission: **8 Oct 12:30**.
 
 This file is the single source of truth for the build. When reality differs from the plan, update this file.
 
