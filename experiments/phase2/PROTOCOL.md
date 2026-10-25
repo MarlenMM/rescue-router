@@ -243,7 +243,7 @@ was looked at before the step it concerns (16-17 Oct 2026).
 1. **Launch timing.** `curve` was pushed on 16 Oct 08:41 KST and passed its environment check after 2.9 min
    (`ENVCHECK PASS: max |diff| 0.50/255, mean 0.106/255`). `var` was meant to follow at once but was pushed at 16:53:
    the watcher read `kaggle kernels logs` (no `-f`), which prints nothing until a script kernel ends, so the check's
-   line was seen only when `curve` had finished. No effect on any run (same image, same code `132a463`); `var` passed
+   line was seen only when `curve` had finished. No effect on any run (same image, same code `e24eb15`); `var` passed
    the same check (identical values). The two sessions ran one after the other instead of side by side.
 2. **Session lengths.** `curve` 8.13 h (planned ~6.4 h), `var` 5.63 h (~4.5 h): fine-tunes took 47-63 min and full-test
    predictions 29-65 min on the T4s. Every job group started before its start limit (curve 7.1 h, var 5.2 h); none
@@ -257,7 +257,7 @@ was looked at before the step it concerns (16-17 Oct 2026).
    (identical commands; finished files skipped).
 4. **The last baseline jobs ran on a Kaggle 2×T4 (CUDA) instead of the Mac (MPS)** (Marlen, 16 Oct ~21:00: "we can
    run anything you want in kaggle"): `rn35`, `rn40`, `rn80` (amendment 4, equal total labels) and `rn20d3`,
-   `rn20d4` (amendment 5), session `rr-p2-baselines` (`kaggle/phase2/baselines_kernel.py`; same script at `132a463`,
+   `rn20d4` (amendment 5), session `rr-p2-baselines` (`kaggle/phase2/baselines_kernel.py`; same script at `e24eb15`,
    recipe, seeds and photos; `rn35` was stopped on the Mac at step 600 of 3,000 and rerun from scratch on Kaggle). Device
    control in the same session: the RescueNet 20-photo baseline (draw 0), already trained on the Mac, trained again on
    CUDA: full RescueNet test .387 vs .393, CUDA − MPS **−.005 [−.010, −.002]** (eval100 −.008 [−.018, +.001];
